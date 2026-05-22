@@ -1,0 +1,15 @@
+services:
+  local_models:
+    build:
+      context: ../local-models
+    container_name: dify-local-models
+    restart: always
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./volumes/local-models:/models
+    environment:
+      HF_HOME: /models/huggingface
+      LOCAL_MODELS_CACHE_ROOT: /models/huggingface
+      LOCAL_MODELS_API_KEY: local-dify-models
+      SENTENCE_TRANSFORMERS_HOME: /models/sentence-transformers
