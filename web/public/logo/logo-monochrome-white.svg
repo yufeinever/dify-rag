@@ -1,12 +1,40 @@
-<svg width="48" height="22" viewBox="0 0 48 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g id="White=True">
-<g id="if">
-<path d="M21.2002 4.0695C22.5633 4.0695 23.0666 3.23413 23.0666 2.20309C23.0666 1.17204 22.5623 0.33667 21.2002 0.33667C19.838 0.33667 19.3337 1.17204 19.3337 2.20309C19.3337 3.23413 19.838 4.0695 21.2002 4.0695Z" fill="white"/>
-<path d="M27.7336 4.46931V5.66969H24.6668V8.33667H27.7336V15.0037H22.6668V5.67063H15.9998V8.33761H19.7336V15.0046H15.3337V17.6716H35.3337V15.0046H30.6668V8.33761H35.3337V5.67063H30.6668V3.00365H35.3337V0.33667H31.8671C29.5877 0.33667 27.7336 2.19086 27.7336 4.47025V4.46931Z" fill="white"/>
-</g>
-<g id="Dy">
-<path d="M5.66698 0.335902H0V17.6689H5.66698C12.667 17.6689 14.667 13.6689 14.667 9.00194C14.667 4.33496 12.667 0.334961 5.66698 0.334961V0.335902ZM5.73377 15.0029H3.20038V3.00288H5.73377C9.75823 3.00288 11.4666 4.97842 11.4666 9.00288C11.4666 13.0273 9.75823 15.0029 5.73377 15.0029Z" fill="white"/>
-<path d="M44.8335 5.66986L42.1665 14.3368L39.4995 5.66986H36.333L40.2013 16.8815C40.604 18.049 39.9229 19.0029 38.6886 19.0029H37.333V21.6699H39.3255C41.063 21.6699 42.6265 20.5711 43.2145 18.9361L48 5.66986H44.8335Z" fill="white"/>
-</g>
-</g>
+<svg width="64" height="28" viewBox="0 0 64 28" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="&#x5C0F;&#x9C7C;&#x79D1;&#x6280;">
+  <defs>
+    <linearGradient id="xy-night-text" x1="5" y1="5" x2="59" y2="23" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E0F2FE"/>
+      <stop offset="0.26" stop-color="#67E8F9"/>
+      <stop offset="0.58" stop-color="#A78BFA"/>
+      <stop offset="0.82" stop-color="#F0ABFC"/>
+      <stop offset="1" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="xy-night-stroke" x1="4" y1="3" x2="60" y2="25" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#BAE6FD"/>
+      <stop offset="0.52" stop-color="#C4B5FD"/>
+      <stop offset="1" stop-color="#FDE68A"/>
+    </linearGradient>
+    <filter id="xy-night-glow" x="-25%" y="-65%" width="150%" height="230%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="0" stdDeviation="1.25" flood-color="#38BDF8" flood-opacity="0.86"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="2.25" flood-color="#C084FC" flood-opacity="0.72"/>
+    </filter>
+  </defs>
+  <rect x="1" y="1" width="62" height="26" rx="7" fill="#020617" fill-opacity="0.52"/>
+  <rect x="1" y="1" width="62" height="26" rx="7" stroke="url(#xy-night-stroke)" stroke-opacity="0.9"/>
+  <path d="M6.5 21C12.2 11.4 19.6 11.3 25.1 21C29.8 14.1 35.3 13.4 40.8 18.6" stroke="url(#xy-night-stroke)" stroke-width="1.25" stroke-linecap="round" opacity="0.82"/>
+  <text
+    x="32"
+    y="18.55"
+    text-anchor="middle"
+    font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif"
+    font-size="14"
+    font-weight="800"
+    letter-spacing="0"
+    fill="url(#xy-night-text)"
+    stroke="#0F172A"
+    stroke-width="0.38"
+    paint-order="stroke fill"
+    filter="url(#xy-night-glow)"
+  >&#x5C0F;&#x9C7C;&#x79D1;&#x6280;</text>
+  <path d="M55.4 4.6L56.2 6.25L58 6.55L56.7 7.82L57.02 9.62L55.4 8.75L53.78 9.62L54.1 7.82L52.8 6.55L54.6 6.25L55.4 4.6Z" fill="#FDE68A"/>
+  <circle cx="8.4" cy="7.2" r="1.05" fill="#A5F3FC"/>
+  <circle cx="59.4" cy="20.6" r="0.95" fill="#FDA4AF"/>
 </svg>
