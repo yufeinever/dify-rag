@@ -11,6 +11,11 @@ The codebase is split into:
 - **Docker deployment** (`/docker`): Containerized deployment configurations
 - **Dify Agent Backend** (`/dify-agent`): Backend services for managing and executing agent
 
+## Development Location
+
+- Canonical development happens on T1000 at `/home/yu/projects/dify-rag`.
+- Do not make feature or product changes in the Windows local mirror `C:\Users\86150\Documents\RAG_for_dify`; treat it as historical/local artifact storage only.
+- When Codex needs to change this project, first SSH to T1000 with `ssh t1000-lan` and work in `/home/yu/projects/dify-rag`, then commit and push from that remote repository.
 ## Backend Workflow
 
 - Read `api/AGENTS.md` for details
