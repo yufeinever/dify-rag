@@ -16,6 +16,13 @@ The codebase is split into:
 - Canonical development happens on T1000 at `/home/yu/projects/dify-rag`.
 - Do not make feature or product changes in the Windows local mirror `C:\Users\86150\Documents\RAG_for_dify`; treat it as historical/local artifact storage only.
 - When Codex needs to change this project, first SSH to T1000 with `ssh t1000-lan` and work in `/home/yu/projects/dify-rag`, then commit and push from that remote repository.
+
+## Related Windows Upload Client
+
+- The Windows local file upload/ingestion client is a separate project at T1000 `/home/yu/projects/dify-file-ingestor`.
+- It is a Windows-only WPF tray app for scanning local files, helping users choose approved work documents, and uploading them to a Dify knowledge base.
+- Do not look for or implement this client inside `/home/yu/projects/dify-rag`.
+
 ## Backend Workflow
 
 - Read `api/AGENTS.md` for details
