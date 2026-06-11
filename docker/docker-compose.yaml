@@ -561,6 +561,12 @@ services:
       PLUGIN_STDIO_BUFFER_SIZE: ${PLUGIN_STDIO_BUFFER_SIZE:-1024}
       PLUGIN_STDIO_MAX_BUFFER_SIZE: ${PLUGIN_STDIO_MAX_BUFFER_SIZE:-5242880}
       PIP_MIRROR_URL: ${PIP_MIRROR_URL:-}
+      HTTP_PROXY: ${PLUGIN_DAEMON_HTTP_PROXY:-}
+      HTTPS_PROXY: ${PLUGIN_DAEMON_HTTPS_PROXY:-}
+      NO_PROXY: ${PLUGIN_DAEMON_NO_PROXY:-localhost,127.0.0.1,api,plugin_daemon,db_postgres,redis,ssrf_proxy,sandbox,weaviate}
+      http_proxy: ${PLUGIN_DAEMON_HTTP_PROXY:-}
+      https_proxy: ${PLUGIN_DAEMON_HTTPS_PROXY:-}
+      no_proxy: ${PLUGIN_DAEMON_NO_PROXY:-localhost,127.0.0.1,api,plugin_daemon,db_postgres,redis,ssrf_proxy,sandbox,weaviate}
       PLUGIN_STORAGE_TYPE: ${PLUGIN_STORAGE_TYPE:-local}
       PLUGIN_STORAGE_LOCAL_ROOT: ${PLUGIN_STORAGE_LOCAL_ROOT:-/app/storage}
       PLUGIN_INSTALLED_PATH: ${PLUGIN_INSTALLED_PATH:-plugin}
