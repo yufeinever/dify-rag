@@ -37,6 +37,17 @@ awk '{
     print
 }' /etc/squid/squid.conf.template > /etc/squid/squid.conf
 
+
+mkdir -p /etc/squid/conf.d
+: > /etc/squid/conf.d/upstream_proxy.conf
+if [ -n "${SSRF_UPSTREAM_PROXY_HOST:-}" ] && [ -n "${SSRF_UPSTREAM_PROXY_PORT:-}" ]; then
+    echo "[ENTRYPOINT] configuring upstream proxy ${SSRF_UPSTREAM_PROXY_HOST}:${SSRF_UPSTREAM_PROXY_PORT}"
+    cat > /etc/squid/conf.d/upstream_proxy.conf <<EOF
+cache_peer ${SSRF_UPSTREAM_PROXY_HOST} parent ${SSRF_UPSTREAM_PROXY_PORT} 0 no-query no-digest no-netdb-exchange default
+never_direct allow all
+EOF
+fi
+
 /usr/sbin/squid -Nz
 echo "[ENTRYPOINT] starting squid"
 /usr/sbin/squid -f /etc/squid/squid.conf -NYC 1
