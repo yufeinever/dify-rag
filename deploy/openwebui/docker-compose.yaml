@@ -8,8 +8,14 @@ services:
     env_file:
       - ./.env
     environment:
-      ENABLE_OPENAI_API: "true"
+      ENABLE_OPENAI_API: "false"
       ENABLE_OLLAMA_API: "false"
+      ENABLE_DIRECT_CONNECTIONS: "false"
+      ENABLE_BASE_MODELS_CACHE: "false"
+      ENABLE_EVALUATION_ARENA_MODELS: "false"
+      BYPASS_EMBEDDING_AND_RETRIEVAL: "true"
+      RAG_EMBEDDING_MODEL_AUTO_UPDATE: "false"
+      RAG_EMBEDDING_ENGINE: ""
       DEFAULT_USER_ROLE: "pending"
       USER_PERMISSIONS_WORKSPACE_MODELS_ACCESS: "false"
       USER_PERMISSIONS_WORKSPACE_KNOWLEDGE_ACCESS: "false"
