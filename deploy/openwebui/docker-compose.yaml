@@ -1,0 +1,33 @@
+name: dify-openwebui
+
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:v0.6.31
+    container_name: dify-openwebui
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      ENABLE_OPENAI_API: "true"
+      ENABLE_OLLAMA_API: "false"
+      DEFAULT_USER_ROLE: "pending"
+      USER_PERMISSIONS_WORKSPACE_MODELS_ACCESS: "false"
+      USER_PERMISSIONS_WORKSPACE_KNOWLEDGE_ACCESS: "false"
+      USER_PERMISSIONS_WORKSPACE_PROMPTS_ACCESS: "false"
+      USER_PERMISSIONS_WORKSPACE_TOOLS_ACCESS: "false"
+      USER_PERMISSIONS_WORKSPACE_SKILLS_ACCESS: "false"
+    ports:
+      - "${OPENWEBUI_PORT:-8088}:8080"
+    volumes:
+      - openwebui-data:/app/backend/data
+    networks:
+      - default
+      - dify
+
+volumes:
+  openwebui-data:
+
+networks:
+  dify:
+    external: true
+    name: docker_default
