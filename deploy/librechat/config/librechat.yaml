@@ -1,0 +1,30 @@
+version: 1.2.1
+cache: true
+
+interface:
+  privacyPolicy:
+    externalUrl: ''
+    openNewTab: false
+  termsOfService:
+    externalUrl: ''
+    openNewTab: false
+
+registration:
+  socialLogins: []
+
+endpoints:
+  custom:
+    - name: '企业模型'
+      apiKey: '${CUSTOM_OPENAI_API_KEY}'
+      baseURL: '${CUSTOM_OPENAI_BASE_URL}'
+      models:
+        default:
+          - 'gpt-5.5'
+          - 'gpt-5.2'
+        fetch: false
+      titleConvo: true
+      titleModel: 'gpt-5.5'
+      summarize: false
+      modelDisplayLabel: '企业模型'
+      dropParams:
+        - 'stop'
