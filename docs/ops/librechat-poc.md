@@ -22,14 +22,14 @@ LibreChat is deployed as a customer-front-door candidate to compare against Open
 
 ## Current model setup
 
-The PoC uses LibreChat custom OpenAI-compatible endpoint configuration.
+The PoC uses LibreChat custom OpenAI-compatible endpoint configuration plus `modelSpecs` so user-facing names can differ from upstream model IDs.
 
 Current endpoint label: `企业模型`
 
-Current models:
+Current visible model specs:
 
-- `gpt-5.5`
-- `gpt-5.2`
+- `gpt-5.5`: calls upstream model `gpt-5.5`.
+- `deepseek v4 flash`: calls upstream model `gpt-5.2`.
 
 The upstream API key and base URL are copied from the Dify provider credential into `.env`. Do not commit `.env`.
 

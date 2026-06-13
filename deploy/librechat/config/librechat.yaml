@@ -2,6 +2,7 @@ version: 1.2.1
 cache: true
 
 interface:
+  modelSelect: false
   privacyPolicy:
     externalUrl: ''
     openNewTab: false
@@ -28,3 +29,21 @@ endpoints:
       modelDisplayLabel: '企业模型'
       dropParams:
         - 'stop'
+
+modelSpecs:
+  enforce: true
+  prioritize: true
+  list:
+    - name: 'gpt-5.5'
+      label: 'gpt-5.5'
+      description: '企业直连基础模型'
+      default: true
+      preset:
+        endpoint: '企业模型'
+        model: 'gpt-5.5'
+    - name: 'deepseek-v4-flash'
+      label: 'deepseek v4 flash'
+      description: 'DeepSeek 模型，底层调用 gpt-5.2'
+      preset:
+        endpoint: '企业模型'
+        model: 'gpt-5.2'
