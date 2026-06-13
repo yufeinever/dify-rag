@@ -18,6 +18,10 @@ This deployment keeps Dify as the AI backend and uses OpenWebUI only as the cust
 - Dify REST API was verified with app `专属智能客服` and returned the expected test answer.
 - Dify MCP endpoint `POST /mcp/server/<server_code>/mcp` was verified with `initialize` and `tools/list`.
 - Dify OpenAI-compatible app plugin is not installed yet; install it from Dify Marketplace before adding Dify apps as OpenWebUI OpenAI-compatible connections.
+- OpenWebUI currently exposes five Pipe entries:
+  - Dify apps: `每日新闻摘要-国内`, `专属智能客服`, `超级大脑`
+  - Raw models from Dify provider credentials: `gpt-5.5`, `deepseek v4 flash`
+- The raw model Pipes were verified with real chat completions and returned the expected test answer.
 
 ## Runtime
 
@@ -60,6 +64,30 @@ Fallback path:
 
 - If the OpenAI-compatible plugin is unavailable, use the Dify Service API directly through a minimal OpenWebUI Pipe/adapter.
 - Keep that adapter thin: translate OpenAI chat messages to Dify `/v1/chat-messages` and return plain chat text only.
+
+## Raw model integration
+
+Customers may also need direct access to base models, not only Dify agents. On this deployment those entries are implemented as OpenWebUI Pipes that call the OpenAI-compatible upstream configured in Dify provider credentials.
+
+Current raw model entries:
+
+- `gpt-5.5`: calls upstream model `gpt-5.5`.
+- `deepseek v4 flash`: calls upstream model `gpt-5.2`; this is the display name configured in Dify for the user's DeepSeek model.
+
+Do not re-enable OpenWebUI's default OpenAI/Ollama discovery just to show these models. It previously made the admin panel slow because OpenWebUI tried to probe unused providers. Keep these environment defaults unless a deliberate provider migration is performed:
+
+- `ENABLE_OPENAI_API=false`
+- `ENABLE_OLLAMA_API=false`
+- `ENABLE_DIRECT_CONNECTIONS=false`
+- `ENABLE_BASE_MODELS_CACHE=false`
+- `ENABLE_EVALUATION_ARENA_MODELS=false`
+
+When adding a new raw model:
+
+1. Add and test the provider credential in Dify first.
+2. Read the Dify provider credential server-side and keep the API key in the OpenWebUI backend only.
+3. Add one OpenWebUI Pipe with a customer-facing name.
+4. Verify the Pipe with a real chat completion before exposing it to customer groups.
 
 ## MCP integration
 
