@@ -54,7 +54,7 @@ docker compose -f docker-compose.poc.yaml down
 This is only a PoC for the front-end experience.
 
 - It does not replace Dify as the AI backend.
-- It currently exposes raw models, not Dify Agent apps.
+- It currently exposes raw models and enables LibreChat-native agent creation, but it does not import Dify Agent apps automatically.
 - Dify Agent integration should use Dify's OpenAI-compatible app plugin or a thin bridge before production use.
 - LibreChat's own RAG is running for feature evaluation, but enterprise knowledge should still stay in Dify unless a migration decision is made.
 
@@ -64,3 +64,5 @@ This is only a PoC for the front-end experience.
 - Email login and registration are enabled for initial PoC testing.
 - Social login buttons are disabled.
 - LibreChat config loads the custom endpoint from `librechat.yaml`.
+- LibreChat Agents endpoint is enabled with `ENDPOINTS=agents,custom`; the agent builder is available for users with `AGENTS.CREATE`.
+- The agent marketplace only shows LibreChat-native shared agents. It does not automatically import Dify apps.
