@@ -1,0 +1,126 @@
+name: dify-lobechat-full
+
+services:
+  lobe:
+    image: lobehub/lobehub:latest
+    container_name: dify-lobechat-full
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgresql:5432/${LOBE_DB_NAME}
+      INTERNAL_APP_URL: http://localhost:3210
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${RUSTFS_LOBE_BUCKET}
+      S3_ENABLE_PATH_STYLE: "1"
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      S3_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      S3_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      S3_SET_ACL: "0"
+      LLM_VISION_IMAGE_USE_BASE64: "1"
+      SEARXNG_URL: http://searxng:8080
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIX: lobechat_full
+      REDIS_TLS: "0"
+    ports:
+      - "${LOBE_PORT:-3211}:3210"
+    networks:
+      - lobe-network
+
+  postgresql:
+    image: paradedb/paradedb:latest-pg17
+    container_name: dify-lobechat-full-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${LOBE_DB_NAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - lobe-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: dify-lobechat-full-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1000 --appendonly yes
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - lobe-network
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: dify-lobechat-full-rustfs
+    restart: unless-stopped
+    environment:
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+    command: ["--access-key", "${RUSTFS_ACCESS_KEY}", "--secret-key", "${RUSTFS_SECRET_KEY}", "/data"]
+    volumes:
+      - rustfs-data:/data
+    ports:
+      - "${RUSTFS_PORT:-9020}:9000"
+      - "${RUSTFS_ADMIN_PORT:-9021}:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/health >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - lobe-network
+
+  rustfs-init:
+    image: minio/mc:latest
+    container_name: dify-lobechat-full-rustfs-init
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    volumes:
+      - ./bucket.config.json:/bucket.config.json:ro
+    entrypoint: /bin/sh
+    command: >-
+      -c "set -eu; mc alias set rustfs http://rustfs:9000 ${RUSTFS_ACCESS_KEY} ${RUSTFS_SECRET_KEY}; mc mb rustfs/${RUSTFS_LOBE_BUCKET} --ignore-existing; mc anonymous set-json /bucket.config.json rustfs/${RUSTFS_LOBE_BUCKET};"
+    restart: "no"
+    networks:
+      - lobe-network
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: dify-lobechat-full-searxng
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      SEARXNG_SETTINGS_FILE: /etc/searxng/settings.yml
+    volumes:
+      - ./searxng-settings.yml:/etc/searxng/settings.yml:ro
+    networks:
+      - lobe-network
+
+networks:
+  lobe-network:
+    driver: bridge
+
+volumes:
+  rustfs-data:
