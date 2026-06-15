@@ -10,6 +10,7 @@ from dify_plugin.errors.model import (
 from dify_plugin.entities.model import (
     AIModelEntity,
     FetchFrom,
+    ModelPropertyKey,
     ModelType,
 )
 from dify_plugin.entities.model.llm import (
@@ -154,7 +155,10 @@ class BaiduQianfanLargeLanguageModel(LargeLanguageModel):
             model_type=ModelType.LLM,
             features=[],
             fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
-            model_properties={},
+            model_properties={
+                ModelPropertyKey.MODE: "chat",
+                ModelPropertyKey.CONTEXT_SIZE: int(credentials.get("context_size", 131072)),
+            },
             parameter_rules=[],
         )
 
