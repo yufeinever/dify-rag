@@ -1,0 +1,11 @@
+name: dify-lobechat-poc
+
+services:
+  lobechat:
+    image: lobehub/lobe-chat:latest
+    container_name: dify-lobechat
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    ports:
+      - "${LOBECHAT_PORT:-3210}:3210"

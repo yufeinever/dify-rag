@@ -50,7 +50,7 @@ from graphon.variable_loader import DUMMY_VARIABLE_LOADER, VariableLoader
 from libs.flask_utils import preserve_flask_contexts
 from models import Account, EndUser, Workflow, WorkflowNodeExecutionTriggeredFrom
 from models.dataset import Document, DocumentPipelineExecutionLog, Pipeline
-from models.enums import WorkflowRunTriggeredFrom
+from models.enums import IndexingStatus, WorkflowRunTriggeredFrom
 from models.model import AppMode
 from services.datasource_provider_service import DatasourceProviderService
 from services.rag_pipeline.rag_pipeline_task_proxy import RagPipelineTaskProxy
@@ -702,6 +702,8 @@ class PipelineGenerator(BaseAppGenerator):
             created_from=created_from,
             created_by=account.id,
             doc_form=document_form,
+            indexing_status=IndexingStatus.PARSING,
+            processing_started_at=datetime.datetime.now(datetime.UTC).replace(tzinfo=None),
         )
         doc_metadata = {}
         if built_in_field_enabled:
