@@ -38,6 +38,40 @@
     img.style.filter = 'drop-shadow(0 6px 14px rgba(0,0,0,.24))';
   };
 
+  const copyReplacements = new Map([
+    ['企业控制台', 'AI 中台'],
+    ['Dify 权限增强版', 'MMBAI 企业版'],
+    ['广场啤酒企业 AI 平台', 'MMBAI 企业 AI 中台'],
+    ['广场啤酒业务智能管理中枢', 'MMB AI 中台'],
+    ['面向门店、运营、活动、知识库与团队协作的统一入口，登录后进入真实 Dify 工作台，按企业角色控制可访问能力。', '面向门店、运营、活动、知识库与团队协作的统一入口，登录后进入 MMBAI 工作台，按企业角色控制可访问能力。'],
+    ['真实 Dify 工作台', 'MMBAI 工作台'],
+    ['Dify 工作台', 'AI 中台'],
+    ['mmb 企业身份中心', 'MMBAI 身份中心'],
+    ['登录 mmb', '登录 MMBAI'],
+    ['进入 Dify 工作台，管理知识库、工作流、应用与团队权限。', '进入 AI 中台，管理知识库、工作流、应用与团队权限。'],
+    ['mmb. 保留所有权利。', 'MMBAI. 保留所有权利。'],
+    ['mmb', 'MMBAI'],
+    ['Dify', 'MMBAI'],
+  ]);
+
+  const rewriteCopy = () => {
+    document.title = document.title.replaceAll('登录 mmb', '登录 MMBAI').replaceAll('Dify', 'MMBAI').replaceAll('mmb', 'MMBAI');
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => {
+        const parent = node.parentElement;
+        if (!parent || ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    for (const node of textNodes) {
+      let value = node.nodeValue || '';
+      for (const [from, to] of copyReplacements) value = value.replaceAll(from, to);
+      if (value !== node.nodeValue) node.nodeValue = value;
+    }
+  };
+
   const makeLogo = (className, size) => {
     const wrap = document.createElement('div');
     wrap.className = className;
@@ -50,6 +84,8 @@
   };
 
   const ensureLogo = () => {
+    rewriteCopy();
+
     const textBadges = Array.from(document.querySelectorAll('body div'))
       .filter((el) => el.children.length === 0 && el.textContent.trim().toLowerCase() === 'mmb');
 
@@ -72,7 +108,8 @@
       });
 
     const entryTitle = Array.from(document.querySelectorAll('body div'))
-      .find((el) => el.children.length === 0 && el.textContent.trim() === 'mmb 企业身份中心');
+      .find((el) => el.children.length === 0 && ['mmb 企业身份中心', 'MMBAI 身份中心'].includes(el.textContent.trim()));
+    if (entryTitle) entryTitle.textContent = 'MMBAI 身份中心';
     const info = entryTitle?.parentElement;
 
     document.querySelectorAll('[data-mmb-entry-logo]').forEach((el) => el.remove());

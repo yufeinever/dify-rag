@@ -8,7 +8,7 @@ import Header from './_header'
 
 export default function SignInLayout({ children }: any) {
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
-  useDocumentTitle('登录 mmb')
+  useDocumentTitle('登录 MMBAI')
 
   const platformMetrics = [
     { label: '权限管控', value: '五级角色' },
@@ -23,7 +23,7 @@ export default function SignInLayout({ children }: any) {
           <section className="relative min-h-[430px] overflow-hidden bg-[#0b0e13] lg:min-h-screen">
             <img
               src="/custom-assets/mmb-logo/mmb-login-bears-hero.png"
-              alt="mmb 品牌形象"
+              alt="MMBAI 品牌形象"
               className="absolute inset-0 size-full object-cover object-center saturate-[1.05]"
             />
             <div className="absolute inset-0 bg-linear-to-br from-[#05070b]/95 via-[#07100f]/70 to-[#0f1117]/42" />
@@ -39,7 +39,7 @@ export default function SignInLayout({ children }: any) {
                   alt="MMB"
                 />
               </div>
-              <div className="hidden text-[13px] font-medium text-white/70 sm:block">广场啤酒企业 AI 平台</div>
+              <div className="hidden text-[13px] font-medium text-white/70 sm:block">MMBAI 企业 AI 中台</div>
             </div>
 
             <div className="absolute right-6 bottom-6 hidden w-[270px] rounded-lg border border-white/10 bg-[#10141a]/76 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.32)] backdrop-blur lg:block">
@@ -71,10 +71,10 @@ export default function SignInLayout({ children }: any) {
                 企业级统一登录
               </div>
               <h1 className="max-w-[570px] text-[32px] leading-tight font-semibold text-white sm:text-[42px]">
-                广场啤酒业务智能管理中枢
+                MMB AI 中台
               </h1>
               <p className="mt-4 max-w-[500px] text-[15px] leading-6 text-white/70">
-                面向门店、运营、活动、知识库与团队协作的统一入口，登录后进入真实 Dify 工作台，按企业角色控制可访问能力。
+                面向门店、运营、活动、知识库与团队协作的统一入口，登录后进入 MMBAI 工作台，按企业角色控制可访问能力。
               </p>
               <div className="mt-8 grid max-w-[560px] grid-cols-3 border-y border-white/10 py-4 text-white/72">
                 {platformMetrics.map((metric, index) => (
@@ -102,7 +102,7 @@ export default function SignInLayout({ children }: any) {
                 {' '}
                 {new Date().getFullYear()}
                 {' '}
-                mmb. 保留所有权利。
+                MMBAI. 保留所有权利。
               </div>
             )}
           </section>

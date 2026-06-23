@@ -26,8 +26,8 @@ const Header = () => {
               </div>
             )}
         <div className="hidden sm:block">
-          <div className="system-sm-semibold text-white/86">企业控制台</div>
-          <div className="mt-0.5 text-[11px] font-medium text-white/38">Dify 权限增强版</div>
+          <div className="system-sm-semibold text-white/86">AI 中台</div>
+          <div className="mt-0.5 text-[11px] font-medium text-white/38">MMBAI 企业版</div>
         </div>
       </div>
       <div className="flex items-center gap-2">

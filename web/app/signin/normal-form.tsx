@@ -192,7 +192,7 @@ const NormalForm = () => {
                     </div>
                     <div className="min-w-0">
                       <div className="text-[12px] font-medium text-white/42">访问入口</div>
-                      <div className="mt-0.5 truncate text-[13px] font-semibold text-white">mmb 企业身份中心</div>
+                      <div className="mt-0.5 truncate text-[13px] font-semibold text-white">MMBAI 身份中心</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-[12px] font-medium text-[#64d98a]">
@@ -201,8 +201,8 @@ const NormalForm = () => {
                   </div>
                 </div>
                 <p className="mb-3 system-sm-medium text-[#e7bf72]">企业安全登录</p>
-                <h2 className="title-4xl-semi-bold text-white">登录 mmb</h2>
-                <p className="mt-3 body-md-regular text-white/58">进入 Dify 工作台，管理知识库、工作流、应用与团队权限。</p>
+                <h2 className="title-4xl-semi-bold text-white">登录 MMBAI</h2>
+                <p className="mt-3 body-md-regular text-white/58">进入 AI 中台，管理知识库、工作流、应用与团队权限。</p>
                 <div className="mt-5 grid grid-cols-3 gap-2">
                   {securityHighlights.map(item => (
                     <div key={item} className="min-h-12 rounded-md border border-white/10 bg-[#10151d] px-2 py-2 text-[12px] leading-4 text-white/64">

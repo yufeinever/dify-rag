@@ -57,7 +57,7 @@ server {
       proxy_set_header Accept-Encoding "";
       sub_filter_once off;
       sub_filter_types text/html;
-      sub_filter '</body>' '<script defer src="/custom-assets/mmb-logo/signin-logo-patch.js?v=20260624-3"></script></body>';
+      sub_filter '</body>' '<script defer src="/custom-assets/mmb-logo/signin-logo-patch.js?v=20260624-5"></script></body>';
     }
 
     location / {
