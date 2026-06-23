@@ -1,3 +1,4 @@
+import type { SigninAuthType } from './utils/persistence'
 import { cn } from '@langgenius/dify-ui/cn'
 import { toast } from '@langgenius/dify-ui/toast'
 import { RiContractLine, RiDoorLockLine, RiErrorWarningFill } from '@remixicon/react'
@@ -18,6 +19,7 @@ import MailAndPasswordAuth from './components/mail-and-password-auth'
 import SocialAuth from './components/social-auth'
 import SSOAuth from './components/sso-auth'
 import Split from './split'
+import { persistSigninAuthType, readStoredSigninAuthType } from './utils/persistence'
 import { resolvePostLoginRedirect } from './utils/post-login-redirect'
 
 const NormalForm = () => {
@@ -38,7 +40,7 @@ const NormalForm = () => {
   const [isRedirecting, setIsRedirecting] = useState(false)
   const isLoading = isCheckLoading || isInitCheckLoading || isRedirecting
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
-  const [authType, updateAuthType] = useState<'code' | 'password'>('password')
+  const [authType, updateAuthType] = useState<SigninAuthType>(() => readStoredSigninAuthType())
   const [showORLine, setShowORLine] = useState(false)
   const [allMethodsAreDisabled, setAllMethodsAreDisabled] = useState(false)
   const [workspaceName, setWorkSpaceName] = useState('')
@@ -59,7 +61,10 @@ const NormalForm = () => {
       }
       setAllMethodsAreDisabled(!systemFeatures.enable_social_oauth_login && !systemFeatures.enable_email_code_login && !systemFeatures.enable_email_password_login && !systemFeatures.sso_enforced_for_signin)
       setShowORLine((systemFeatures.enable_social_oauth_login || systemFeatures.sso_enforced_for_signin) && (systemFeatures.enable_email_code_login || systemFeatures.enable_email_password_login))
-      updateAuthType(systemFeatures.enable_email_password_login ? 'password' : 'code')
+      updateAuthType(readStoredSigninAuthType({
+        enableEmailCodeLogin: systemFeatures.enable_email_code_login,
+        enableEmailPasswordLogin: systemFeatures.enable_email_password_login,
+      }))
       if (isInviteLink) {
         const checkRes = await invitationCheck({
           url: '/activate/check',
@@ -79,6 +84,10 @@ const NormalForm = () => {
   useEffect(() => {
     init()
   }, [init])
+  const handleAuthTypeChange = useCallback((nextAuthType: SigninAuthType) => {
+    persistSigninAuthType(nextAuthType)
+    updateAuthType(nextAuthType)
+  }, [])
   if (isLoading) {
     return (
       <div className={
@@ -142,29 +151,65 @@ const NormalForm = () => {
     )
   }
 
+  const securityHighlights = [
+    '企业角色校验',
+    '工作区级隔离',
+    '登录后审计追踪',
+  ]
+
   return (
     <>
-      <div className="mx-auto mt-8 w-full">
+      <div className="mx-auto w-full">
         {isInviteLink
           ? (
               <div className="mx-auto w-full">
-                <h2 className="title-4xl-semi-bold text-text-primary">
-                  {t('join', { ns: 'login' })}
+                <div className="mb-4 inline-flex h-8 items-center rounded-md border border-[#d6a54d]/24 bg-[#161a22] px-3 text-[12px] font-semibold text-[#e7bf72]">
+                  企业邀请登录
+                </div>
+                <h2 className="title-4xl-semi-bold text-white">
+                  加入
                   {workspaceName}
                 </h2>
                 {!systemFeatures.branding.enabled && (
-                  <p className="mt-2 body-md-regular text-text-tertiary">
-                    {t('joinTipStart', { ns: 'login' })}
+                  <p className="mt-2 body-md-regular text-white/58">
+                    你正在加入
                     {workspaceName}
-                    {t('joinTipEnd', { ns: 'login' })}
+                    ，请登录或完成验证后继续。
                   </p>
                 )}
               </div>
             )
           : (
               <div className="mx-auto w-full">
-                <h2 className="title-4xl-semi-bold text-text-primary">{systemFeatures.branding.enabled ? t('pageTitleForE', { ns: 'login' }) : t('pageTitle', { ns: 'login' })}</h2>
-                <p className="mt-2 body-md-regular text-text-tertiary">{t('welcome', { ns: 'login' })}</p>
+                <div className="mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-[#121722]/72 px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d6a54d]/24 bg-white/95 p-1 shadow-sm">
+                      <img
+                        src="/custom-assets/mmb-logo/logo-embedded-chat-avatar.png"
+                        className="size-full object-contain"
+                        alt="MMB"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-medium text-white/42">访问入口</div>
+                      <div className="mt-0.5 truncate text-[13px] font-semibold text-white">mmb 企业身份中心</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[12px] font-medium text-[#64d98a]">
+                    <span className="h-2 w-2 rounded-full bg-[#64d98a]" />
+                    安全在线
+                  </div>
+                </div>
+                <p className="mb-3 system-sm-medium text-[#e7bf72]">企业安全登录</p>
+                <h2 className="title-4xl-semi-bold text-white">登录 mmb</h2>
+                <p className="mt-3 body-md-regular text-white/58">进入 Dify 工作台，管理知识库、工作流、应用与团队权限。</p>
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {securityHighlights.map(item => (
+                    <div key={item} className="min-h-12 rounded-md border border-white/10 bg-[#10151d] px-2 py-2 text-[12px] leading-4 text-white/64">
+                      {item}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
         <div className="relative">
@@ -180,9 +225,9 @@ const NormalForm = () => {
           {showORLine && (
             <div className="relative mt-6">
               <div className="flex items-center">
-                <div className="h-px flex-1 bg-linear-to-r from-background-gradient-mask-transparent to-divider-regular"></div>
-                <span className="px-3 system-xs-medium-uppercase text-text-tertiary">{t('or', { ns: 'login' })}</span>
-                <div className="h-px flex-1 bg-linear-to-l from-background-gradient-mask-transparent to-divider-regular"></div>
+                <div className="h-px flex-1 bg-linear-to-r from-transparent to-white/14"></div>
+                <span className="px-3 system-xs-medium-uppercase text-white/42">或</span>
+                <div className="h-px flex-1 bg-linear-to-l from-transparent to-white/14"></div>
               </div>
             </div>
           )}
@@ -193,8 +238,8 @@ const NormalForm = () => {
                   <>
                     <MailAndCodeAuth isInvite={isInviteLink} />
                     {systemFeatures.enable_email_password_login && (
-                      <div className="cursor-pointer py-1 text-center" onClick={() => { updateAuthType('password') }}>
-                        <span className="system-xs-medium text-components-button-secondary-accent-text">{t('usePassword', { ns: 'login' })}</span>
+                      <div className="cursor-pointer py-1 text-center" onClick={() => { handleAuthTypeChange('password') }}>
+                        <span className="system-xs-medium text-[#e7bf72] hover:text-[#f4d69a]">使用密码登录</span>
                       </div>
                     )}
                   </>
@@ -203,8 +248,8 @@ const NormalForm = () => {
                   <>
                     <MailAndPasswordAuth isInvite={isInviteLink} isEmailSetup={systemFeatures.is_email_setup} allowRegistration={systemFeatures.is_allow_register} />
                     {systemFeatures.enable_email_code_login && (
-                      <div className="cursor-pointer py-1 text-center" onClick={() => { updateAuthType('code') }}>
-                        <span className="system-xs-medium text-components-button-secondary-accent-text">{t('useVerificationCode', { ns: 'login' })}</span>
+                      <div className="cursor-pointer py-1 text-center" onClick={() => { handleAuthTypeChange('code') }}>
+                        <span className="system-xs-medium text-[#e7bf72] hover:text-[#f4d69a]">使用验证码登录</span>
                       </div>
                     )}
                   </>
@@ -215,13 +260,13 @@ const NormalForm = () => {
           }
 
           {systemFeatures.is_allow_register && authType === 'password' && (
-            <div className="mb-3 text-[13px] leading-4 font-medium text-text-secondary">
-              <span>{t('signup.noAccount', { ns: 'login' })}</span>
+            <div className="mb-3 text-[13px] leading-4 font-medium text-white/58">
+              <span>还没有账号？</span>
               <Link
-                className="text-text-accent"
+                className="ml-1 text-[#e7bf72] hover:text-[#f4d69a]"
                 href="/signup"
               >
-                {t('signup.signUp', { ns: 'login' })}
+                立即注册
               </Link>
             </div>
           )}
@@ -231,48 +276,48 @@ const NormalForm = () => {
                 <div className="shadows-shadow-lg mb-2 flex size-10 items-center justify-center rounded-xl bg-components-card-bg shadow">
                   <RiDoorLockLine className="size-5" />
                 </div>
-                <p className="system-sm-medium text-text-primary">{t('noLoginMethod', { ns: 'login' })}</p>
-                <p className="mt-1 system-xs-regular text-text-tertiary">{t('noLoginMethodTip', { ns: 'login' })}</p>
+                <p className="system-sm-medium text-white">当前没有可用的登录方式</p>
+                <p className="mt-1 system-xs-regular text-white/58">请联系管理员开启邮箱、验证码、SSO 或社交登录。</p>
               </div>
               <div className="relative my-2 py-2">
                 <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="h-px w-full bg-linear-to-r from-background-gradient-mask-transparent via-divider-regular to-background-gradient-mask-transparent"></div>
+                  <div className="h-px w-full bg-linear-to-r from-transparent via-white/14 to-transparent"></div>
                 </div>
               </div>
             </>
           )}
           {!systemFeatures.branding.enabled && (
             <>
-              <div className="mt-2 block w-full system-xs-regular text-text-tertiary">
-                {t('tosDesc', { ns: 'login' })}
+              <div className="mt-2 rounded-md border border-white/8 bg-white/[0.03] px-3 py-2 system-xs-regular text-white/42">
+                登录即表示你同意
               &nbsp;
                 <Link
-                  className="system-xs-medium text-text-secondary hover:underline"
+                  className="system-xs-medium text-white/64 hover:text-white hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
                   href="https://dify.ai/terms"
                 >
-                  {t('tos', { ns: 'login' })}
+                  服务条款
                 </Link>
-              &nbsp;&&nbsp;
+              &nbsp;和&nbsp;
                 <Link
-                  className="system-xs-medium text-text-secondary hover:underline"
+                  className="system-xs-medium text-white/64 hover:text-white hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
                   href="https://dify.ai/privacy"
                 >
-                  {t('pp', { ns: 'login' })}
+                  隐私政策
                 </Link>
               </div>
               {IS_CE_EDITION && (
-                <div className="w-hull mt-2 block system-xs-regular text-text-tertiary">
-                  {t('goToInit', { ns: 'login' })}
+                <div className="w-hull mt-2 block system-xs-regular text-white/42">
+                  首次部署？
               &nbsp;
                   <Link
-                    className="system-xs-medium text-text-secondary hover:underline"
+                    className="system-xs-medium text-white/64 hover:text-white hover:underline"
                     href="/install"
                   >
-                    {t('setAdminAccount', { ns: 'login' })}
+                    设置管理员账号
                   </Link>
                 </div>
               )}

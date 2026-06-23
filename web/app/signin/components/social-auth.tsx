@@ -1,6 +1,5 @@
 import { Button } from '@langgenius/dify-ui/button'
 import { cn } from '@langgenius/dify-ui/cn'
-import { useTranslation } from 'react-i18next'
 import { API_PREFIX } from '@/config'
 import { useLocale } from '@/context/i18n'
 import { useSearchParams } from '@/next/navigation'
@@ -13,7 +12,6 @@ type SocialAuthProps = {
 }
 
 export default function SocialAuth(props: SocialAuthProps) {
-  const { t } = useTranslation()
   const searchParams = useSearchParams()
   const locale = useLocale()
 
@@ -37,14 +35,14 @@ export default function SocialAuth(props: SocialAuthProps) {
         <a href={getOAuthLink('/oauth/login/github')}>
           <Button
             disabled={props.disabled}
-            className="w-full"
+            className="h-11 w-full border border-white/12 bg-[#121722] font-medium text-white shadow-inner shadow-black/10 hover:border-white/22 hover:bg-[#151b27] disabled:bg-white/5 disabled:text-white/24"
           >
             <>
               <span className={
                 cn(style.githubIcon, 'mr-2 size-5')
               }
               />
-              <span className="truncate leading-normal">{t('withGitHub', { ns: 'login' })}</span>
+              <span className="truncate leading-normal">使用 GitHub 登录</span>
             </>
           </Button>
         </a>
@@ -53,14 +51,14 @@ export default function SocialAuth(props: SocialAuthProps) {
         <a href={getOAuthLink('/oauth/login/google')}>
           <Button
             disabled={props.disabled}
-            className="w-full"
+            className="h-11 w-full border border-white/12 bg-[#121722] font-medium text-white shadow-inner shadow-black/10 hover:border-white/22 hover:bg-[#151b27] disabled:bg-white/5 disabled:text-white/24"
           >
             <>
               <span className={
                 cn(style.googleIcon, 'mr-2 size-5')
               }
               />
-              <span className="truncate leading-normal">{t('withGoogle', { ns: 'login' })}</span>
+              <span className="truncate leading-normal">使用 Google 登录</span>
             </>
           </Button>
         </a>

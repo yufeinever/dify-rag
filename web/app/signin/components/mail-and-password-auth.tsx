@@ -1,6 +1,7 @@
 import type { ResponseError } from '@/service/fetch'
 import { Button } from '@langgenius/dify-ui/button'
 import { toast } from '@langgenius/dify-ui/toast'
+import { RiEyeLine, RiEyeOffLine } from '@remixicon/react'
 import { noop } from 'es-toolkit/function'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +14,10 @@ import { useRouter, useSearchParams } from '@/next/navigation'
 import { login } from '@/service/common'
 import { setWebAppAccessToken } from '@/service/webapp-auth'
 import { encryptPassword } from '@/utils/encryption'
+import { persistSigninEmail, readStoredSigninEmail } from '../utils/persistence'
 import { resolvePostLoginRedirect } from '../utils/post-login-redirect'
+
+const darkInputClassName = 'h-11 border-white/12 bg-[#121722] text-white placeholder:text-white/32 shadow-inner shadow-black/10 hover:border-white/22 hover:bg-[#151b27] focus:border-[#d6a54d]/70 focus:bg-[#151b27] focus:shadow-[0_0_0_3px_rgba(214,165,77,0.16)]'
 
 type MailAndPasswordAuthProps = {
   isInvite: boolean
@@ -28,10 +32,15 @@ export default function MailAndPasswordAuth({ isInvite, isEmailSetup, allowRegis
   const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const emailFromLink = decodeURIComponent(searchParams.get('email') || '')
-  const [email, setEmail] = useState(emailFromLink)
+  const [email, setEmail] = useState(() => emailFromLink || readStoredSigninEmail())
   const [password, setPassword] = useState('')
 
   const [isLoading, setIsLoading] = useState(false)
+
+  const handleEmailChange = (nextEmail: string) => {
+    setEmail(nextEmail)
+    persistSigninEmail(nextEmail)
+  }
 
   const handleEmailPasswordLogin = async () => {
     if (!email) {
@@ -96,18 +105,20 @@ export default function MailAndPasswordAuth({ isInvite, isEmailSetup, allowRegis
   return (
     <form onSubmit={noop}>
       <div className="mb-3">
-        <label htmlFor="email" className="my-2 system-md-semibold text-text-secondary">
-          {t('email', { ns: 'login' })}
+        <label htmlFor="email" className="my-2 system-md-semibold text-white/72">
+          邮箱
         </label>
         <div className="mt-1">
           <Input
+            size="large"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={e => handleEmailChange(e.target.value)}
             disabled={isInvite}
+            className={darkInputClassName}
             id="email"
             type="email"
             autoComplete="email"
-            placeholder={t('emailPlaceholder', { ns: 'login' }) || ''}
+            placeholder="请输入邮箱地址"
             tabIndex={1}
           />
         </div>
@@ -115,18 +126,19 @@ export default function MailAndPasswordAuth({ isInvite, isEmailSetup, allowRegis
 
       <div className="mb-3">
         <label htmlFor="password" className="my-2 flex items-center justify-between">
-          <span className="system-md-semibold text-text-secondary">{t('password', { ns: 'login' })}</span>
+          <span className="system-md-semibold text-white/72">密码</span>
           <Link
             href={`/reset-password?${searchParams.toString()}`}
-            className={`system-xs-regular ${isEmailSetup ? 'text-components-button-secondary-accent-text' : 'pointer-events-none text-components-button-secondary-accent-text-disabled'}`}
+            className={`system-xs-regular ${isEmailSetup ? 'text-[#e7bf72] hover:text-[#f4d69a]' : 'pointer-events-none text-white/24'}`}
             tabIndex={isEmailSetup ? 0 : -1}
             aria-disabled={!isEmailSetup}
           >
-            {t('forget', { ns: 'login' })}
+            忘记密码？
           </Link>
         </label>
         <div className="relative mt-1">
           <Input
+            size="large"
             id="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
@@ -136,7 +148,8 @@ export default function MailAndPasswordAuth({ isInvite, isEmailSetup, allowRegis
             }}
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
-            placeholder={t('passwordPlaceholder', { ns: 'login' }) || ''}
+            placeholder="请输入密码"
+            className={`${darkInputClassName} pr-12`}
             tabIndex={2}
           />
           <div className="absolute inset-y-0 right-0 flex items-center">
@@ -144,8 +157,9 @@ export default function MailAndPasswordAuth({ isInvite, isEmailSetup, allowRegis
               type="button"
               variant="ghost"
               onClick={() => setShowPassword(!showPassword)}
+              className="text-white/54 hover:bg-white/8 hover:text-white"
             >
-              {showPassword ? '👀' : '😝'}
+              {showPassword ? <RiEyeOffLine className="size-4" /> : <RiEyeLine className="size-4" />}
             </Button>
           </div>
         </div>
@@ -157,9 +171,9 @@ export default function MailAndPasswordAuth({ isInvite, isEmailSetup, allowRegis
           variant="primary"
           onClick={handleEmailPasswordLogin}
           disabled={isLoading || !email || !password}
-          className="w-full"
+          className="h-11 w-full border border-[#e7bf72]/22 bg-[#d6a54d] font-semibold text-[#15100a] shadow-[0_18px_42px_rgba(214,165,77,0.18)] hover:bg-[#e7bf72] disabled:border-white/8 disabled:bg-white/10 disabled:text-white/28 disabled:shadow-none"
         >
-          {t('signBtn', { ns: 'login' })}
+          登录
         </Button>
       </div>
     </form>

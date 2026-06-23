@@ -9,6 +9,9 @@ import { emailRegex } from '@/config'
 import { useLocale } from '@/context/i18n'
 import { useRouter, useSearchParams } from '@/next/navigation'
 import { sendEMailLoginCode } from '@/service/common'
+import { persistSigninEmail, readStoredSigninEmail } from '../utils/persistence'
+
+const darkInputClassName = 'h-11 border-white/12 bg-[#121722] text-white placeholder:text-white/32 shadow-inner shadow-black/10 hover:border-white/22 hover:bg-[#151b27] focus:border-[#d6a54d]/70 focus:bg-[#151b27] focus:shadow-[0_0_0_3px_rgba(214,165,77,0.16)]'
 
 type MailAndCodeAuthProps = {
   isInvite: boolean
@@ -19,9 +22,14 @@ export default function MailAndCodeAuth({ isInvite }: MailAndCodeAuthProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const emailFromLink = decodeURIComponent(searchParams.get('email') || '')
-  const [email, setEmail] = useState(emailFromLink)
+  const [email, setEmail] = useState(() => emailFromLink || readStoredSigninEmail())
   const [loading, setIsLoading] = useState(false)
   const locale = useLocale()
+
+  const handleEmailChange = (nextEmail: string) => {
+    setEmail(nextEmail)
+    persistSigninEmail(nextEmail)
+  }
 
   const handleGetEMailVerificationCode = async () => {
     try {
@@ -61,12 +69,12 @@ export default function MailAndCodeAuth({ isInvite }: MailAndCodeAuthProps) {
     <form onSubmit={handleSubmit}>
       <input type="text" className="hidden" />
       <div className="mb-2">
-        <label htmlFor="email" className="my-2 system-md-semibold text-text-secondary">{t('email', { ns: 'login' })}</label>
+        <label htmlFor="email" className="my-2 system-md-semibold text-white/72">邮箱</label>
         <div className="mt-1">
-          <Input id="email" type="email" disabled={isInvite} value={email} placeholder={t('emailPlaceholder', { ns: 'login' }) as string} onChange={e => setEmail(e.target.value)} />
+          <Input size="large" id="email" type="email" disabled={isInvite} value={email} placeholder="请输入邮箱地址" className={darkInputClassName} onChange={e => handleEmailChange(e.target.value)} />
         </div>
         <div className="mt-3">
-          <Button type="submit" loading={loading} disabled={loading || !email} variant="primary" className="w-full">{t('signup.verifyMail', { ns: 'login' })}</Button>
+          <Button type="submit" loading={loading} disabled={loading || !email} variant="primary" className="h-11 w-full border border-[#e7bf72]/22 bg-[#d6a54d] font-semibold text-[#15100a] shadow-[0_18px_42px_rgba(214,165,77,0.18)] hover:bg-[#e7bf72] disabled:border-white/8 disabled:bg-white/10 disabled:text-white/28 disabled:shadow-none">获取验证码</Button>
         </div>
       </div>
     </form>
