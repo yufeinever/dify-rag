@@ -13,17 +13,17 @@
   const styleLogoWrap = (wrap, size) => {
     wrap.setAttribute('data-mmb-logo-patch', 'true');
     wrap.style.boxSizing = 'border-box';
-    wrap.style.background = 'rgba(18,21,29,.82)';
-    wrap.style.border = '1px solid rgba(214,165,77,.28)';
-    wrap.style.borderRadius = '6px';
+    wrap.style.background = 'transparent';
+    wrap.style.border = '0';
+    wrap.style.borderRadius = '0';
     wrap.style.display = 'flex';
     wrap.style.alignItems = 'center';
     wrap.style.justifyContent = 'center';
-    wrap.style.padding = size === 'large' ? '6px' : '4px';
-    wrap.style.width = size === 'large' ? '48px' : '40px';
-    wrap.style.height = size === 'large' ? '48px' : '40px';
-    wrap.style.boxShadow = size === 'large' ? '0 12px 36px rgba(0,0,0,.28)' : '0 10px 28px rgba(0,0,0,.24)';
-    wrap.style.backdropFilter = 'blur(10px)';
+    wrap.style.padding = '0';
+    wrap.style.width = size === 'large' ? '52px' : '40px';
+    wrap.style.height = size === 'large' ? '52px' : '40px';
+    wrap.style.boxShadow = 'none';
+    wrap.style.backdropFilter = 'none';
   };
 
   const styleLogoImage = (img) => {
@@ -35,7 +35,7 @@
     img.style.maxWidth = '100%';
     img.style.maxHeight = '100%';
     img.style.objectFit = 'contain';
-    img.style.filter = 'drop-shadow(0 6px 14px rgba(0,0,0,.24))';
+    img.style.filter = 'drop-shadow(0 8px 18px rgba(0,0,0,.22))';
   };
 
   const copyReplacements = new Map([
@@ -132,11 +132,11 @@
       avatar.style.height = '34px';
       avatar.style.flex = '0 0 34px';
       avatar.style.objectFit = 'contain';
-      avatar.style.borderRadius = '8px';
-      avatar.style.background = 'rgba(23,27,36,.88)';
-      avatar.style.border = '1px solid rgba(214,165,77,.28)';
-      avatar.style.padding = '3px';
-      avatar.style.filter = 'drop-shadow(0 5px 12px rgba(0,0,0,.22))';
+      avatar.style.borderRadius = '0';
+      avatar.style.background = 'transparent';
+      avatar.style.border = '0';
+      avatar.style.padding = '0';
+      avatar.style.filter = 'drop-shadow(0 5px 12px rgba(0,0,0,.18))';
 
       info.dataset.mmbEntryBlock = 'true';
       info.style.display = 'flex';
