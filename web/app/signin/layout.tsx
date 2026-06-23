@@ -32,10 +32,10 @@ export default function SignInLayout({ children }: any) {
             <div className="absolute inset-y-0 right-0 w-px bg-white/10" />
 
             <div className="absolute top-6 left-6 flex items-center gap-3 sm:top-9 sm:left-10 lg:left-14">
-              <div className="flex h-12 w-[108px] items-center justify-center rounded-md border border-[#d6a54d]/30 bg-white/95 p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur">
+              <div className="flex size-12 items-center justify-center rounded-md border border-[#d6a54d]/28 bg-[#12151d]/82 p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur">
                 <img
-                  src="/custom-assets/mmb-logo/logo-site.png"
-                  className="h-full w-full object-contain"
+                  src="/custom-assets/mmb-logo/logo-embedded-chat-avatar.png"
+                  className="size-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.26)]"
                   alt="MMB"
                 />
               </div>

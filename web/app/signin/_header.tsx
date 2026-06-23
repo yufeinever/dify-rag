@@ -17,10 +17,10 @@ const Header = () => {
               />
             )
           : (
-              <div className="flex h-10 w-[92px] items-center justify-center rounded-md border border-[#d6a54d]/28 bg-white/95 p-1.5 shadow-sm">
+              <div className="flex size-10 items-center justify-center rounded-md border border-[#d6a54d]/24 bg-[#12151d]/82 p-1 shadow-[0_10px_28px_rgba(0,0,0,0.24)] backdrop-blur">
                 <img
-                  src="/custom-assets/mmb-logo/logo-site.png"
-                  className="h-full w-full object-contain"
+                  src="/custom-assets/mmb-logo/logo-embedded-chat-avatar.png"
+                  className="size-full object-contain drop-shadow-[0_6px_14px_rgba(0,0,0,0.24)]"
                   alt="MMB"
                 />
               </div>
