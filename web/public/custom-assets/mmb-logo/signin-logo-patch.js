@@ -26,6 +26,59 @@
     wrap.style.backdropFilter = 'none';
   };
 
+
+
+  const findEntryCard = () => {
+    const labels = Array.from(document.querySelectorAll('body div'))
+      .filter((el) => el.children.length === 0 && (el.textContent || '').trim() === '访问入口');
+
+    for (const label of labels) {
+      let node = label.parentElement;
+      for (let depth = 0; node && depth < 6; depth += 1, node = node.parentElement) {
+        const text = (node.textContent || '').replace(/\s+/g, '');
+        if (text.includes('访问入口')
+          && text.includes('安全在线')
+          && !!node.querySelector('img[src*="logo-embedded-chat-avatar"]')) {
+          return node;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const styleEntryIconWrap = (wrap) => {
+    if (!wrap) return;
+    wrap.style.background = 'transparent';
+    wrap.style.border = '0';
+    wrap.style.borderRadius = '0';
+    wrap.style.padding = '0';
+    wrap.style.boxShadow = 'none';
+    wrap.style.backdropFilter = 'none';
+    wrap.style.width = '40px';
+    wrap.style.height = '40px';
+  };
+
+  const styleEntryCard = (info) => {
+    if (!info) return;
+    info.style.background = 'rgba(18,23,34,.30)';
+    info.style.border = '0';
+    info.style.outline = '0';
+    info.style.boxShadow = 'none';
+    info.style.backdropFilter = 'none';
+  };
+
+  const styleLegacyEntryClasses = () => {
+    Array.from(document.querySelectorAll('div[class*="bg-[#121722]/72"][class*="border-white/10"]'))
+      .forEach(styleEntryCard);
+
+    Array.from(document.querySelectorAll('div[class*="bg-[#171b24]/88"], div[class*="border-[#d6a54d]/24"]'))
+      .forEach((el) => {
+        if (el.querySelector('img[src*="logo-embedded-chat-avatar"]'))
+          styleEntryIconWrap(el);
+      });
+  };
+
   const styleLogoImage = (img) => {
     img.src = LOGO;
     img.alt = 'MMB';
@@ -85,6 +138,7 @@
 
   const ensureLogo = () => {
     rewriteCopy();
+    styleLegacyEntryClasses();
 
     const textBadges = Array.from(document.querySelectorAll('body div'))
       .filter((el) => el.children.length === 0 && el.textContent.trim().toLowerCase() === 'mmb');
@@ -114,7 +168,19 @@
 
     document.querySelectorAll('[data-mmb-entry-logo]').forEach((el) => el.remove());
 
-    if (entryTitle && info) {
+
+    const entryCard = findEntryCard() || info;
+    if (entryCard) {
+      styleEntryCard(entryCard);
+      const legacyIconWrap = entryCard.querySelector('img[src*="logo-embedded-chat-avatar"]')?.parentElement;
+      if (legacyIconWrap && legacyIconWrap !== entryCard)
+        styleEntryIconWrap(legacyIconWrap);
+      entryCard.querySelectorAll('div').forEach((el) => {
+        if ((el.textContent || '').trim() === 'mmb 企业身份中心') el.textContent = 'MMBAI 身份中心';
+      });
+    }
+
+    if (entryTitle && info && !entryCard?.querySelector('img[src*="logo-embedded-chat-avatar"]')) {
       let textWrap = info.querySelector('[data-mmb-entry-text]');
       if (!textWrap) {
         textWrap = document.createElement('div');
@@ -128,17 +194,19 @@
       avatar.alt = 'MMB';
       avatar.setAttribute('data-mmb-entry-logo', 'true');
       avatar.decoding = 'async';
-      avatar.style.width = '34px';
-      avatar.style.height = '34px';
-      avatar.style.flex = '0 0 34px';
+      avatar.style.width = '40px';
+      avatar.style.height = '40px';
+      avatar.style.flex = '0 0 40px';
       avatar.style.objectFit = 'contain';
       avatar.style.borderRadius = '0';
       avatar.style.background = 'transparent';
       avatar.style.border = '0';
       avatar.style.padding = '0';
+      avatar.style.boxShadow = 'none';
       avatar.style.filter = 'drop-shadow(0 5px 12px rgba(0,0,0,.18))';
 
       info.dataset.mmbEntryBlock = 'true';
+      styleEntryCard(info);
       info.style.display = 'flex';
       info.style.alignItems = 'center';
       info.style.gap = '10px';

@@ -181,12 +181,12 @@ const NormalForm = () => {
             )
           : (
               <div className="mx-auto w-full">
-                <div className="mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-[#121722]/72 px-3 py-2">
+                <div className="mb-4 flex items-center justify-between rounded-lg bg-[#121722]/38 px-3 py-2">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-[#d6a54d]/24 bg-[#171b24]/88 p-1 shadow-[0_10px_24px_rgba(0,0,0,0.22)]">
+                    <div className="flex size-10 shrink-0 items-center justify-center">
                       <img
                         src="/custom-assets/mmb-logo/logo-embedded-chat-avatar.png"
-                        className="size-full object-contain drop-shadow-[0_5px_12px_rgba(0,0,0,0.22)]"
+                        className="size-full object-contain drop-shadow-[0_5px_12px_rgba(0,0,0,0.18)]"
                         alt="MMB"
                       />
                     </div>
