@@ -1,6 +1,6 @@
 {
-  "name": "Dify",
-  "short_name": "Dify",
+  "name": "MMBAI",
+  "short_name": "MMBAI",
   "description": "Build Production Ready Agentic AI Solutions",
   "icons": [
     {
@@ -37,7 +37,11 @@
   "scope": "/",
   "start_url": "/",
   "orientation": "portrait-primary",
-  "categories": ["productivity", "utilities", "developer"],
+  "categories": [
+    "productivity",
+    "utilities",
+    "developer"
+  ],
   "lang": "en-US",
   "dir": "ltr",
   "prefer_related_applications": false,
@@ -46,13 +50,23 @@
       "name": "Apps",
       "short_name": "Apps",
       "url": "/apps",
-      "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "Datasets",
       "short_name": "Datasets",
       "url": "/datasets",
-      "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ]
 }

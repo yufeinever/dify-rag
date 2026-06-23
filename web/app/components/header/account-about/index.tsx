@@ -64,7 +64,7 @@ export default function AccountAbout({
                 ©
                 {dayjs().year()}
                 {' '}
-                LangGenius, Inc., Contributors.
+                MMBAI, Contributors.
               </div>
               <div className="text-text-accent">
                 {

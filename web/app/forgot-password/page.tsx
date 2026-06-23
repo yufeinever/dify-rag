@@ -26,7 +26,7 @@ const ForgotPassword = () => {
             {' '}
             {new Date().getFullYear()}
             {' '}
-            LangGenius, Inc. All rights reserved.
+            MMBAI. 保留所有权利。
           </div>
         )}
       </div>

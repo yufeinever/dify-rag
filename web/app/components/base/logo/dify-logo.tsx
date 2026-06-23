@@ -7,16 +7,16 @@ import { basePath } from '@/utils/var'
 export type LogoStyle = 'default' | 'monochromeWhite'
 
 export const logoPathMap: Record<LogoStyle, string> = {
-  default: '/logo/logo.svg',
-  monochromeWhite: '/logo/logo-monochrome-white.svg',
+  default: '/custom-assets/mmb-logo/logo-embedded-chat-avatar.png',
+  monochromeWhite: '/custom-assets/mmb-logo/logo-embedded-chat-avatar.png',
 }
 
 export type LogoSize = 'large' | 'medium' | 'small'
 
 export const logoSizeMap: Record<LogoSize, string> = {
-  large: 'w-16 h-7',
-  medium: 'w-12 h-[22px]',
-  small: 'w-9 h-4',
+  large: 'size-10',
+  medium: 'size-8',
+  small: 'size-5',
 }
 
 type DifyLogoProps = {
@@ -37,7 +37,7 @@ const DifyLogo: FC<DifyLogoProps> = ({
     <img
       src={`${basePath}${logoPathMap[themedStyle]}`}
       className={cn('block object-contain', logoSizeMap[size], className)}
-      alt="Dify logo"
+      alt="MMBAI logo"
     />
   )
 }

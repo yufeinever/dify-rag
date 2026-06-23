@@ -423,7 +423,7 @@ export default function EnterpriseAdminConsole() {
             <div className="text-xs font-semibold text-text-tertiary uppercase">MMB Enterprise Admin</div>
             <h1 className="mt-1 text-2xl font-semibold text-text-primary">企业管理后台</h1>
             <p className="mt-1 text-sm text-text-tertiary">
-              参考 Dify Plus 管理台结构，聚合当前工作区的账号、角色、权限和资源治理入口。
+              参考企业级权限管理结构，聚合当前工作区的账号、角色、权限和资源治理入口。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -437,7 +437,7 @@ export default function EnterpriseAdminConsole() {
             </button>
             <Link href="/apps" className="inline-flex h-9 items-center gap-2 rounded-md bg-components-button-primary-bg px-3 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover">
               <span className="i-ri-apps-line size-4" aria-hidden />
-              返回 Dify
+              返回 AI 中台
             </Link>
           </div>
         </div>
@@ -482,7 +482,7 @@ export default function EnterpriseAdminConsole() {
             <div>
               <SectionHeader
                 title="账号管理"
-                description="按 Dify Plus 用户管理页的表格逻辑整理：账号、邮箱、角色、状态和活跃时间。"
+                description="按企业级用户管理表格逻辑整理：账号、邮箱、角色、状态和活跃时间。"
                 action={(
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -890,7 +890,7 @@ export default function EnterpriseAdminConsole() {
               <p className="mt-1 text-sm text-text-tertiary">
                 将「
                 {selectedDatasetForAccess.name}
-                」设置为指定成员可访问。保存后会写入当前 Dify 知识库权限。
+                」设置为指定成员可访问。保存后会写入当前 MMBAI 知识库权限。
               </p>
             </div>
             <div className="max-h-[420px] overflow-y-auto px-5 py-3">
