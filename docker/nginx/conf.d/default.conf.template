@@ -4,6 +4,12 @@ server {
     listen ${NGINX_PORT};
     server_name ${NGINX_SERVER_NAME};
 
+    location = /custom-assets/mmb-logo/signin-logo-patch.js {
+      proxy_pass http://web:3000;
+      include proxy.conf;
+      add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+    }
+
     location /console/api {
       proxy_pass http://api:5001;
       include proxy.conf;
@@ -43,6 +49,15 @@ server {
       proxy_pass http://plugin_daemon:5002;
       proxy_set_header Dify-Hook-Url $scheme://$host$request_uri;
       include proxy.conf;
+    }
+
+    location = /signin {
+      proxy_pass http://web:3000;
+      include proxy.conf;
+      proxy_set_header Accept-Encoding "";
+      sub_filter_once off;
+      sub_filter_types text/html;
+      sub_filter '</body>' '<script defer src="/custom-assets/mmb-logo/signin-logo-patch.js?v=20260623-5"></script></body>';
     }
 
     location / {
