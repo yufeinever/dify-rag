@@ -36,6 +36,24 @@ export type AppListResponse = {
 
 export type AppDetailResponse = App
 
+export type PartialMemberListResponse = {
+  data: string[]
+}
+
+export type AuditLogItem = {
+  id: string
+  tenant_id: string
+  account_id: string
+  action: string
+  content?: Record<string, unknown> | null
+  created_at?: number | null
+  created_ip: string
+}
+
+export type AuditLogListResponse = {
+  data: AuditLogItem[]
+}
+
 export type DSLImportResponse = {
   id: string
   status: DSLImportStatus

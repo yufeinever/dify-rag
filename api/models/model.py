@@ -960,6 +960,40 @@ class TrialApp(TypeBase):
         return db.session.scalar(select(App).where(App.id == self.app_id))
 
 
+class AppPermission(TypeBase):
+    """Per-workspace member access entries for apps.
+
+    These rows are intentionally sparse. Owners/admins are always allowed and
+    non-privileged members fall back to full access until at least one grant row
+    exists for that member inside the workspace.
+    """
+
+    __tablename__ = "app_permissions"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="app_permission_pkey"),
+        sa.Index("idx_app_permissions_app_id", "app_id"),
+        sa.Index("idx_app_permissions_account_id", "account_id"),
+        sa.Index("idx_app_permissions_tenant_id", "tenant_id"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        StringUUID,
+        insert_default=lambda: str(uuid4()),
+        default_factory=lambda: str(uuid4()),
+        primary_key=True,
+        init=False,
+    )
+    app_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    account_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    has_permission: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true"), default=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, server_default=func.current_timestamp(), init=False
+    )
+
+
 class AccountTrialAppRecord(TypeBase):
     __tablename__ = "account_trial_app_records"
     __table_args__ = (

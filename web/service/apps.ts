@@ -1,5 +1,5 @@
 import type { TracingProvider } from '@/app/(commonLayout)/app/(appDetailLayout)/[appId]/overview/tracing/type'
-import type { AppDetailResponse, AppListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
+import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, PartialMemberListResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
 import type { CommonResponse } from '@/models/common'
 import type { AppIconType, AppModeEnum, ModelConfig } from '@/types/app'
 import { del, get, patch, post, put } from './base'
@@ -172,4 +172,16 @@ type PublishToCreatorsPlatformResponse = {
 
 export const publishToCreatorsPlatform = ({ appID }: { appID: string }): Promise<PublishToCreatorsPlatformResponse> => {
   return post<PublishToCreatorsPlatformResponse>(`apps/${appID}/publish-to-creators-platform`, { body: {} })
+}
+
+export const fetchAppPermissionMembers = ({ appID }: { appID: string }): Promise<PartialMemberListResponse> => {
+  return get<PartialMemberListResponse>(`apps/${appID}/permissions`)
+}
+
+export const updateAppPermissionMembers = ({ appID, body }: { appID: string, body: { partial_member_list: Array<{ user_id: string, role?: string }> } }): Promise<PartialMemberListResponse> => {
+  return put<PartialMemberListResponse>(`apps/${appID}/permissions`, { body })
+}
+
+export const fetchAdminAuditLogs = (): Promise<AuditLogListResponse> => {
+  return get<AuditLogListResponse>('admin/audit')
 }

@@ -23,6 +23,7 @@ from controllers.console.error import EmailSendIpLimitError, WorkspaceMembersLim
 from controllers.console.wraps import (
     account_initialization_required,
     cloud_edition_billing_resource_check,
+    is_admin_or_owner_required,
     is_allow_transfer_owner,
     setup_required,
 )
@@ -86,6 +87,7 @@ class MemberListApi(Resource):
     @setup_required
     @login_required
     @account_initialization_required
+    @is_admin_or_owner_required
     @console_ns.response(200, "Success", console_ns.models[AccountWithRoleList.__name__])
     def get(self):
         current_user, _ = current_account_with_tenant()
@@ -105,6 +107,7 @@ class MemberInviteEmailApi(Resource):
     @setup_required
     @login_required
     @account_initialization_required
+    @is_admin_or_owner_required
     @cloud_edition_billing_resource_check("members")
     def post(self):
         payload = console_ns.payload or {}
@@ -176,6 +179,7 @@ class MemberCancelInviteApi(Resource):
     @setup_required
     @login_required
     @account_initialization_required
+    @is_admin_or_owner_required
     def delete(self, member_id: UUID):
         current_user, _ = current_account_with_tenant()
         if not current_user.current_tenant:
@@ -209,6 +213,7 @@ class MemberUpdateRoleApi(Resource):
     @setup_required
     @login_required
     @account_initialization_required
+    @is_admin_or_owner_required
     def put(self, member_id: UUID):
         payload = console_ns.payload or {}
         args = MemberRoleUpdatePayload.model_validate(payload)
@@ -249,6 +254,7 @@ class DatasetOperatorMemberListApi(Resource):
     @setup_required
     @login_required
     @account_initialization_required
+    @is_admin_or_owner_required
     @console_ns.response(200, "Success", console_ns.models[AccountWithRoleList.__name__])
     def get(self):
         current_user, _ = current_account_with_tenant()

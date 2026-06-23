@@ -10,7 +10,7 @@ from pydantic import AliasChoices, BaseModel, Field, computed_field, field_valid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from werkzeug.datastructures import MultiDict
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, Forbidden
 
 from controllers.common.fields import RedirectUrlResponse, SimpleResultResponse
 from controllers.common.helpers import FileInfo
@@ -36,7 +36,7 @@ from fields.base import ResponseModel
 from graphon.enums import WorkflowExecutionStatus
 from libs.helper import build_icon_url, to_timestamp
 from libs.login import current_account_with_tenant, login_required
-from models import App, DatasetPermissionEnum, Workflow
+from models import App, DatasetPermissionEnum, OperationLog, Workflow
 from models.model import IconType
 from services.app_dsl_service import AppDslService
 from services.app_service import AppListParams, AppService, CreateAppParams
@@ -173,6 +173,38 @@ class AppTracePayload(BaseModel):
         if info.data.get("enabled") and not value:
             raise ValueError("tracing_provider is required when enabled is True")
         return value
+
+
+class AppPermissionMemberPayload(BaseModel):
+    user_id: str
+    role: str | None = None
+
+
+class AppPermissionUpdatePayload(BaseModel):
+    partial_member_list: list[AppPermissionMemberPayload] = Field(default_factory=list)
+
+
+class PartialMemberListResponse(ResponseModel):
+    data: list[str]
+
+
+class AuditLogItem(ResponseModel):
+    id: str
+    tenant_id: str
+    account_id: str
+    action: str
+    content: dict[str, Any] | None = None
+    created_at: int | None = None
+    created_ip: str
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def _normalize_timestamp(cls, value: datetime | int | None) -> int | None:
+        return to_timestamp(value)
+
+
+class AuditLogListResponse(ResponseModel):
+    data: list[AuditLogItem]
 
 
 type JSONValue = Any
@@ -428,6 +460,8 @@ register_schema_models(
     AppSiteStatusPayload,
     AppApiStatusPayload,
     AppTracePayload,
+    AppPermissionMemberPayload,
+    AppPermissionUpdatePayload,
     Tag,
     WorkflowPartial,
     ModelConfigPartial,
@@ -439,6 +473,9 @@ register_schema_models(
     AppDetailWithSite,
     AppPagination,
     AppExportResponse,
+    PartialMemberListResponse,
+    AuditLogItem,
+    AuditLogListResponse,
     Segmentation,
     PreProcessingRule,
     Rule,
@@ -841,6 +878,77 @@ class AppApiStatus(Resource):
         app_model = app_service.update_app_api_status(app_model, args.enable_api)
         response_model = AppDetail.model_validate(app_model, from_attributes=True)
         return response_model.model_dump(mode="json")
+
+
+@console_ns.route("/apps/<uuid:app_id>/permissions")
+class AppPermissionApi(Resource):
+    @console_ns.doc("get_app_permission_users")
+    @console_ns.doc(description="Get app permission user list")
+    @console_ns.doc(params={"app_id": "Application ID"})
+    @console_ns.response(200, "Success", console_ns.models[PartialMemberListResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    @get_app_model(mode=None)
+    def get(self, app_model):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+        result = AppService().get_app_partial_member_list(tenant_id, str(app_model.id))
+        return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
+
+    @console_ns.doc("update_app_permission_users")
+    @console_ns.doc(description="Replace app permission user list")
+    @console_ns.doc(params={"app_id": "Application ID"})
+    @console_ns.expect(console_ns.models[AppPermissionUpdatePayload.__name__])
+    @console_ns.response(200, "Success", console_ns.models[PartialMemberListResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    @get_app_model(mode=None)
+    def put(self, app_model):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        payload = AppPermissionUpdatePayload.model_validate(console_ns.payload or {})
+        member_ids = {member.user_id for member in payload.partial_member_list}
+        workspace_members = {member.id for member in current_user.current_tenant.accounts}
+        if not member_ids.issubset(workspace_members):
+            raise Forbidden("Selected app members must belong to the current workspace")
+
+        result = AppService().update_app_partial_member_list(
+            tenant_id,
+            str(app_model.id),
+            [member.model_dump(mode="python") for member in payload.partial_member_list],
+            current_user,
+        )
+        return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
+
+
+@console_ns.route("/admin/audit")
+class AdminAuditApi(Resource):
+    @console_ns.doc("get_admin_audit_logs")
+    @console_ns.doc(description="Get recent workspace admin audit logs")
+    @console_ns.response(200, "Success", console_ns.models[AuditLogListResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def get(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        logs = db.session.scalars(
+            select(OperationLog)
+            .where(OperationLog.tenant_id == tenant_id)
+            .order_by(OperationLog.created_at.desc())
+            .limit(100)
+        ).all()
+        return AuditLogListResponse(data=logs).model_dump(mode="json"), 200
 
 
 @console_ns.route("/apps/<uuid:app_id>/trace")

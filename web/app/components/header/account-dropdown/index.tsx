@@ -113,7 +113,7 @@ export default function AppSelector() {
 
   const { t } = useTranslation()
   const docLink = useDocLink()
-  const { userProfile, langGeniusVersionInfo, isCurrentWorkspaceOwner } = useAppContext()
+  const { userProfile, langGeniusVersionInfo, isCurrentWorkspaceOwner, isCurrentWorkspaceManager } = useAppContext()
   const { isEducationAccount } = useProviderContext()
   const { setShowAccountSettingModal } = useModalContext()
 
@@ -172,6 +172,13 @@ export default function AppSelector() {
               label={t('userProfile.settings', { ns: 'common' })}
               onClick={() => setShowAccountSettingModal({ payload: ACCOUNT_SETTING_TAB.MEMBERS })}
             />
+            {isCurrentWorkspaceManager && (
+              <AccountMenuRouteItem
+                href="/admin"
+                iconClassName="i-ri-shield-user-line"
+                label="企业管理后台"
+              />
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator className="my-0! bg-divider-subtle" />
           {!systemFeatures.branding.enabled && (

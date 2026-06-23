@@ -41,6 +41,7 @@ import { useAppContext } from '@/context/app-context'
 import { useProviderContext } from '@/context/provider-context'
 import { AppCardTags } from '@/features/tag-management/components/app-card-tags'
 import { useAsyncWindowOpen } from '@/hooks/use-async-window-open'
+import { useWorkspacePermission } from '@/hooks/use-workspace-permission'
 import { AccessMode } from '@/models/access-control'
 import dynamic from '@/next/dynamic'
 import { useRouter } from '@/next/navigation'
@@ -211,6 +212,9 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
   const { t } = useTranslation()
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
   const { isCurrentWorkspaceEditor } = useAppContext()
+  const canWorkspace = useWorkspacePermission()
+  const canEditApp = canWorkspace('app.edit', isCurrentWorkspaceEditor)
+  const canManageAppAccessControl = canWorkspace('app.access-control.manage', isCurrentWorkspaceEditor)
   const { onPlanInfoChanged } = useProviderContext()
   const { push } = useRouter()
 
@@ -338,7 +342,7 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
       if (onRefresh)
         onRefresh()
       onPlanInfoChanged()
-      getRedirection(isCurrentWorkspaceEditor, newApp, push)
+      getRedirection(canEditApp, newApp, push)
     }
     catch {
       toast.error(t('newApp.appCreateFailed', { ns: 'app' }))
@@ -392,7 +396,7 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
   }, [onRefresh, setShowAccessControl])
 
   const shouldShowSwitchOption = app.mode === AppModeEnum.COMPLETION || app.mode === AppModeEnum.CHAT
-  const shouldShowAccessControlOption = systemFeatures.webapp_auth.enabled && isCurrentWorkspaceEditor
+  const shouldShowAccessControlOption = systemFeatures.webapp_auth.enabled && canManageAppAccessControl
   const operationsMenuWidthClassName = shouldShowSwitchOption ? 'w-[256px]' : 'w-[216px]'
 
   const EditTimeText = useMemo(() => {
@@ -422,7 +426,7 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
       <div
         onClick={(e) => {
           e.preventDefault()
-          getRedirection(isCurrentWorkspaceEditor, app, push)
+          getRedirection(canEditApp, app, push)
         }}
         className="group relative col-span-1 inline-flex h-[160px] cursor-pointer flex-col rounded-xl border border-solid border-components-card-border bg-components-card-bg shadow-sm transition-shadow duration-200 ease-in-out hover:shadow-lg"
       >
@@ -500,7 +504,7 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
           </div>
         </div>
         <div className="absolute right-0 bottom-1 left-0 flex h-[42px] shrink-0 items-center pt-1 pr-[6px] pb-[6px] pl-[14px]">
-          {isCurrentWorkspaceEditor && (
+          {canEditApp && (
             <>
               <div
                 className={cn('flex w-0 grow items-center gap-1')}

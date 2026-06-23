@@ -14,6 +14,7 @@ import { NEED_REFRESH_APP_LIST_KEY } from '@/config'
 import { useAppContext } from '@/context/app-context'
 import { TagFilter } from '@/features/tag-management/components/tag-filter'
 import { CheckModal } from '@/hooks/use-pay'
+import { useWorkspacePermission } from '@/hooks/use-workspace-permission'
 import dynamic from '@/next/dynamic'
 import { consoleQuery } from '@/service/client'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
@@ -44,6 +45,9 @@ const List: FC<Props> = ({
   const { t } = useTranslation()
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
   const { isCurrentWorkspaceEditor, isCurrentWorkspaceDatasetOperator, isLoadingCurrentWorkspace } = useAppContext()
+  const canWorkspace = useWorkspacePermission()
+  const canCreateApp = canWorkspace('app.create', isCurrentWorkspaceEditor)
+  const canViewApp = canWorkspace('app.view', !isCurrentWorkspaceDatasetOperator)
 
   // eslint-disable-next-line react/use-state -- custom URL query hook, not React.useState
   const {
@@ -68,7 +72,7 @@ const List: FC<Props> = ({
   const { dragging } = useDSLDragDrop({
     onDSLFileDropped: handleDSLFileDropped,
     containerRef,
-    enabled: isCurrentWorkspaceEditor,
+    enabled: canCreateApp,
   })
 
   const appListQuery = useMemo<AppListQuery>(() => ({
@@ -101,7 +105,7 @@ const List: FC<Props> = ({
       initialPageParam: 1,
       placeholderData: keepPreviousData,
     }),
-    enabled: !isCurrentWorkspaceDatasetOperator,
+    enabled: canViewApp,
     refetchInterval: systemFeatures.enable_collaboration_mode ? 10000 : false,
   })
 
@@ -129,7 +133,7 @@ const List: FC<Props> = ({
   }, [refetch])
 
   useEffect(() => {
-    if (isCurrentWorkspaceDatasetOperator)
+    if (!canViewApp)
       return
     const hasMore = hasNextPage ?? true
     let observer: IntersectionObserver | undefined
@@ -156,7 +160,7 @@ const List: FC<Props> = ({
       observer.observe(anchorRef.current)
     }
     return () => observer?.disconnect()
-  }, [isLoading, isFetchingNextPage, fetchNextPage, error, hasNextPage, isCurrentWorkspaceDatasetOperator])
+  }, [isLoading, isFetchingNextPage, fetchNextPage, error, hasNextPage, canViewApp])
 
   const handleCreatedByMeChange = useCallback((checked: boolean) => {
     setIsCreatedByMe(checked)
@@ -225,7 +229,7 @@ const List: FC<Props> = ({
           !hasAnyApp && 'overflow-hidden',
         )}
         >
-          {(isCurrentWorkspaceEditor || isLoadingCurrentWorkspace) && (
+          {(canCreateApp || isLoadingCurrentWorkspace) && (
             <NewAppCard
               ref={newAppCardRef}
               isLoading={isLoadingCurrentWorkspace}
@@ -252,7 +256,7 @@ const List: FC<Props> = ({
           )}
         </div>
 
-        {isCurrentWorkspaceEditor && (
+        {canCreateApp && (
           <div
             className={`flex items-center justify-center gap-2 py-4 ${dragging ? 'text-text-accent' : 'text-text-quaternary'}`}
             role="region"

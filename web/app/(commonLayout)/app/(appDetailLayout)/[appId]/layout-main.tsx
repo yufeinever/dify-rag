@@ -26,6 +26,7 @@ import Loading from '@/app/components/base/loading'
 import { useAppContext } from '@/context/app-context'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import useDocumentTitle from '@/hooks/use-document-title'
+import { useWorkspacePermission } from '@/hooks/use-workspace-permission'
 import { usePathname, useRouter } from '@/next/navigation'
 import { fetchAppDetailDirect } from '@/service/apps'
 import { AppModeEnum } from '@/types/app'
@@ -47,6 +48,8 @@ const AppDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
   const media = useBreakpoints()
   const isMobile = media === MediaType.mobile
   const { isCurrentWorkspaceEditor, isLoadingCurrentWorkspace, currentWorkspace } = useAppContext()
+  const canWorkspace = useWorkspacePermission()
+  const canEditApp = canWorkspace('app.edit', isCurrentWorkspaceEditor)
   const appInfoActions = useAppInfoActions({ resetKey: appId })
   const { appDetail, setAppDetail, setAppSidebarExpand } = useStore(useShallow(state => ({
     appDetail: state.appDetail,
@@ -62,9 +65,9 @@ const AppDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
     selectedIcon: NavIcon
   }>>([])
 
-  const getNavigationConfig = useCallback((appId: string, isCurrentWorkspaceEditor: boolean, mode: AppModeEnum) => {
+  const getNavigationConfig = useCallback((appId: string, canEditApp: boolean, mode: AppModeEnum) => {
     const navConfig = [
-      ...(isCurrentWorkspaceEditor
+      ...(canEditApp
         ? [{
             name: t('appMenus.promptEng', { ns: 'common' }),
             href: `/app/${appId}/${(mode === AppModeEnum.WORKFLOW || mode === AppModeEnum.ADVANCED_CHAT) ? 'workflow' : 'configuration'}`,
@@ -79,7 +82,7 @@ const AppDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
         icon: RiTerminalBoxLine,
         selectedIcon: RiTerminalBoxFill,
       },
-      ...(isCurrentWorkspaceEditor
+      ...(canEditApp
         ? [{
             name: mode !== AppModeEnum.WORKFLOW
               ? t('appMenus.logAndAnn', { ns: 'common' })
@@ -131,8 +134,7 @@ const AppDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
       return
     const res = appDetailRes
     // redirection
-    const canIEditApp = isCurrentWorkspaceEditor
-    if (!canIEditApp && (pathname.endsWith('configuration') || pathname.endsWith('workflow') || pathname.endsWith('logs'))) {
+    if (!canEditApp && (pathname.endsWith('configuration') || pathname.endsWith('workflow') || pathname.endsWith('logs'))) {
       router.replace(`/app/${appId}/overview`)
       return
     }
@@ -144,9 +146,9 @@ const AppDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
     }
     else {
       setAppDetail({ ...res, enable_sso: false })
-      setNavigation(getNavigationConfig(appId, isCurrentWorkspaceEditor, res.mode))
+      setNavigation(getNavigationConfig(appId, canEditApp, res.mode))
     }
-  }, [appDetailRes, isCurrentWorkspaceEditor, isLoadingAppDetail, isLoadingCurrentWorkspace])
+  }, [appDetailRes, appId, canEditApp, currentWorkspace.id, getNavigationConfig, isLoadingAppDetail, isLoadingCurrentWorkspace, pathname, router, setAppDetail])
 
   useUnmount(() => {
     setAppDetail()

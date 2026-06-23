@@ -8,13 +8,16 @@ from controllers.console.app.error import AppNotFoundError
 from extensions.ext_database import db
 from libs.login import current_account_with_tenant
 from models import App, AppMode
+from services.app_service import AppService
 
 
 def _load_app_model(app_id: str) -> App | None:
-    _, current_tenant_id = current_account_with_tenant()
+    current_account, current_tenant_id = current_account_with_tenant()
     app_model = db.session.scalar(
         select(App).where(App.id == app_id, App.tenant_id == current_tenant_id, App.status == "normal").limit(1)
     )
+    if app_model and not AppService().has_app_permission(current_account.id, current_tenant_id, app_id):
+        return None
     return app_model
 
 

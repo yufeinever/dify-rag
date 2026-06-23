@@ -326,11 +326,27 @@ def is_admin_or_owner_required[**P, R](f: Callable[P, R]) -> Callable[P, R]:
     def decorated_function(*args: P.args, **kwargs: P.kwargs):
         from werkzeug.exceptions import Forbidden
 
-        from libs.login import current_user
+        from libs.login import current_account_with_tenant
         from models import Account
 
-        user = current_user._get_current_object()
+        user, _ = current_account_with_tenant()
         if not isinstance(user, Account) or not user.is_admin_or_owner:
+            raise Forbidden()
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def is_owner_required[**P, R](f: Callable[P, R]) -> Callable[P, R]:
+    @wraps(f)
+    def decorated_function(*args: P.args, **kwargs: P.kwargs):
+        from werkzeug.exceptions import Forbidden
+
+        from libs.login import current_account_with_tenant
+        from models import Account, TenantAccountRole
+
+        user, _ = current_account_with_tenant()
+        if not isinstance(user, Account) or user.current_role != TenantAccountRole.OWNER:
             raise Forbidden()
         return f(*args, **kwargs)
 

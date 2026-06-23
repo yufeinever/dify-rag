@@ -3,9 +3,10 @@ import logging
 from typing import Any, Literal, TypedDict, cast
 
 import sqlalchemy as sa
+from flask import request
 from flask_sqlalchemy.pagination import Pagination
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from configs import dify_config
 from constants.model_template import default_app_templates
@@ -19,8 +20,9 @@ from extensions.ext_database import db
 from graphon.model_runtime.entities.model_entities import ModelPropertyKey, ModelType
 from graphon.model_runtime.model_providers.base.large_language_model import LargeLanguageModel
 from libs.datetime_utils import naive_utc_now
+from libs.helper import extract_remote_ip
 from libs.login import current_user
-from models import Account
+from models import Account, AppPermission, OperationLog, TenantAccountRole
 from models.model import App, AppMode, AppModelConfig, IconType, Site
 from models.tools import ApiToolProvider
 from services.billing_service import BillingService
@@ -54,6 +56,112 @@ class CreateAppParams(BaseModel):
 
 
 class AppService:
+    def _get_account_role(self, user_id: str, tenant_id: str) -> str | None:
+        return db.session.execute(
+            sa.text(
+                """
+                select role
+                from tenant_account_joins
+                where account_id = :user_id and tenant_id = :tenant_id
+                limit 1
+                """
+            ),
+            {"user_id": user_id, "tenant_id": tenant_id},
+        ).scalar_one_or_none()
+
+    def _get_limited_app_ids(self, user_id: str, tenant_id: str) -> list[str] | None:
+        role = self._get_account_role(user_id, tenant_id)
+
+        if role in {TenantAccountRole.OWNER, TenantAccountRole.ADMIN}:
+            return None
+
+        permitted_app_ids = db.session.scalars(
+            select(AppPermission.app_id).where(
+                AppPermission.account_id == user_id,
+                AppPermission.tenant_id == tenant_id,
+                AppPermission.has_permission == sa.true(),
+            )
+        ).all()
+
+        if not permitted_app_ids:
+            return None
+
+        return list(permitted_app_ids)
+
+    def has_app_permission(self, user_id: str, tenant_id: str, app_id: str) -> bool:
+        role = self._get_account_role(user_id, tenant_id)
+        if role in {TenantAccountRole.OWNER, TenantAccountRole.ADMIN}:
+            return True
+
+        explicit_permission_count = db.session.scalar(
+            select(sa.func.count()).select_from(AppPermission).where(
+                AppPermission.account_id == user_id,
+                AppPermission.tenant_id == tenant_id,
+            )
+        )
+        if not explicit_permission_count:
+            return True
+
+        return bool(
+            db.session.scalar(
+                select(AppPermission.id).where(
+                    AppPermission.account_id == user_id,
+                    AppPermission.tenant_id == tenant_id,
+                    AppPermission.app_id == app_id,
+                    AppPermission.has_permission == sa.true(),
+                )
+            )
+        )
+
+    def get_app_partial_member_list(self, tenant_id: str, app_id: str) -> list[str]:
+        return db.session.scalars(
+            select(AppPermission.account_id).where(
+                AppPermission.tenant_id == tenant_id,
+                AppPermission.app_id == app_id,
+                AppPermission.has_permission == sa.true(),
+            )
+        ).all()
+
+    def update_app_partial_member_list(
+        self,
+        tenant_id: str,
+        app_id: str,
+        user_list: list[dict[str, str]],
+        operator: Account,
+    ) -> list[str]:
+        """Replace app member grants and add one audit record.
+
+        Owners/admins keep implicit access and do not need persisted grant rows.
+        """
+        account_ids = sorted({user["user_id"] for user in user_list if user.get("user_id")})
+
+        try:
+            db.session.execute(
+                delete(AppPermission).where(
+                    AppPermission.tenant_id == tenant_id,
+                    AppPermission.app_id == app_id,
+                )
+            )
+            db.session.add_all([
+                AppPermission(tenant_id=tenant_id, app_id=app_id, account_id=account_id)
+                for account_id in account_ids
+            ])
+            db.session.add(
+                OperationLog(
+                    tenant_id=tenant_id,
+                    account_id=operator.id,
+                    action='app_permissions.updated',
+                    content={'app_id': app_id, 'member_ids': account_ids},
+                    created_ip=extract_remote_ip(request),
+                )
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return account_ids
+
     def get_paginate_apps(self, user_id: str, tenant_id: str, params: AppListParams) -> Pagination | None:
         """
         Get app list with pagination
@@ -89,6 +197,10 @@ class AppService:
                 filters.append(App.id.in_(target_ids))
             else:
                 return None
+
+        permitted_app_ids = self._get_limited_app_ids(user_id, tenant_id)
+        if permitted_app_ids is not None:
+            filters.append(App.id.in_(permitted_app_ids))
 
         app_models = db.paginate(
             sa.select(App).where(*filters).order_by(App.created_at.desc()),

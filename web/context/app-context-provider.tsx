@@ -22,6 +22,7 @@ import {
   useLangGeniusVersion,
   userProfileQueryOptions,
 } from '@/service/use-common'
+import { buildWorkspacePermissions, createWorkspacePermissionChecker, getWorkspaceRoleProfile } from '@/utils/workspace-permissions'
 
 type AppContextProviderProps = {
   children: ReactNode
@@ -59,10 +60,16 @@ export const AppContextProvider: FC<AppContextProviderProps> = ({ children }) =>
     }
   }, [langGeniusVersionQuery.data, userProfileResp?.meta])
 
-  const isCurrentWorkspaceManager = useMemo(() => ['owner', 'admin'].includes(currentWorkspace.role), [currentWorkspace.role])
-  const isCurrentWorkspaceOwner = useMemo(() => currentWorkspace.role === 'owner', [currentWorkspace.role])
-  const isCurrentWorkspaceEditor = useMemo(() => ['owner', 'admin', 'editor'].includes(currentWorkspace.role), [currentWorkspace.role])
-  const isCurrentWorkspaceDatasetOperator = useMemo(() => currentWorkspace.role === 'dataset_operator', [currentWorkspace.role])
+  const workspacePermissions = useMemo(() => buildWorkspacePermissions(currentWorkspace.role), [currentWorkspace.role])
+  const can = useMemo(() => createWorkspacePermissionChecker(workspacePermissions), [workspacePermissions])
+  const canAny = useCallback(can.any, [can])
+  const canAll = useCallback(can.all, [can])
+  const checkPermissions = useCallback(can.check, [can])
+  const workspaceRoleProfile = useMemo(() => getWorkspaceRoleProfile(currentWorkspace.role), [currentWorkspace.role])
+  const isCurrentWorkspaceManager = workspacePermissions['workspace.member.manage']
+  const isCurrentWorkspaceOwner = workspacePermissions['workspace.owner.transfer']
+  const isCurrentWorkspaceEditor = workspacePermissions['app.edit']
+  const isCurrentWorkspaceDatasetOperator = currentWorkspace.role === 'dataset_operator'
 
   const mutateUserProfile = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['common', 'user-profile'] })
@@ -143,6 +150,12 @@ export const AppContextProvider: FC<AppContextProviderProps> = ({ children }) =>
       isCurrentWorkspaceOwner,
       isCurrentWorkspaceEditor,
       isCurrentWorkspaceDatasetOperator,
+      workspacePermissions,
+      workspaceRoleProfile,
+      can,
+      canAny,
+      canAll,
+      checkPermissions,
       mutateCurrentWorkspace,
       isLoadingCurrentWorkspace,
       isValidatingCurrentWorkspace,

@@ -1,8 +1,17 @@
 'use client'
 
 import type { ICurrentWorkspace, LangGeniusVersionResponse, UserProfileResponse } from '@/models/common'
+import type {
+  WorkspacePermission,
+  WorkspacePermissionChecker,
+  WorkspacePermissionCheckResult,
+  WorkspacePermissionMap,
+  WorkspacePermissionMode,
+  WorkspaceRoleProfile,
+} from '@/utils/workspace-permissions'
 import { noop } from 'es-toolkit/function'
 import { createContext, useContext, useContextSelector } from 'use-context-selector'
+import { buildWorkspacePermissions } from '@/utils/workspace-permissions'
 
 export type AppContextValue = {
   userProfile: UserProfileResponse
@@ -12,6 +21,12 @@ export type AppContextValue = {
   isCurrentWorkspaceOwner: boolean
   isCurrentWorkspaceEditor: boolean
   isCurrentWorkspaceDatasetOperator: boolean
+  workspacePermissions?: WorkspacePermissionMap
+  workspaceRoleProfile?: WorkspaceRoleProfile
+  can?: WorkspacePermissionChecker
+  canAny?: (permissions: WorkspacePermission[]) => boolean
+  canAll?: (permissions: WorkspacePermission[]) => boolean
+  checkPermissions?: (permissions: WorkspacePermission[], mode?: WorkspacePermissionMode) => WorkspacePermissionCheckResult
   mutateCurrentWorkspace: VoidFunction
   langGeniusVersionInfo: LangGeniusVersionResponse
   useSelector: typeof useSelector
@@ -51,6 +66,8 @@ export const initialWorkspaceInfo: ICurrentWorkspace = {
   next_credit_reset_date: 0,
 }
 
+export const initialWorkspacePermissions = buildWorkspacePermissions(initialWorkspaceInfo.role)
+
 export const AppContext = createContext<AppContextValue>({
   userProfile: userProfilePlaceholder,
   currentWorkspace: initialWorkspaceInfo,
@@ -58,6 +75,27 @@ export const AppContext = createContext<AppContextValue>({
   isCurrentWorkspaceOwner: false,
   isCurrentWorkspaceEditor: false,
   isCurrentWorkspaceDatasetOperator: false,
+  workspacePermissions: initialWorkspacePermissions,
+  can: Object.assign(() => false, {
+    any: () => false,
+    all: () => false,
+    check: (permissions: WorkspacePermission[], mode: WorkspacePermissionMode = 'all') => ({
+      allowed: false,
+      mode,
+      requested: permissions,
+      granted: [],
+      missing: permissions,
+    }),
+  }),
+  canAny: () => false,
+  canAll: () => false,
+  checkPermissions: (permissions: WorkspacePermission[], mode: WorkspacePermissionMode = 'all') => ({
+    allowed: false,
+    mode,
+    requested: permissions,
+    granted: [],
+    missing: permissions,
+  }),
   mutateUserProfile: noop,
   mutateCurrentWorkspace: noop,
   langGeniusVersionInfo: initialLangGeniusVersionInfo,
