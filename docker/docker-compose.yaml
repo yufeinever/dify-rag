@@ -268,6 +268,7 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 30s
@@ -300,6 +301,8 @@ services:
         required: false
       redis:
         condition: service_started
+    volumes:
+      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     networks:
       - ssrf_proxy_network
       - default
@@ -337,6 +340,7 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     healthcheck:
       test: ["CMD-SHELL", "celery -A celery_healthcheck.celery inspect ping"]
       interval: ${COMPOSE_WORKER_HEALTHCHECK_INTERVAL:-30s}
@@ -373,6 +377,8 @@ services:
         required: false
       redis:
         condition: service_started
+    volumes:
+      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     healthcheck:
       test: ["CMD-SHELL", "celery -A celery_healthcheck.celery inspect ping"]
       interval: ${COMPOSE_WORKER_HEALTHCHECK_INTERVAL:-30s}
