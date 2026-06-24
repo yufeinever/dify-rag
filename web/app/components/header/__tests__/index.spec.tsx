@@ -122,7 +122,7 @@ describe('Header', () => {
   it('should render header with main nav components', () => {
     renderHeader()
 
-    expect(screen.getByRole('img', { name: /dify logo/i })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /mmbai logo/i })).toBeInTheDocument()
     expect(screen.getByTestId('workplace-selector')).toBeInTheDocument()
     expect(screen.getByTestId('app-nav')).toBeInTheDocument()
     expect(screen.getByTestId('account-dropdown')).toBeInTheDocument()
@@ -166,7 +166,7 @@ describe('Header', () => {
     mockMedia = 'mobile'
     renderHeader()
 
-    expect(screen.getByRole('img', { name: /dify logo/i })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /mmbai logo/i })).toBeInTheDocument()
     expect(screen.queryByTestId('env-nav')).not.toBeInTheDocument()
   })
 
@@ -179,10 +179,10 @@ describe('Header', () => {
 
     expect(screen.getByText('Acme Workspace')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /logo/i })).toBeInTheDocument()
-    expect(screen.queryByRole('img', { name: /dify logo/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /mmbai logo/i })).not.toBeInTheDocument()
   })
 
-  it('should show default Dify logo when branding is enabled but no workspace_logo', () => {
+  it('should show default MMB logo when branding is enabled but no workspace_logo', () => {
     mockBrandingEnabled = true
     mockBrandingTitle = 'Custom Title'
     mockBrandingLogo = null
@@ -190,17 +190,17 @@ describe('Header', () => {
     renderHeader()
 
     expect(screen.getByText('Custom Title')).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /dify logo/i })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /mmbai logo/i })).toBeInTheDocument()
   })
 
-  it('should show default Dify text when branding enabled but no application_title', () => {
+  it('should show default AI中台 text when branding enabled but no application_title', () => {
     mockBrandingEnabled = true
     mockBrandingTitle = null
     mockBrandingLogo = null
 
     renderHeader()
 
-    expect(screen.getByText('Dify')).toBeInTheDocument()
+    expect(screen.getByText('AI中台')).toBeInTheDocument()
   })
 
   it('should show dataset nav for editor who is not dataset operator', () => {

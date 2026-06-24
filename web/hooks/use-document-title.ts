@@ -12,13 +12,17 @@ export default function useDocumentTitle(title: string) {
   const prefix = title ? `${title} - ` : ''
   let titleStr = ''
   let favicon = ''
+  const brandingTitle = systemFeatures.branding.application_title?.trim()
+  const applicationTitle = systemFeatures.branding.enabled && brandingTitle && brandingTitle.toLowerCase() !== 'dify'
+    ? brandingTitle
+    : 'MMB-AI'
   if (isPending === false) {
     if (systemFeatures.branding.enabled) {
-      titleStr = `${prefix}${systemFeatures.branding.application_title}`
+      titleStr = `${prefix}${applicationTitle}`
       favicon = systemFeatures.branding.favicon
     }
     else {
-      titleStr = `${prefix}Dify`
+      titleStr = `${prefix}${applicationTitle}`
       favicon = `${basePath}/favicon.ico`
     }
   }

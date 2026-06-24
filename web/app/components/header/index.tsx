@@ -37,6 +37,10 @@ const Header = () => {
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
   const isFreePlan = plan.type === Plan.sandbox
   const isBrandingEnabled = systemFeatures.branding.enabled
+  const brandingTitle = systemFeatures.branding.application_title?.trim()
+  const applicationTitle = isBrandingEnabled && brandingTitle && brandingTitle.toLowerCase() !== 'dify'
+    ? brandingTitle
+    : 'AI中台'
   const handlePlanClick = useCallback(() => {
     if (isFreePlan)
       setShowPricingModal()
@@ -47,7 +51,7 @@ const Header = () => {
   const renderLogo = () => (
     <h1>
       <Link href="/apps" className="flex h-8 shrink-0 items-center justify-center overflow-hidden px-0.5 indent-[-9999px] whitespace-nowrap">
-        {isBrandingEnabled && systemFeatures.branding.application_title ? systemFeatures.branding.application_title : 'MMBAI'}
+        {applicationTitle}
         {systemFeatures.branding.enabled && systemFeatures.branding.workspace_logo
           ? (
               <img

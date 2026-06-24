@@ -30,22 +30,22 @@ describe('title should be empty if systemFeatures is pending', () => {
 })
 
 /**
- * Test default Dify branding behavior
- * When custom branding is disabled, should use "Dify" as the brand name
+ * Test default branding behavior
+ * When custom branding is disabled, should use "MMB-AI" as the brand name
  */
 describe('use default branding', () => {
-  it('document title should be test-Dify if set title', () => {
+  it('document title should be test-MMB-AI if set title', () => {
     renderHookWithSystemFeatures(() => useDocumentTitle('test'), {
       systemFeatures: { branding: { enabled: false } },
     })
-    expect(document.title).toBe('test - Dify')
+    expect(document.title).toBe('test - MMB-AI')
   })
 
-  it('document title should be Dify if not set title', () => {
+  it('document title should be MMB-AI if not set title', () => {
     renderHookWithSystemFeatures(() => useDocumentTitle(''), {
       systemFeatures: { branding: { enabled: false } },
     })
-    expect(document.title).toBe('Dify')
+    expect(document.title).toBe('MMB-AI')
   })
 })
 
@@ -53,6 +53,15 @@ describe('use default branding', () => {
  * Test custom branding behavior
  * When custom branding is enabled, should use the configured application_title
  */
+describe('ignore Dify branding fallback', () => {
+  it('document title should still use MMB-AI when branding title is Dify', () => {
+    renderHookWithSystemFeatures(() => useDocumentTitle('test'), {
+      systemFeatures: { branding: { enabled: true, application_title: 'Dify' } },
+    })
+    expect(document.title).toBe('test - MMB-AI')
+  })
+})
+
 describe('use specific branding', () => {
   it('document title should be test-Test if set title', () => {
     renderHookWithSystemFeatures(() => useDocumentTitle('test'), {
