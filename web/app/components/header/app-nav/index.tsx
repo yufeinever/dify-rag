@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { useStore as useAppStore } from '@/app/components/app/store'
 import { useAppContext } from '@/context/app-context'
 import dynamic from '@/next/dynamic'
+import { appDefaultIconBackground } from '@/config'
 import { useParams } from '@/next/navigation'
 import { consoleQuery } from '@/service/client'
 import { AppModeEnum } from '@/types/app'
@@ -86,10 +87,10 @@ const AppNav = () => {
 
     return appItems.map(app => ({
       id: app.id,
-      icon_type: app.icon_type,
-      icon: app.icon,
-      icon_background: app.icon_background,
-      icon_url: app.icon_url,
+      icon_type: app.icon_type || 'emoji',
+      icon: app.icon || '🤖',
+      icon_background: app.icon_background || appDefaultIconBackground,
+      icon_url: app.icon_url || null,
       name: appDetail?.id === app.id ? appDetail.name : app.name,
       mode: app.mode,
       link: getAppLink(isCurrentWorkspaceEditor, app.id, app.mode),

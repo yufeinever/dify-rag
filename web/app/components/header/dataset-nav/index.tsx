@@ -14,6 +14,13 @@ import { useDatasetDetail, useDatasetList } from '@/service/knowledge/use-datase
 import { basePath } from '@/utils/var'
 import Nav from '../nav'
 
+const defaultDatasetIcon = {
+  icon: '📙',
+  icon_type: 'emoji' as const,
+  icon_background: '#FFF4ED',
+  icon_url: null,
+}
+
 const DatasetNav = () => {
   const { t } = useTranslation()
   const router = useRouter()
@@ -33,13 +40,14 @@ const DatasetNav = () => {
   const curNav = useMemo(() => {
     if (!currentDataset)
       return
+    const iconInfo = currentDataset.icon_info || defaultDatasetIcon
     return {
       id: currentDataset.id,
       name: currentDataset.name,
-      icon: currentDataset.icon_info.icon,
-      icon_type: currentDataset.icon_info.icon_type,
-      icon_background: currentDataset.icon_info.icon_background,
-      icon_url: currentDataset.icon_info.icon_url,
+      icon: iconInfo.icon || defaultDatasetIcon.icon,
+      icon_type: iconInfo.icon_type || defaultDatasetIcon.icon_type,
+      icon_background: iconInfo.icon_background || defaultDatasetIcon.icon_background,
+      icon_url: iconInfo.icon_url || null,
     } as Omit<NavItem, 'link'>
   }, [currentDataset?.id, currentDataset?.name, currentDataset?.icon_info])
 
@@ -56,14 +64,15 @@ const DatasetNav = () => {
   const navigationItems = useMemo(() => {
     return datasetItems.map((dataset) => {
       const link = getDatasetLink(dataset)
+      const iconInfo = dataset.icon_info || defaultDatasetIcon
       return {
         id: dataset.id,
         name: dataset.name,
         link,
-        icon: dataset.icon_info.icon,
-        icon_type: dataset.icon_info.icon_type,
-        icon_background: dataset.icon_info.icon_background,
-        icon_url: dataset.icon_info.icon_url,
+        icon: iconInfo.icon || defaultDatasetIcon.icon,
+        icon_type: iconInfo.icon_type || defaultDatasetIcon.icon_type,
+        icon_background: iconInfo.icon_background || defaultDatasetIcon.icon_background,
+        icon_url: iconInfo.icon_url || null,
       }
     }) as NavItem[]
   }, [datasetItems, getDatasetLink])
