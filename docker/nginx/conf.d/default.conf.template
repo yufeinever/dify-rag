@@ -49,6 +49,10 @@ server {
     location /explore {
       proxy_pass http://web:3000;
       include proxy.conf;
+      proxy_set_header Accept-Encoding "";
+      sub_filter_once off;
+      sub_filter_types text/html;
+      sub_filter '</body>' '<script defer src="/custom-assets/mmb-logo/global-brand-patch.js?v=20260624-4"></script></body>';
     }
 
     location /e/ {
@@ -72,7 +76,7 @@ server {
       proxy_set_header Accept-Encoding "";
       sub_filter_once off;
       sub_filter_types text/html;
-      sub_filter '</body>' '<script defer src="/custom-assets/mmb-logo/global-brand-patch.js?v=20260624-2"></script></body>';
+      sub_filter '</body>' '<script defer src="/custom-assets/mmb-logo/global-brand-patch.js?v=20260624-4"></script></body>';
     }
 
     location /mcp {

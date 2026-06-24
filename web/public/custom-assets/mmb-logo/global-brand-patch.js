@@ -2,6 +2,7 @@
   const BRAND_LABEL = 'AI中台';
   const BRAND_NAME = 'MMB-AI';
   const BRAND_LOGO_ALT = `${BRAND_NAME} logo`;
+  const BRAND_LOGO_SRC = '/custom-assets/mmb-logo/logo-embedded-chat-avatar.png';
   const replacements = [
     ['Dify 权限增强版', 'MMBAI 企业版'],
     ['Dify Plus 管理台', '企业管理后台'],
@@ -36,24 +37,41 @@
   };
 
   const patchHeaderBrand = () => {
-    const appLinks = Array.from(document.querySelectorAll('a[href="/apps"]'));
-    const brandLink = appLinks.find(link => link.closest('h1'));
+    const brandLink = Array.from(document.querySelectorAll('h1 a')).find(link => link.querySelector('img'));
     if (!brandLink)
       return;
 
     brandLink.setAttribute('aria-label', BRAND_LABEL);
+    brandLink.classList.add('items-center', 'gap-2');
     brandLink.childNodes.forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const next = replaceValue(node.nodeValue || '');
-        node.nodeValue = next.trim() ? next : BRAND_LABEL;
+        node.nodeValue = next.trim() ? next : '';
       }
     });
 
     const logo = brandLink.querySelector('img');
     if (logo) {
       logo.alt = BRAND_LOGO_ALT;
+      logo.src = BRAND_LOGO_SRC;
+      logo.removeAttribute('srcset');
+      logo.style.width = '32px';
+      logo.style.height = '32px';
+      logo.style.objectFit = 'contain';
       if (logo.title)
         logo.title = replaceValue(logo.title);
+    }
+
+    const hasVisibleLabel = Array.from(brandLink.childNodes).some(node => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim());
+    if (!hasVisibleLabel && !brandLink.querySelector('[data-mmb-brand-label]')) {
+      const label = document.createElement('span');
+      label.dataset.mmbBrandLabel = 'true';
+      label.textContent = BRAND_LABEL;
+      label.style.color = 'currentColor';
+      label.style.fontSize = '15px';
+      label.style.fontWeight = '600';
+      label.style.lineHeight = '20px';
+      brandLink.appendChild(label);
     }
   };
 
