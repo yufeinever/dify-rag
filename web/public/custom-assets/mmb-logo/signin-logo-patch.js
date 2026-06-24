@@ -68,6 +68,21 @@
     info.style.backdropFilter = 'none';
   };
 
+
+  const styleSecurityHighlights = () => {
+    const labels = new Set(['企业角色校验', '工作区级隔离', '登录后审计追踪']);
+    Array.from(document.querySelectorAll('body div'))
+      .filter((el) => el.children.length === 0 && labels.has((el.textContent || '').trim()))
+      .forEach((el) => {
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.style.textAlign = 'center';
+        el.style.minHeight = '48px';
+        el.style.lineHeight = '16px';
+      });
+  };
+
   const styleLegacyEntryClasses = () => {
     Array.from(document.querySelectorAll('div[class*="bg-[#121722]/72"][class*="border-white/10"]'))
       .forEach(styleEntryCard);
@@ -139,6 +154,7 @@
   const ensureLogo = () => {
     rewriteCopy();
     styleLegacyEntryClasses();
+    styleSecurityHighlights();
 
     const textBadges = Array.from(document.querySelectorAll('body div'))
       .filter((el) => el.children.length === 0 && el.textContent.trim().toLowerCase() === 'mmb');

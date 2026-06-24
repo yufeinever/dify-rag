@@ -205,7 +205,7 @@ const NormalForm = () => {
                 <p className="mt-3 body-md-regular text-white/58">进入 AI 中台，管理知识库、工作流、应用与团队权限。</p>
                 <div className="mt-5 grid grid-cols-3 gap-2">
                   {securityHighlights.map(item => (
-                    <div key={item} className="min-h-12 rounded-md border border-white/10 bg-[#10151d] px-2 py-2 text-[12px] leading-4 text-white/64">
+                    <div key={item} className="flex min-h-12 items-center justify-center rounded-md border border-white/10 bg-[#10151d] px-2 py-2 text-center text-[12px] leading-4 text-white/64">
                       {item}
                     </div>
                   ))}
