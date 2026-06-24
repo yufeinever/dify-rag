@@ -2,11 +2,17 @@
 FROM python:3.12-slim-bookworm AS base
 
 WORKDIR /app/api
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
 
 # Install uv
 ENV UV_VERSION=0.8.9
 
-RUN pip install --no-cache-dir uv==${UV_VERSION}
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple uv==${UV_VERSION}
 
 
 FROM base AS packages
@@ -14,7 +20,7 @@ FROM base AS packages
 # if you located in China, you can use aliyun mirror to speed up
 # RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources
 
-RUN apt-get update \
+RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources && apt-get update \
     && apt-get install -y --no-install-recommends \
           # basic environment
           g++ \
@@ -51,6 +57,14 @@ ENV LC_ALL=en_US.UTF-8
 ENV PYTHONIOENCODING=utf-8
 
 WORKDIR /app/api
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
+
+RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources
 
 # Create non-root user
 ARG dify_uid=1001
@@ -113,7 +127,8 @@ RUN python -c "import tiktoken; tiktoken.encoding_for_model('gpt2')" \
 COPY --chown=dify:dify api /app/api/
 
 # Prepare entrypoint script
-COPY --chown=dify:dify --chmod=755 api/docker/entrypoint.sh /entrypoint.sh
+COPY --chown=dify:dify api/docker/entrypoint.sh /entrypoint.sh
+RUN chmod 755 /entrypoint.sh
 
 
 ARG COMMIT_SHA

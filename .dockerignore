@@ -6,6 +6,15 @@ docker/volumes/**
 **/.mongodb/**
 
 **
+
+!api/
+!api/**
+!dify-agent/
+!dify-agent/pyproject.toml
+!dify-agent/README.md
+!dify-agent/src/
+!dify-agent/src/**
+
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
@@ -15,8 +24,7 @@ docker/volumes/**
 !e2e/
 !e2e/package.json
 !packages/
-!packages/**/
-!packages/**/package.json
+!packages/**
 !sdks/
 !sdks/nodejs-client/
 !sdks/nodejs-client/package.json
@@ -24,6 +32,22 @@ docker/volumes/**
 .git
 node_modules
 .pnpm-store
+
+api/.venv
+api/.venv/**
+api/.env
+api/*.env.*
+api/.idea
+api/.mypy_cache
+api/.pytest_cache
+api/.ruff_cache
+api/storage/generate_files/*
+api/storage/privkeys/*
+api/storage/tools/*
+api/storage/upload_files/*
+api/logs
+api/*.log*
+
 web/.env
 web/.env.*
 web/logs
@@ -39,5 +63,5 @@ web/.idea
 web/*.iml
 web/*.iws
 web/*.ipr
+
 e2e/node_modules
-sdks/nodejs-client/node_modules

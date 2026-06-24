@@ -2,14 +2,22 @@
 FROM node:22-alpine AS base
 LABEL maintainer="takatost@gmail.com"
 
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
+
 # if you located in China, you can use aliyun mirror to speed up
-# RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # if you located in China, you can use taobao registry to speed up
-# RUN npm config set registry https://registry.npmmirror.com
+RUN npm config set registry https://registry.npmmirror.com
 
 RUN apk add --no-cache tzdata
 RUN corepack enable
+RUN pnpm config set registry https://registry.npmmirror.com
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ARG NEXT_PUBLIC_BASE_PATH=""
@@ -79,7 +87,8 @@ COPY --from=builder --chown=dify:dify /app/web/.next/standalone ./targets/next/
 COPY --from=builder --chown=dify:dify /app/web/.next/static ./targets/next/web/.next/static
 COPY --from=builder --chown=dify:dify /app/web/dist/standalone ./targets/vinext
 
-COPY --chown=dify:dify --chmod=755 web/docker/entrypoint.sh ./entrypoint.sh
+COPY --chown=dify:dify web/docker/entrypoint.sh ./entrypoint.sh
+RUN chmod 755 ./entrypoint.sh
 
 ARG COMMIT_SHA
 ENV COMMIT_SHA=${COMMIT_SHA}

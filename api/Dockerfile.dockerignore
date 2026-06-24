@@ -1,3 +1,10 @@
+deploy
+deploy/**
+docker/volumes
+docker/volumes/**
+**/.mongodb
+**/.mongodb/**
+
 *
 
 !api/

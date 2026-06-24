@@ -9,6 +9,23 @@ x-dify-global-proxy-env: &dify-global-proxy-env
   https_proxy: ${DIFY_HTTPS_PROXY:-}
   no_proxy: ${DIFY_NO_PROXY:-localhost,127.0.0.1,::1,api,api_websocket,worker,worker_beat,web,nginx,db_postgres,db_mysql,redis,plugin_daemon,sandbox,ssrf_proxy,weaviate,qdrant,oceanbase,seekdb,couchbase,pgvector,chroma,elasticsearch,opensearch,milvus,minio,etcd}
 
+x-dify-api-build: &dify-api-build
+  context: ..
+  dockerfile: api/Dockerfile
+  args:
+    COMMIT_SHA: ${COMMIT_SHA:-local}
+    HTTP_PROXY: ${DIFY_HTTP_PROXY:-}
+    HTTPS_PROXY: ${DIFY_HTTPS_PROXY:-}
+
+x-dify-web-build: &dify-web-build
+  context: ..
+  dockerfile: web/Dockerfile
+  args:
+    COMMIT_SHA: ${COMMIT_SHA:-local}
+    HTTP_PROXY: ${DIFY_HTTP_PROXY:-}
+    HTTPS_PROXY: ${DIFY_HTTPS_PROXY:-}
+
+
 x-shared-api-worker-config: &shared-api-worker-config
   env_file:
     - path: ./envs/core-services/shared.env
@@ -230,7 +247,8 @@ services:
   # API service
   api:
     <<: *shared-api-worker-config
-    image: langgenius/dify-api:1.14.2
+    image: ${DIFY_API_IMAGE:-mmbai/dify-api:local}
+    build: *dify-api-build
     environment:
       <<: *dify-global-proxy-env
       MODE: api
@@ -262,7 +280,6 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
-      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 30s
@@ -276,7 +293,8 @@ services:
   # WebSocket service for workflow collaboration.
   api_websocket:
     <<: *shared-api-worker-config
-    image: langgenius/dify-api:1.14.2
+    image: ${DIFY_API_IMAGE:-mmbai/dify-api:local}
+    build: *dify-api-build
     profiles:
       - collaboration
     environment:
@@ -295,8 +313,6 @@ services:
         required: false
       redis:
         condition: service_started
-    volumes:
-      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     networks:
       - ssrf_proxy_network
       - default
@@ -305,7 +321,8 @@ services:
   # The Celery worker for processing all queues (dataset, workflow, mail, etc.)
   worker:
     <<: *shared-worker-config
-    image: langgenius/dify-api:1.14.2
+    image: ${DIFY_API_IMAGE:-mmbai/dify-api:local}
+    build: *dify-api-build
     environment:
       <<: *dify-global-proxy-env
       MODE: worker
@@ -334,7 +351,6 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
-      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     healthcheck:
       test: ["CMD-SHELL", "celery -A celery_healthcheck.celery inspect ping"]
       interval: ${COMPOSE_WORKER_HEALTHCHECK_INTERVAL:-30s}
@@ -350,7 +366,8 @@ services:
   # Celery beat for scheduling periodic tasks.
   worker_beat:
     <<: *shared-worker-beat-config
-    image: langgenius/dify-api:1.14.2
+    image: ${DIFY_API_IMAGE:-mmbai/dify-api:local}
+    build: *dify-api-build
     environment:
       <<: *dify-global-proxy-env
       MODE: beat
@@ -371,8 +388,6 @@ services:
         required: false
       redis:
         condition: service_started
-    volumes:
-      - ../api/core/plugin/plugin_service.py:/app/api/core/plugin/plugin_service.py:ro
     healthcheck:
       test: ["CMD-SHELL", "celery -A celery_healthcheck.celery inspect ping"]
       interval: ${COMPOSE_WORKER_HEALTHCHECK_INTERVAL:-30s}
@@ -386,7 +401,8 @@ services:
 
   # Frontend web application.
   web:
-    image: langgenius/dify-web:1.14.2
+    image: ${DIFY_WEB_IMAGE:-mmbai/dify-web:local}
+    build: *dify-web-build
     restart: always
     env_file:
       - path: ./envs/core-services/web.env
