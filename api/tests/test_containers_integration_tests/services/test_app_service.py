@@ -1237,7 +1237,7 @@ class TestAppService:
             TenantAccountJoin(tenant_id=tenant.id, account_id=member.id, role=TenantAccountRole.NORMAL)
         )
 
-        from services.app_service import AppService, AppListParams, CreateAppParams
+        from services.app_service import AppListParams, AppService, CreateAppParams
 
         app_service = AppService()
         app = app_service.create_app(
