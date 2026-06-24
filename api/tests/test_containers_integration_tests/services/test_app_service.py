@@ -6,9 +6,9 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from constants.model_template import default_app_templates
-from models import Account
+from models import Account, TenantAccountJoin, TenantAccountRole
 from models.enums import AppStatus, CustomizeTokenStrategy
-from models.model import App, IconType, Site
+from models.model import App, AppPermission, IconType, Site
 from services.account_service import AccountService, TenantService
 from tests.test_containers_integration_tests.helpers import generate_valid_password
 
@@ -1212,6 +1212,65 @@ class TestAppService:
         assert paginated_apps is not None
         assert paginated_apps.total == 1
         assert all("50%" in app.name for app in paginated_apps.items)
+
+    def test_get_paginate_apps_returns_empty_when_member_has_only_denied_app_permissions(
+        self, db_session_with_containers: Session, mock_external_service_dependencies
+    ):
+        fake = Faker()
+
+        owner = AccountService.create_account(
+            email=fake.email(),
+            name=fake.name(),
+            interface_language="en-US",
+            password=generate_valid_password(fake),
+        )
+        TenantService.create_owner_tenant_if_not_exist(owner, name=fake.company())
+        tenant = owner.current_tenant
+
+        member = AccountService.create_account(
+            email=fake.email(),
+            name=fake.name(),
+            interface_language="en-US",
+            password=generate_valid_password(fake),
+        )
+        db_session_with_containers.add(
+            TenantAccountJoin(tenant_id=tenant.id, account_id=member.id, role=TenantAccountRole.NORMAL)
+        )
+
+        from services.app_service import AppService, AppListParams, CreateAppParams
+
+        app_service = AppService()
+        app = app_service.create_app(
+            tenant.id,
+            CreateAppParams(
+                name=fake.company(),
+                description=fake.text(max_nb_chars=100),
+                mode="chat",
+                icon_type="emoji",
+                icon="🤖",
+                icon_background="#FF6B6B",
+                api_rph=100,
+                api_rpm=10,
+            ),
+            owner,
+        )
+        db_session_with_containers.add(
+            AppPermission(
+                tenant_id=tenant.id,
+                app_id=app.id,
+                account_id=member.id,
+                has_permission=False,
+            )
+        )
+        db_session_with_containers.commit()
+
+        paginated_apps = app_service.get_paginate_apps(
+            member.id, tenant.id, AppListParams(page=1, limit=10, mode="all")
+        )
+
+        assert paginated_apps is not None
+        assert paginated_apps.total == 0
+        assert paginated_apps.items == []
 
     def test_get_app_code_by_id_not_found(
         self, db_session_with_containers: Session, mock_external_service_dependencies

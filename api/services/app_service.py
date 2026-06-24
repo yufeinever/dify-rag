@@ -22,8 +22,8 @@ from graphon.model_runtime.model_providers.base.large_language_model import Larg
 from libs.datetime_utils import naive_utc_now
 from libs.helper import extract_remote_ip
 from libs.login import current_user
-from models import Account, AppPermission, OperationLog, TenantAccountRole
-from models.model import App, AppMode, AppModelConfig, IconType, Site
+from models import Account, OperationLog, TenantAccountRole
+from models.model import App, AppMode, AppModelConfig, AppPermission, IconType, Site
 from models.tools import ApiToolProvider
 from services.billing_service import BillingService
 from services.enterprise.enterprise_service import EnterpriseService
@@ -75,6 +75,15 @@ class AppService:
         if role in {TenantAccountRole.OWNER, TenantAccountRole.ADMIN}:
             return None
 
+        explicit_permission_count = db.session.scalar(
+            select(sa.func.count()).select_from(AppPermission).where(
+                AppPermission.account_id == user_id,
+                AppPermission.tenant_id == tenant_id,
+            )
+        )
+        if not explicit_permission_count:
+            return None
+
         permitted_app_ids = db.session.scalars(
             select(AppPermission.app_id).where(
                 AppPermission.account_id == user_id,
@@ -82,9 +91,6 @@ class AppService:
                 AppPermission.has_permission == sa.true(),
             )
         ).all()
-
-        if not permitted_app_ids:
-            return None
 
         return list(permitted_app_ids)
 
