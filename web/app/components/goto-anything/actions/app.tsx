@@ -4,6 +4,7 @@ import { RiFileListLine, RiLayoutLine, RiLineChartLine, RiNodeTree, RiTerminalBo
 import * as React from 'react'
 import { fetchAppList } from '@/service/apps'
 import { AppModeEnum } from '@/types/app'
+import { appDefaultIconBackground } from '@/config'
 import { getRedirectionPath } from '@/utils/app-redirection'
 import { AppTypeIcon } from '../../app/type-selector'
 import AppIcon from '../../base/app-icon'
@@ -46,8 +47,31 @@ const appIcon = (app: App) => (
   </div>
 )
 
-const parser = (apps: App[]): AppSearchResult[] => {
-  return apps.map(app => ({
+const isValidAppMode = (mode: unknown): mode is AppModeEnum => (
+  typeof mode === 'string'
+  && Object.values(AppModeEnum).includes(mode as AppModeEnum)
+)
+
+const normalizeApp = (app: App | null | undefined): App | null => {
+  if (!app || !app.id || !app.name || !isValidAppMode(app.mode))
+    return null
+
+  return {
+    ...app,
+    description: app.description || '',
+    icon_type: app.icon_type || 'emoji',
+    icon: app.icon || '🤖',
+    icon_background: app.icon_background || appDefaultIconBackground,
+    icon_url: app.icon_url || null,
+  }
+}
+
+const normalizeApps = (apps: Array<App | null | undefined>) => apps
+  .map(normalizeApp)
+  .filter((app): app is App => Boolean(app))
+
+const parser = (apps: Array<App | null | undefined>): AppSearchResult[] => {
+  return normalizeApps(apps).map(app => ({
     id: app.id,
     title: app.name,
     description: app.description,
@@ -62,9 +86,9 @@ const parser = (apps: App[]): AppSearchResult[] => {
 }
 
 // Generate sub-section results for matched apps when in scoped @app search
-const parserWithSections = (apps: App[]): SearchResult[] => {
+const parserWithSections = (apps: Array<App | null | undefined>): SearchResult[] => {
   const results: SearchResult[] = []
-  for (const app of apps) {
+  for (const app of normalizeApps(apps)) {
     results.push({
       id: app.id,
       title: app.name,

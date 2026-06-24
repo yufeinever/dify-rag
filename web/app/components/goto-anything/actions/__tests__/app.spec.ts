@@ -96,6 +96,26 @@ describe('appAction', () => {
     expect(results.map(r => r.id)).toEqual(['app-1', 'app-2'])
   })
 
+  it('ignores malformed app rows and falls back when icon data is missing', async () => {
+    const { fetchAppList } = await import('@/service/apps')
+    vi.mocked(fetchAppList).mockResolvedValue({
+      data: [
+        null,
+        { id: 'app-1', name: 'My App', description: null, mode: 'chat', icon: null, icon_type: null, icon_background: null, icon_url: null } as unknown as App,
+        { id: '', name: 'Broken', description: '', mode: 'chat', icon: '', icon_type: 'emoji', icon_background: '', icon_url: '' } as unknown as App,
+      ] as unknown as App[],
+      has_more: false,
+      limit: 10,
+      page: 1,
+      total: 3,
+    })
+
+    const results = await appAction.search('my app', 'my app', 'en')
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ id: 'app-1', title: 'My App', description: '' })
+  })
+
   it('returns empty array when response has no data', async () => {
     const { fetchAppList } = await import('@/service/apps')
     vi.mocked(fetchAppList).mockResolvedValue({ data: [], has_more: false, limit: 10, page: 1, total: 0 })
