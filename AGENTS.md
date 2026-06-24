@@ -56,3 +56,11 @@ The codebase is split into:
 - Backend architecture adheres to DDD and Clean Architecture principles.
 - Async work runs through Celery with Redis as the broker.
 - Frontend user-facing strings must use `web/i18n/en-US/`; avoid hardcoded text.
+
+## Customization Strategy
+
+- Treat this repository as a long-lived Dify fork: prefer low-intrusion customization over deep rewrites of upstream logic.
+- Prefer small extension points such as compatibility layers, new services, new APIs, additive database tables/fields, isolated admin pages, and deployment-time configuration over invasive core rewrites.
+- When overriding upstream behavior is necessary, keep the change surface narrow, preserve default behavior where possible, and make upgrade impact obvious and localized.
+- Production deployment should run images built from this repository or explicitly mounted compatibility files so runtime behavior stays aligned with the forked source tree.
+- Optimize every customization for future upstream mergeability: fewer touched core files, clearer boundaries, and lower rework during later upgrades.
