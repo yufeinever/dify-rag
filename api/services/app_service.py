@@ -66,6 +66,14 @@ class CreateAppParams(BaseModel):
 
 
 class AppService:
+    def _sync_site_icon(self, app: App) -> None:
+        site = db.session.scalar(select(Site).where(Site.app_id == app.id))
+        if site:
+            site.icon_type = app.icon_type
+            site.icon = app.icon
+            site.icon_background = app.icon_background
+            site.updated_by = app.updated_by
+
     def _get_account_role(self, user_id: str, tenant_id: str) -> str | None:
         return db.session.execute(
             sa.text(
@@ -667,6 +675,7 @@ class AppService:
         app.max_active_requests = args.get("max_active_requests")
         app.updated_by = current_user.id
         app.updated_at = naive_utc_now()
+        self._sync_site_icon(app)
         db.session.commit()
 
         app_was_updated.send(app)
@@ -708,6 +717,7 @@ class AppService:
             app.icon_type = icon_type if isinstance(icon_type, IconType) else IconType(icon_type)
         app.updated_by = current_user.id
         app.updated_at = naive_utc_now()
+        self._sync_site_icon(app)
         db.session.commit()
 
         app_was_updated.send(app)

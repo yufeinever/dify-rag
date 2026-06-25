@@ -5,8 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from fields.base import ResponseModel
-from graphon.file import helpers as file_helpers
-from models.model import IconType
+from libs.helper import build_icon_url
 
 type JSONValue = str | int | float | bool | None | dict[str, Any] | list[Any]
 type JSONObject = dict[str, Any]
@@ -162,6 +161,4 @@ class Site(BaseModel):
     @computed_field(return_type=str | None)  # type: ignore
     @property
     def icon_url(self) -> str | None:
-        if self.icon and self.icon_type == IconType.IMAGE:
-            return file_helpers.get_signed_file_url(self.icon)
-        return None
+        return build_icon_url(self.icon_type, self.icon)

@@ -15,12 +15,10 @@ from controllers.console.explore.wraps import InstalledAppResource
 from controllers.console.wraps import account_initialization_required, cloud_edition_billing_resource_check
 from extensions.ext_database import db
 from fields.base import ResponseModel
-from graphon.file import helpers as file_helpers
 from libs.datetime_utils import naive_utc_now
-from libs.helper import to_timestamp
+from libs.helper import build_icon_url, to_timestamp
 from libs.login import current_account_with_tenant, login_required
 from models import App, InstalledApp, RecommendedApp
-from models.model import IconType
 from services.account_service import TenantService
 from services.app_service import AppService
 from services.enterprise.enterprise_service import EnterpriseService
@@ -40,15 +38,6 @@ class InstalledAppsListQuery(BaseModel):
 
 
 logger = logging.getLogger(__name__)
-
-
-def _build_icon_url(icon_type: str | IconType | None, icon: str | None) -> str | None:
-    if icon is None or icon_type is None:
-        return None
-    icon_type_value = icon_type.value if isinstance(icon_type, IconType) else str(icon_type)
-    if icon_type_value.lower() != IconType.IMAGE:
-        return None
-    return file_helpers.get_signed_file_url(icon)
 
 
 def _safe_primitive(value: Any) -> Any:
@@ -78,7 +67,7 @@ class InstalledAppInfoResponse(ResponseModel):
     @computed_field(return_type=str | None)  # type: ignore[prop-decorator]
     @property
     def icon_url(self) -> str | None:
-        return _build_icon_url(self.icon_type, self.icon)
+        return build_icon_url(self.icon_type, self.icon)
 
 
 class InstalledAppResponse(ResponseModel):

@@ -151,6 +151,8 @@ def build_icon_url(icon_type: Any, icon: str | None) -> str | None:
     icon_type_value = icon_type.value if isinstance(icon_type, IconType) else str(icon_type)
     if icon_type_value.lower() != IconType.IMAGE:
         return None
+    if icon.startswith(("http://", "https://", "/custom-bear-icons/")):
+        return icon
     return file_helpers.get_signed_file_url(icon)
 
 

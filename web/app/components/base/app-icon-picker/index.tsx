@@ -5,13 +5,13 @@ import type { AppIconType, ImageFile } from '@/types/app'
 import { Button } from '@langgenius/dify-ui/button'
 import { cn } from '@langgenius/dify-ui/cn'
 import { Dialog, DialogContent } from '@langgenius/dify-ui/dialog'
-import { RiImageCircleAiLine } from '@remixicon/react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DISABLE_UPLOAD_IMAGE_AS_ICON } from '@/config'
 import Divider from '../divider'
 import EmojiPickerInner from '../emoji-picker/Inner'
 import { useLocalFileUploader } from '../image-uploader/hooks'
+import { BUILTIN_BEAR_ICONS, DEFAULT_BUILTIN_BEAR_ICON, TAB_BUILTIN_BEAR_ICON } from './builtin-bear-icons'
 import ImageInput from './ImageInput'
 import s from './style.module.css'
 import getCroppedImg from './utils'
@@ -29,6 +29,8 @@ export type AppIconImageSelection = {
 }
 
 export type AppIconSelection = AppIconEmojiSelection | AppIconImageSelection
+
+type AppIconPickerTab = AppIconType | 'bear'
 
 type AppIconPickerProps = {
   onSelect?: (payload: AppIconSelection) => void
@@ -49,9 +51,11 @@ const AppIconPicker: FC<AppIconPickerProps> = ({
 
   const tabs = [
     { key: 'emoji', label: t('iconPicker.emoji', { ns: 'app' }), icon: <span className="text-lg">🤖</span> },
-    { key: 'image', label: t('iconPicker.image', { ns: 'app' }), icon: <RiImageCircleAiLine className="size-4" /> },
+    { key: 'bear', label: t('iconPicker.bear', { ns: 'app' }), icon: <img src={TAB_BUILTIN_BEAR_ICON.path} alt="" className="size-4 rounded" /> },
+    ...(!DISABLE_UPLOAD_IMAGE_AS_ICON ? [{ key: 'image', label: t('iconPicker.image', { ns: 'app' }), icon: <span className="i-ri-image-circle-ai-line size-4" /> }] : []),
   ]
-  const [activeTab, setActiveTab] = useState<AppIconType>('emoji')
+  const [activeTab, setActiveTab] = useState<AppIconPickerTab>('emoji')
+  const [selectedBearIcon, setSelectedBearIcon] = useState(DEFAULT_BUILTIN_BEAR_ICON)
 
   const [emoji, setEmoji] = useState<{ emoji: string, background: string }>()
   const handleSelectEmoji = useCallback((emoji: string, background: string) => {
@@ -95,47 +99,54 @@ const AppIconPicker: FC<AppIconPickerProps> = ({
           background: emoji.background,
         })
       }
+      return
     }
-    else {
-      if (!inputImageInfo)
-        return
-      setUploading(true)
-      if ('file' in inputImageInfo) {
-        handleLocalFileUpload(inputImageInfo.file)
-        return
-      }
-      const blob = await getCroppedImg(inputImageInfo.tempUrl, inputImageInfo.croppedAreaPixels, inputImageInfo.fileName)
-      const file = new File([blob], inputImageInfo.fileName, { type: blob.type })
-      handleLocalFileUpload(file)
+
+    if (activeTab === 'bear') {
+      onSelect?.({
+        type: 'image',
+        fileId: selectedBearIcon.path,
+        url: selectedBearIcon.path,
+      })
+      return
     }
+
+    if (!inputImageInfo)
+      return
+    setUploading(true)
+    if ('file' in inputImageInfo) {
+      handleLocalFileUpload(inputImageInfo.file)
+      return
+    }
+    const blob = await getCroppedImg(inputImageInfo.tempUrl, inputImageInfo.croppedAreaPixels, inputImageInfo.fileName)
+    const file = new File([blob], inputImageInfo.fileName, { type: blob.type })
+    handleLocalFileUpload(file)
   }
 
   return (
     <Dialog open>
-      <DialogContent className={cn('w-full overflow-hidden! border-none text-left align-middle', s.container, 'h-[min(462px,calc(100dvh-2rem))]! max-h-none! w-[362px]! p-0!')}>
+      <DialogContent className={cn('w-full overflow-hidden! border-none text-left align-middle', s.container, 'h-[min(536px,calc(100dvh-2rem))]! max-h-none! w-[420px]! p-0!')}>
 
-        {!DISABLE_UPLOAD_IMAGE_AS_ICON && (
-          <div className="w-full p-2 pb-0">
-            <div className="flex items-center justify-center gap-2 rounded-xl bg-background-body p-1 text-text-primary">
-              {tabs.map(tab => (
-                <button
-                  type="button"
-                  key={tab.key}
-                  className={cn(
-                    'flex h-8 flex-1 shrink-0 items-center justify-center rounded-lg p-2 system-sm-medium text-text-tertiary',
-                    activeTab === tab.key && 'bg-components-main-nav-nav-button-bg-active text-text-accent shadow-md',
-                  )}
-                  onClick={() => setActiveTab(tab.key as AppIconType)}
-                >
-                  {tab.icon}
-                  {' '}
+        <div className="w-full p-2 pb-0">
+          <div className="flex items-center justify-center gap-2 rounded-xl bg-background-body p-1 text-text-primary">
+            {tabs.map(tab => (
+              <button
+                type="button"
+                key={tab.key}
+                className={cn(
+                  'flex h-8 flex-1 shrink-0 items-center justify-center rounded-lg p-2 system-sm-medium text-text-tertiary',
+                  activeTab === tab.key && 'bg-components-main-nav-nav-button-bg-active text-text-accent shadow-md',
+                )}
+                onClick={() => setActiveTab(tab.key as AppIconPickerTab)}
+              >
+                {tab.icon}
+                {' '}
 &nbsp;
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+                {tab.label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
         {activeTab === 'emoji' && (
           <EmojiPickerInner
@@ -144,6 +155,27 @@ const AppIconPicker: FC<AppIconPickerProps> = ({
             background={initialEmoji?.background ?? undefined}
             onSelect={handleSelectEmoji}
           />
+        )}
+        {activeTab === 'bear' && (
+          <div className="flex-1 overflow-y-auto p-3">
+            <div className="mb-3 grid grid-cols-4 gap-2">
+              {BUILTIN_BEAR_ICONS.map(icon => (
+                <button
+                  type="button"
+                  key={icon.id}
+                  title={icon.label}
+                  aria-label={icon.label}
+                  className={cn(
+                    'relative aspect-square overflow-hidden rounded-xl border bg-background-default p-1 transition hover:border-components-button-primary-bg hover:bg-state-base-hover',
+                    selectedBearIcon.id === icon.id ? 'border-components-button-primary-bg ring-2 ring-components-button-primary-bg/20' : 'border-divider-regular',
+                  )}
+                  onClick={() => setSelectedBearIcon(icon)}
+                >
+                  <img src={icon.path} alt="" className="size-full rounded-lg object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         {activeTab === 'image' && <ImageInput className={cn('flex-1 overflow-hidden')} onImageInput={handleImageInput} />}
 
