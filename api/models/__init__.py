@@ -45,10 +45,13 @@ from .dataset import (
     Whitelist,
 )
 from .enterprise_permission_template import (
+    EnterprisePermissionGroup,
+    EnterprisePermissionGroupMember,
     EnterprisePermissionTemplate,
     EnterprisePermissionTemplateApp,
     EnterprisePermissionTemplateDataset,
     EnterprisePermissionTemplateExploreApp,
+    EnterprisePermissionTemplateGroup,
     EnterprisePermissionTemplateMember,
 )
 from .enums import (
@@ -193,10 +196,13 @@ __all__ = [
     "DocumentSegment",
     "Embedding",
     "EndUser",
+    "EnterprisePermissionGroup",
+    "EnterprisePermissionGroupMember",
     "EnterprisePermissionTemplate",
     "EnterprisePermissionTemplateApp",
     "EnterprisePermissionTemplateDataset",
     "EnterprisePermissionTemplateExploreApp",
+    "EnterprisePermissionTemplateGroup",
     "EnterprisePermissionTemplateMember",
     "ExecutionExtraContent",
     "ExploreAppPermission",

@@ -24,8 +24,10 @@ from libs.helper import extract_remote_ip
 from libs.login import current_user
 from models import (
     Account,
+    EnterprisePermissionGroupMember,
     EnterprisePermissionTemplateApp,
     EnterprisePermissionTemplateExploreApp,
+    EnterprisePermissionTemplateGroup,
     EnterprisePermissionTemplateMember,
     ExploreAppPermission,
     OperationLog,
@@ -78,7 +80,7 @@ class AppService:
         ).scalar_one_or_none()
 
     def _get_template_app_ids(self, user_id: str, tenant_id: str) -> set[str]:
-        return set(
+        direct_app_ids = set(
             db.session.scalars(
                 select(EnterprisePermissionTemplateApp.app_id)
                 .join(
@@ -94,9 +96,33 @@ class AppService:
                 )
             ).all()
         )
+        group_app_ids = set(
+            db.session.scalars(
+                select(EnterprisePermissionTemplateApp.app_id)
+                .join(
+                    EnterprisePermissionTemplateGroup,
+                    sa.and_(
+                        EnterprisePermissionTemplateGroup.tenant_id == EnterprisePermissionTemplateApp.tenant_id,
+                        EnterprisePermissionTemplateGroup.template_id == EnterprisePermissionTemplateApp.template_id,
+                    ),
+                )
+                .join(
+                    EnterprisePermissionGroupMember,
+                    sa.and_(
+                        EnterprisePermissionGroupMember.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                        EnterprisePermissionGroupMember.group_id == EnterprisePermissionTemplateGroup.group_id,
+                    ),
+                )
+                .where(
+                    EnterprisePermissionTemplateApp.tenant_id == tenant_id,
+                    EnterprisePermissionGroupMember.account_id == user_id,
+                )
+            ).all()
+        )
+        return direct_app_ids | group_app_ids
 
     def _get_template_explore_app_ids(self, user_id: str, tenant_id: str) -> set[str]:
-        return set(
+        direct_app_ids = set(
             db.session.scalars(
                 select(EnterprisePermissionTemplateExploreApp.app_id)
                 .join(
@@ -114,6 +140,32 @@ class AppService:
                 )
             ).all()
         )
+        group_app_ids = set(
+            db.session.scalars(
+                select(EnterprisePermissionTemplateExploreApp.app_id)
+                .join(
+                    EnterprisePermissionTemplateGroup,
+                    sa.and_(
+                        EnterprisePermissionTemplateGroup.tenant_id
+                        == EnterprisePermissionTemplateExploreApp.tenant_id,
+                        EnterprisePermissionTemplateGroup.template_id
+                        == EnterprisePermissionTemplateExploreApp.template_id,
+                    ),
+                )
+                .join(
+                    EnterprisePermissionGroupMember,
+                    sa.and_(
+                        EnterprisePermissionGroupMember.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                        EnterprisePermissionGroupMember.group_id == EnterprisePermissionTemplateGroup.group_id,
+                    ),
+                )
+                .where(
+                    EnterprisePermissionTemplateExploreApp.tenant_id == tenant_id,
+                    EnterprisePermissionGroupMember.account_id == user_id,
+                )
+            ).all()
+        )
+        return direct_app_ids | group_app_ids
 
     def _get_limited_app_ids(self, user_id: str, tenant_id: str) -> list[str] | None:
         role = self._get_account_role(user_id, tenant_id)
@@ -216,8 +268,30 @@ class AppService:
                 EnterprisePermissionTemplateExploreApp.app_id == app_id,
             )
         ).all()
+        template_group_member_ids = db.session.scalars(
+            select(EnterprisePermissionGroupMember.account_id)
+            .join(
+                EnterprisePermissionTemplateGroup,
+                sa.and_(
+                    EnterprisePermissionTemplateGroup.tenant_id == EnterprisePermissionGroupMember.tenant_id,
+                    EnterprisePermissionTemplateGroup.group_id == EnterprisePermissionGroupMember.group_id,
+                ),
+            )
+            .join(
+                EnterprisePermissionTemplateExploreApp,
+                sa.and_(
+                    EnterprisePermissionTemplateExploreApp.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                    EnterprisePermissionTemplateExploreApp.template_id
+                    == EnterprisePermissionTemplateGroup.template_id,
+                ),
+            )
+            .where(
+                EnterprisePermissionGroupMember.tenant_id == tenant_id,
+                EnterprisePermissionTemplateExploreApp.app_id == app_id,
+            )
+        ).all()
 
-        return sorted(set(direct_member_ids) | set(template_member_ids))
+        return sorted(set(direct_member_ids) | set(template_member_ids) | set(template_group_member_ids))
 
     def update_explore_app_partial_member_list(
         self,
@@ -277,8 +351,29 @@ class AppService:
                 EnterprisePermissionTemplateApp.app_id == app_id,
             )
         ).all()
+        template_group_member_ids = db.session.scalars(
+            select(EnterprisePermissionGroupMember.account_id)
+            .join(
+                EnterprisePermissionTemplateGroup,
+                sa.and_(
+                    EnterprisePermissionTemplateGroup.tenant_id == EnterprisePermissionGroupMember.tenant_id,
+                    EnterprisePermissionTemplateGroup.group_id == EnterprisePermissionGroupMember.group_id,
+                ),
+            )
+            .join(
+                EnterprisePermissionTemplateApp,
+                sa.and_(
+                    EnterprisePermissionTemplateApp.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                    EnterprisePermissionTemplateApp.template_id == EnterprisePermissionTemplateGroup.template_id,
+                ),
+            )
+            .where(
+                EnterprisePermissionGroupMember.tenant_id == tenant_id,
+                EnterprisePermissionTemplateApp.app_id == app_id,
+            )
+        ).all()
 
-        return sorted(set(direct_member_ids) | set(template_member_ids))
+        return sorted(set(direct_member_ids) | set(template_member_ids) | set(template_group_member_ids))
 
     def update_app_partial_member_list(
         self,

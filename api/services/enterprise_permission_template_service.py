@@ -15,10 +15,13 @@ from models import (
     Dataset,
     DatasetPermission,
     DatasetPermissionEnum,
+    EnterprisePermissionGroup,
+    EnterprisePermissionGroupMember,
     EnterprisePermissionTemplate,
     EnterprisePermissionTemplateApp,
     EnterprisePermissionTemplateDataset,
     EnterprisePermissionTemplateExploreApp,
+    EnterprisePermissionTemplateGroup,
     EnterprisePermissionTemplateMember,
     ExploreAppPermission,
     InstalledApp,
@@ -69,6 +72,45 @@ class EnterprisePermissionTemplateService:
         )
         if existing != set(member_ids):
             raise Forbidden("Selected template members must belong to the current workspace")
+
+    @staticmethod
+    def _assert_workspace_groups(tenant_id: str, group_ids: list[str]) -> None:
+        if not group_ids:
+            return
+
+        existing = set(
+            db.session.scalars(
+                select(EnterprisePermissionGroup.id).where(
+                    EnterprisePermissionGroup.tenant_id == tenant_id,
+                    EnterprisePermissionGroup.id.in_(group_ids),
+                )
+            ).all()
+        )
+        if existing != set(group_ids):
+            raise Forbidden("Selected permission groups must belong to the current workspace")
+
+    @staticmethod
+    def _get_group_member_ids(tenant_id: str, group_ids: Iterable[str]) -> set[str]:
+        normalized_group_ids = list(dict.fromkeys(str(group_id) for group_id in group_ids if group_id))
+        if not normalized_group_ids:
+            return set()
+
+        return set(
+            db.session.scalars(
+                select(EnterprisePermissionGroupMember.account_id).where(
+                    EnterprisePermissionGroupMember.tenant_id == tenant_id,
+                    EnterprisePermissionGroupMember.group_id.in_(normalized_group_ids),
+                )
+            ).all()
+        )
+
+    @classmethod
+    def _effective_member_ids_from_bindings(
+        cls, tenant_id: str, member_ids: Iterable[str], group_ids: Iterable[str]
+    ) -> set[str]:
+        effective_member_ids = set(member_ids)
+        effective_member_ids.update(cls._get_group_member_ids(tenant_id, group_ids))
+        return effective_member_ids
 
     @staticmethod
     def _assert_workspace_apps(tenant_id: str, app_ids: list[str]) -> None:
@@ -124,6 +166,7 @@ class EnterprisePermissionTemplateService:
         tenant_id: str,
         name: str,
         member_ids: list[str],
+        group_ids: list[str],
         app_ids: list[str],
         dataset_ids: list[str],
         explore_app_ids: list[str],
@@ -132,6 +175,7 @@ class EnterprisePermissionTemplateService:
             raise BadRequest("Template name is required")
 
         cls._assert_workspace_members(tenant_id, member_ids)
+        cls._assert_workspace_groups(tenant_id, group_ids)
         cls._assert_workspace_apps(tenant_id, app_ids)
         cls._assert_workspace_datasets(tenant_id, dataset_ids)
         cls._assert_workspace_explore_apps(tenant_id, explore_app_ids)
@@ -141,6 +185,7 @@ class EnterprisePermissionTemplateService:
         tenant_id: str,
         template_id: str,
         member_ids: list[str],
+        group_ids: list[str],
         app_ids: list[str],
         dataset_ids: list[str],
         explore_app_ids: list[str],
@@ -149,6 +194,12 @@ class EnterprisePermissionTemplateService:
             delete(EnterprisePermissionTemplateMember).where(
                 EnterprisePermissionTemplateMember.tenant_id == tenant_id,
                 EnterprisePermissionTemplateMember.template_id == template_id,
+            )
+        )
+        db.session.execute(
+            delete(EnterprisePermissionTemplateGroup).where(
+                EnterprisePermissionTemplateGroup.tenant_id == tenant_id,
+                EnterprisePermissionTemplateGroup.template_id == template_id,
             )
         )
         db.session.execute(
@@ -172,6 +223,10 @@ class EnterprisePermissionTemplateService:
         db.session.add_all([
             EnterprisePermissionTemplateMember(tenant_id=tenant_id, template_id=template_id, account_id=account_id)
             for account_id in member_ids
+        ])
+        db.session.add_all([
+            EnterprisePermissionTemplateGroup(tenant_id=tenant_id, template_id=template_id, group_id=group_id)
+            for group_id in group_ids
         ])
         db.session.add_all([
             EnterprisePermissionTemplateApp(tenant_id=tenant_id, template_id=template_id, app_id=app_id)
@@ -215,6 +270,23 @@ class EnterprisePermissionTemplateService:
         return list(member_ids), list(app_ids), list(dataset_ids), list(explore_app_ids)
 
     @staticmethod
+    def _binding_group_ids(tenant_id: str, template_id: str) -> list[str]:
+        return list(
+            db.session.scalars(
+                select(EnterprisePermissionTemplateGroup.group_id).where(
+                    EnterprisePermissionTemplateGroup.tenant_id == tenant_id,
+                    EnterprisePermissionTemplateGroup.template_id == template_id,
+                )
+            ).all()
+        )
+
+    @classmethod
+    def _effective_member_ids(cls, tenant_id: str, template_id: str) -> set[str]:
+        member_ids, _, _, _ = cls._binding_ids(tenant_id, template_id)
+        group_ids = cls._binding_group_ids(tenant_id, template_id)
+        return cls._effective_member_ids_from_bindings(tenant_id, member_ids, group_ids)
+
+    @staticmethod
     def _permission_pairs(member_ids: Iterable[str], resource_ids: Iterable[str]) -> set[tuple[str, str]]:
         return {(member_id, resource_id) for member_id in member_ids for resource_id in resource_ids}
 
@@ -239,7 +311,7 @@ class EnterprisePermissionTemplateService:
         member_ids = {member_id for member_id, _ in pairs}
         resource_ids = {resource_id for _, resource_id in pairs}
         resource_column = getattr(resource_model, resource_attr_name)
-        rows = db.session.execute(
+        direct_rows = db.session.execute(
             select(EnterprisePermissionTemplateMember.account_id, resource_column)
             .join(
                 resource_model,
@@ -255,7 +327,30 @@ class EnterprisePermissionTemplateService:
                 resource_column.in_(resource_ids),
             )
         ).all()
-        return {(account_id, resource_id) for account_id, resource_id in rows}
+        group_rows = db.session.execute(
+            select(EnterprisePermissionGroupMember.account_id, resource_column)
+            .join(
+                EnterprisePermissionTemplateGroup,
+                sa.and_(
+                    EnterprisePermissionTemplateGroup.tenant_id == EnterprisePermissionGroupMember.tenant_id,
+                    EnterprisePermissionTemplateGroup.group_id == EnterprisePermissionGroupMember.group_id,
+                ),
+            )
+            .join(
+                resource_model,
+                sa.and_(
+                    EnterprisePermissionTemplateGroup.tenant_id == resource_model.tenant_id,
+                    EnterprisePermissionTemplateGroup.template_id == resource_model.template_id,
+                ),
+            )
+            .where(
+                EnterprisePermissionTemplateGroup.tenant_id == tenant_id,
+                EnterprisePermissionTemplateGroup.template_id != template_id,
+                EnterprisePermissionGroupMember.account_id.in_(member_ids),
+                resource_column.in_(resource_ids),
+            )
+        ).all()
+        return {(account_id, resource_id) for account_id, resource_id in [*direct_rows, *group_rows]}
 
     @staticmethod
     def _revoke_direct_permission_pairs(
@@ -341,21 +436,264 @@ class EnterprisePermissionTemplateService:
     @classmethod
     def _serialize_template(cls, tenant_id: str, template: EnterprisePermissionTemplate) -> dict[str, Any]:
         member_ids, app_ids, dataset_ids, explore_app_ids = cls._binding_ids(tenant_id, template.id)
+        group_ids = cls._binding_group_ids(tenant_id, template.id)
+        effective_member_ids = cls._effective_member_ids_from_bindings(tenant_id, member_ids, group_ids)
         return {
             "id": template.id,
             "name": template.name,
             "description": template.description,
             "member_ids": member_ids,
+            "group_ids": group_ids,
             "app_ids": app_ids,
             "dataset_ids": dataset_ids,
             "explore_app_ids": explore_app_ids,
-            "member_count": len(member_ids),
+            "member_count": len(effective_member_ids),
+            "direct_member_count": len(member_ids),
+            "group_count": len(group_ids),
             "app_count": len(app_ids),
             "dataset_count": len(dataset_ids),
             "explore_app_count": len(explore_app_ids),
             "created_at": template.created_at,
             "updated_at": template.updated_at,
         }
+
+    @staticmethod
+    def _get_group(tenant_id: str, group_id: str) -> EnterprisePermissionGroup:
+        group = db.session.scalar(
+            select(EnterprisePermissionGroup).where(
+                EnterprisePermissionGroup.tenant_id == tenant_id,
+                EnterprisePermissionGroup.id == group_id,
+            )
+        )
+        if not group:
+            raise NotFound("Permission group not found")
+        return group
+
+    @staticmethod
+    def _direct_group_member_ids(tenant_id: str, group_id: str) -> list[str]:
+        return list(
+            db.session.scalars(
+                select(EnterprisePermissionGroupMember.account_id).where(
+                    EnterprisePermissionGroupMember.tenant_id == tenant_id,
+                    EnterprisePermissionGroupMember.group_id == group_id,
+                )
+            ).all()
+        )
+
+    @classmethod
+    def _serialize_group(cls, tenant_id: str, group: EnterprisePermissionGroup) -> dict[str, Any]:
+        member_ids = cls._direct_group_member_ids(tenant_id, group.id)
+        return {
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "member_ids": member_ids,
+            "member_count": len(member_ids),
+            "created_at": group.created_at,
+            "updated_at": group.updated_at,
+        }
+
+    @staticmethod
+    def _replace_group_members(tenant_id: str, group_id: str, member_ids: list[str]) -> None:
+        db.session.execute(
+            delete(EnterprisePermissionGroupMember).where(
+                EnterprisePermissionGroupMember.tenant_id == tenant_id,
+                EnterprisePermissionGroupMember.group_id == group_id,
+            )
+        )
+        db.session.add_all([
+            EnterprisePermissionGroupMember(tenant_id=tenant_id, group_id=group_id, account_id=account_id)
+            for account_id in member_ids
+        ])
+
+    @classmethod
+    def list_groups(cls, tenant_id: str) -> list[dict[str, Any]]:
+        groups = db.session.scalars(
+            select(EnterprisePermissionGroup)
+            .where(EnterprisePermissionGroup.tenant_id == tenant_id)
+            .order_by(EnterprisePermissionGroup.updated_at.desc(), EnterprisePermissionGroup.created_at.desc())
+        ).all()
+        return [cls._serialize_group(tenant_id, group) for group in groups]
+
+    @classmethod
+    def create_group(
+        cls,
+        tenant_id: str,
+        operator: Account,
+        name: str,
+        description: str | None,
+        member_ids: Iterable[str] | None,
+    ) -> dict[str, Any]:
+        normalized_member_ids = cls._normalize_ids(member_ids)
+        if not name.strip():
+            raise BadRequest("Permission group name is required")
+        cls._assert_workspace_members(tenant_id, normalized_member_ids)
+
+        try:
+            group = EnterprisePermissionGroup(
+                tenant_id=tenant_id,
+                name=name.strip(),
+                description=description.strip() if description else None,
+                created_by=operator.id,
+            )
+            db.session.add(group)
+            db.session.flush()
+            cls._replace_group_members(tenant_id, group.id, normalized_member_ids)
+            db.session.add(OperationLog(
+                tenant_id=tenant_id,
+                account_id=operator.id,
+                action="permission_group.created",
+                content={"group_id": group.id, "name": group.name, "member_count": len(normalized_member_ids)},
+                created_ip=extract_remote_ip(request),
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return cls._serialize_group(tenant_id, group)
+
+    @classmethod
+    def _templates_bound_to_group(cls, tenant_id: str, group_id: str) -> list[EnterprisePermissionTemplate]:
+        return list(
+            db.session.scalars(
+                select(EnterprisePermissionTemplate)
+                .join(
+                    EnterprisePermissionTemplateGroup,
+                    sa.and_(
+                        EnterprisePermissionTemplateGroup.tenant_id == EnterprisePermissionTemplate.tenant_id,
+                        EnterprisePermissionTemplateGroup.template_id == EnterprisePermissionTemplate.id,
+                    ),
+                )
+                .where(
+                    EnterprisePermissionTemplateGroup.tenant_id == tenant_id,
+                    EnterprisePermissionTemplateGroup.group_id == group_id,
+                )
+            ).all()
+        )
+
+    @classmethod
+    def _template_permission_snapshot(cls, tenant_id: str, template: EnterprisePermissionTemplate) -> dict[str, Any]:
+        member_ids, app_ids, dataset_ids, explore_app_ids = cls._binding_ids(tenant_id, template.id)
+        group_ids = cls._binding_group_ids(tenant_id, template.id)
+        return {
+            "template_id": template.id,
+            "member_ids": cls._effective_member_ids_from_bindings(tenant_id, member_ids, group_ids),
+            "app_ids": app_ids,
+            "dataset_ids": dataset_ids,
+            "explore_app_ids": explore_app_ids,
+        }
+
+    @classmethod
+    def update_group(
+        cls,
+        tenant_id: str,
+        group_id: str,
+        operator: Account,
+        name: str,
+        description: str | None,
+        member_ids: Iterable[str] | None,
+    ) -> dict[str, Any]:
+        normalized_member_ids = cls._normalize_ids(member_ids)
+        if not name.strip():
+            raise BadRequest("Permission group name is required")
+        cls._assert_workspace_members(tenant_id, normalized_member_ids)
+        group = cls._get_group(tenant_id, group_id)
+        snapshots = [
+            cls._template_permission_snapshot(tenant_id, template)
+            for template in cls._templates_bound_to_group(tenant_id, group.id)
+        ]
+
+        try:
+            group.name = name.strip()
+            group.description = description.strip() if description else None
+            cls._replace_group_members(tenant_id, group.id, normalized_member_ids)
+            revoked_totals = {
+                "explore_app_permission_revoked_count": 0,
+                "app_permission_revoked_count": 0,
+                "dataset_permission_revoked_count": 0,
+            }
+            for snapshot in snapshots:
+                revoked_counts = cls._revoke_removed_template_permissions(
+                    tenant_id,
+                    snapshot["template_id"],
+                    snapshot["member_ids"],
+                    snapshot["app_ids"],
+                    snapshot["dataset_ids"],
+                    snapshot["explore_app_ids"],
+                    cls._effective_member_ids(tenant_id, snapshot["template_id"]),
+                    snapshot["app_ids"],
+                    snapshot["dataset_ids"],
+                    snapshot["explore_app_ids"],
+                )
+                for key, value in revoked_counts.items():
+                    revoked_totals[key] += value
+            db.session.add(OperationLog(
+                tenant_id=tenant_id,
+                account_id=operator.id,
+                action="permission_group.updated",
+                content={
+                    "group_id": group.id,
+                    "name": group.name,
+                    "member_count": len(normalized_member_ids),
+                    **revoked_totals,
+                },
+                created_ip=extract_remote_ip(request),
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return cls._serialize_group(tenant_id, group)
+
+    @classmethod
+    def delete_group(cls, tenant_id: str, group_id: str, operator: Account) -> None:
+        group = cls._get_group(tenant_id, group_id)
+        snapshots = [
+            cls._template_permission_snapshot(tenant_id, template)
+            for template in cls._templates_bound_to_group(tenant_id, group.id)
+        ]
+        try:
+            db.session.execute(
+                delete(EnterprisePermissionTemplateGroup).where(
+                    EnterprisePermissionTemplateGroup.tenant_id == tenant_id,
+                    EnterprisePermissionTemplateGroup.group_id == group.id,
+                )
+            )
+            cls._replace_group_members(tenant_id, group.id, [])
+            revoked_totals = {
+                "explore_app_permission_revoked_count": 0,
+                "app_permission_revoked_count": 0,
+                "dataset_permission_revoked_count": 0,
+            }
+            for snapshot in snapshots:
+                revoked_counts = cls._revoke_removed_template_permissions(
+                    tenant_id,
+                    snapshot["template_id"],
+                    snapshot["member_ids"],
+                    snapshot["app_ids"],
+                    snapshot["dataset_ids"],
+                    snapshot["explore_app_ids"],
+                    cls._effective_member_ids(tenant_id, snapshot["template_id"]),
+                    snapshot["app_ids"],
+                    snapshot["dataset_ids"],
+                    snapshot["explore_app_ids"],
+                )
+                for key, value in revoked_counts.items():
+                    revoked_totals[key] += value
+            db.session.delete(group)
+            db.session.add(OperationLog(
+                tenant_id=tenant_id,
+                account_id=operator.id,
+                action="permission_group.deleted",
+                content={"group_id": group_id, "name": group.name, **revoked_totals},
+                created_ip=extract_remote_ip(request),
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
 
     @classmethod
     def list_templates(cls, tenant_id: str) -> list[dict[str, Any]]:
@@ -374,11 +712,13 @@ class EnterprisePermissionTemplateService:
         name: str,
         description: str | None,
         member_ids: Iterable[str] | None,
+        group_ids: Iterable[str] | None,
         app_ids: Iterable[str] | None,
         dataset_ids: Iterable[str] | None,
         explore_app_ids: Iterable[str] | None,
     ) -> dict[str, Any]:
         normalized_member_ids = cls._normalize_ids(member_ids)
+        normalized_group_ids = cls._normalize_ids(group_ids)
         normalized_app_ids = cls._normalize_ids(app_ids)
         normalized_dataset_ids = cls._normalize_ids(dataset_ids)
         normalized_explore_app_ids = cls._normalize_ids(explore_app_ids)
@@ -386,6 +726,7 @@ class EnterprisePermissionTemplateService:
             tenant_id,
             name,
             normalized_member_ids,
+            normalized_group_ids,
             normalized_app_ids,
             normalized_dataset_ids,
             normalized_explore_app_ids,
@@ -404,6 +745,7 @@ class EnterprisePermissionTemplateService:
                 tenant_id,
                 template.id,
                 normalized_member_ids,
+                normalized_group_ids,
                 normalized_app_ids,
                 normalized_dataset_ids,
                 normalized_explore_app_ids,
@@ -436,11 +778,13 @@ class EnterprisePermissionTemplateService:
         name: str,
         description: str | None,
         member_ids: Iterable[str] | None,
+        group_ids: Iterable[str] | None,
         app_ids: Iterable[str] | None,
         dataset_ids: Iterable[str] | None,
         explore_app_ids: Iterable[str] | None,
     ) -> dict[str, Any]:
         normalized_member_ids = cls._normalize_ids(member_ids)
+        normalized_group_ids = cls._normalize_ids(group_ids)
         normalized_app_ids = cls._normalize_ids(app_ids)
         normalized_dataset_ids = cls._normalize_ids(dataset_ids)
         normalized_explore_app_ids = cls._normalize_ids(explore_app_ids)
@@ -448,12 +792,18 @@ class EnterprisePermissionTemplateService:
             tenant_id,
             name,
             normalized_member_ids,
+            normalized_group_ids,
             normalized_app_ids,
             normalized_dataset_ids,
             normalized_explore_app_ids,
         )
         template = cls._get_template(tenant_id, template_id)
         old_member_ids, old_app_ids, old_dataset_ids, old_explore_app_ids = cls._binding_ids(tenant_id, template.id)
+        old_group_ids = cls._binding_group_ids(tenant_id, template.id)
+        old_effective_member_ids = cls._effective_member_ids_from_bindings(tenant_id, old_member_ids, old_group_ids)
+        new_effective_member_ids = cls._effective_member_ids_from_bindings(
+            tenant_id, normalized_member_ids, normalized_group_ids
+        )
 
         try:
             template.name = name.strip()
@@ -462,6 +812,7 @@ class EnterprisePermissionTemplateService:
                 tenant_id,
                 template.id,
                 normalized_member_ids,
+                normalized_group_ids,
                 normalized_app_ids,
                 normalized_dataset_ids,
                 normalized_explore_app_ids,
@@ -469,11 +820,11 @@ class EnterprisePermissionTemplateService:
             revoked_counts = cls._revoke_removed_template_permissions(
                 tenant_id,
                 template.id,
-                old_member_ids,
+                old_effective_member_ids,
                 old_app_ids,
                 old_dataset_ids,
                 old_explore_app_ids,
-                normalized_member_ids,
+                new_effective_member_ids,
                 normalized_app_ids,
                 normalized_dataset_ids,
                 normalized_explore_app_ids,
@@ -496,12 +847,14 @@ class EnterprisePermissionTemplateService:
     def delete_template(cls, tenant_id: str, template_id: str, operator: Account) -> None:
         template = cls._get_template(tenant_id, template_id)
         old_member_ids, old_app_ids, old_dataset_ids, old_explore_app_ids = cls._binding_ids(tenant_id, template.id)
+        old_group_ids = cls._binding_group_ids(tenant_id, template.id)
+        old_effective_member_ids = cls._effective_member_ids_from_bindings(tenant_id, old_member_ids, old_group_ids)
         try:
-            cls._replace_bindings(tenant_id, template.id, [], [], [], [])
+            cls._replace_bindings(tenant_id, template.id, [], [], [], [], [])
             revoked_counts = cls._revoke_removed_template_permissions(
                 tenant_id,
                 template.id,
-                old_member_ids,
+                old_effective_member_ids,
                 old_app_ids,
                 old_dataset_ids,
                 old_explore_app_ids,
@@ -527,15 +880,17 @@ class EnterprisePermissionTemplateService:
     def apply_template(cls, tenant_id: str, template_id: str, operator: Account) -> dict[str, int]:
         template = cls._get_template(tenant_id, template_id)
         member_ids, app_ids, dataset_ids, explore_app_ids = cls._binding_ids(tenant_id, template.id)
+        group_ids = cls._binding_group_ids(tenant_id, template.id)
+        effective_member_ids = cls._effective_member_ids_from_bindings(tenant_id, member_ids, group_ids)
 
         valid_member_ids = set(
             db.session.scalars(
                 select(TenantAccountJoin.account_id).where(
                     TenantAccountJoin.tenant_id == tenant_id,
-                    TenantAccountJoin.account_id.in_(member_ids),
+                    TenantAccountJoin.account_id.in_(effective_member_ids),
                 )
             ).all()
-        ) if member_ids else set()
+        ) if effective_member_ids else set()
         if not valid_member_ids:
             raise BadRequest("Permission template has no valid workspace members")
 

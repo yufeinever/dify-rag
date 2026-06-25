@@ -42,6 +42,87 @@ class EnterprisePermissionTemplate(TypeBase):
     )
 
 
+class EnterprisePermissionGroup(TypeBase):
+    """Workspace-level user group used by permission templates."""
+
+    __tablename__ = "enterprise_permission_groups"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="enterprise_permission_group_pkey"),
+        sa.Index("idx_enterprise_permission_groups_tenant_id", "tenant_id"),
+        sa.UniqueConstraint("tenant_id", "name", name="unique_enterprise_permission_group_name"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        StringUUID,
+        insert_default=lambda: str(uuid4()),
+        default_factory=lambda: str(uuid4()),
+        primary_key=True,
+        init=False,
+    )
+    tenant_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_by: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(), init=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        init=False,
+    )
+
+
+class EnterprisePermissionGroupMember(TypeBase):
+    __tablename__ = "enterprise_permission_group_members"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="enterprise_permission_group_member_pkey"),
+        sa.Index("idx_enterprise_permission_group_members_tenant_id", "tenant_id"),
+        sa.Index("idx_enterprise_permission_group_members_group_id", "group_id"),
+        sa.UniqueConstraint("group_id", "account_id", name="unique_enterprise_permission_group_member"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        StringUUID,
+        insert_default=lambda: str(uuid4()),
+        default_factory=lambda: str(uuid4()),
+        primary_key=True,
+        init=False,
+    )
+    tenant_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    group_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    account_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(), init=False
+    )
+
+
+class EnterprisePermissionTemplateGroup(TypeBase):
+    __tablename__ = "enterprise_permission_template_groups"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="enterprise_permission_template_group_pkey"),
+        sa.Index("idx_enterprise_permission_template_groups_tenant_id", "tenant_id"),
+        sa.Index("idx_enterprise_permission_template_groups_template_id", "template_id"),
+        sa.UniqueConstraint("template_id", "group_id", name="unique_enterprise_permission_template_group"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        StringUUID,
+        insert_default=lambda: str(uuid4()),
+        default_factory=lambda: str(uuid4()),
+        primary_key=True,
+        init=False,
+    )
+    tenant_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    template_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    group_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(), init=False
+    )
+
+
 class EnterprisePermissionTemplateMember(TypeBase):
     __tablename__ = "enterprise_permission_template_members"
     __table_args__ = (

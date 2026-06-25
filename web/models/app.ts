@@ -54,15 +54,42 @@ export type AuditLogListResponse = {
   data: AuditLogItem[]
 }
 
+export type PermissionGroup = {
+  id: string
+  name: string
+  description?: string | null
+  member_ids: string[]
+  member_count: number
+  created_at?: number | null
+  updated_at?: number | null
+}
+
+export type PermissionGroupPayload = {
+  name: string
+  description?: string | null
+  member_ids: string[]
+}
+
+export type PermissionGroupListResponse = {
+  data: PermissionGroup[]
+}
+
+export type PermissionGroupResponse = {
+  data: PermissionGroup
+}
+
 export type PermissionTemplate = {
   id: string
   name: string
   description?: string | null
   member_ids: string[]
+  group_ids: string[]
   app_ids: string[]
   dataset_ids: string[]
   explore_app_ids: string[]
   member_count: number
+  direct_member_count?: number
+  group_count?: number
   app_count: number
   dataset_count: number
   explore_app_count: number
@@ -74,6 +101,7 @@ export type PermissionTemplatePayload = {
   name: string
   description?: string | null
   member_ids: string[]
+  group_ids: string[]
   app_ids: string[]
   dataset_ids: string[]
   explore_app_ids: string[]

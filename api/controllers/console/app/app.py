@@ -189,10 +189,40 @@ class PartialMemberListResponse(ResponseModel):
     data: list[str]
 
 
+class PermissionGroupPayload(BaseModel):
+    name: str = Field(..., max_length=120, description="Group name")
+    description: str | None = Field(default=None, max_length=500, description="Group description")
+    member_ids: list[str] = Field(default_factory=list, description="Workspace member IDs")
+
+
+class PermissionGroupItem(ResponseModel):
+    id: str
+    name: str
+    description: str | None = None
+    member_ids: list[str]
+    member_count: int
+    created_at: int | None = None
+    updated_at: int | None = None
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def _normalize_timestamp(cls, value: datetime | int | None) -> int | None:
+        return to_timestamp(value)
+
+
+class PermissionGroupResponse(ResponseModel):
+    data: PermissionGroupItem
+
+
+class PermissionGroupListResponse(ResponseModel):
+    data: list[PermissionGroupItem]
+
+
 class PermissionTemplatePayload(BaseModel):
     name: str = Field(..., max_length=120, description="Template name")
     description: str | None = Field(default=None, max_length=500, description="Template description")
-    member_ids: list[str] = Field(default_factory=list, description="Workspace member IDs")
+    member_ids: list[str] = Field(default_factory=list, description="Legacy direct workspace member IDs")
+    group_ids: list[str] = Field(default_factory=list, description="Permission group IDs")
     app_ids: list[str] = Field(default_factory=list, description="Studio app IDs")
     dataset_ids: list[str] = Field(default_factory=list, description="Dataset IDs")
     explore_app_ids: list[str] = Field(default_factory=list, description="Explore app IDs")
@@ -203,10 +233,13 @@ class PermissionTemplateItem(ResponseModel):
     name: str
     description: str | None = None
     member_ids: list[str]
+    group_ids: list[str]
     app_ids: list[str]
     dataset_ids: list[str]
     explore_app_ids: list[str]
     member_count: int
+    direct_member_count: int = 0
+    group_count: int = 0
     app_count: int
     dataset_count: int
     explore_app_count: int
@@ -526,6 +559,10 @@ register_schema_models(
     AppDetailWithSite,
     AppPagination,
     AppExportResponse,
+    PermissionGroupPayload,
+    PermissionGroupItem,
+    PermissionGroupResponse,
+    PermissionGroupListResponse,
     PermissionTemplatePayload,
     PermissionTemplateItem,
     PermissionTemplateResponse,
@@ -1044,6 +1081,91 @@ class ExploreAppPermissionApi(Resource):
         return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
 
 
+@console_ns.route("/admin/permission-groups")
+class AdminPermissionGroupListApi(Resource):
+    @console_ns.doc("list_permission_groups")
+    @console_ns.doc(description="List workspace permission groups")
+    @console_ns.response(200, "Success", console_ns.models[PermissionGroupListResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def get(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        groups = EnterprisePermissionTemplateService.list_groups(tenant_id)
+        return PermissionGroupListResponse(data=groups).model_dump(mode="json"), 200
+
+    @console_ns.doc("create_permission_group")
+    @console_ns.doc(description="Create workspace permission group")
+    @console_ns.expect(console_ns.models[PermissionGroupPayload.__name__])
+    @console_ns.response(200, "Success", console_ns.models[PermissionGroupResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def post(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        payload = PermissionGroupPayload.model_validate(console_ns.payload or {})
+        group = EnterprisePermissionTemplateService.create_group(
+            tenant_id,
+            current_user,
+            payload.name,
+            payload.description,
+            payload.member_ids,
+        )
+        return PermissionGroupResponse(data=group).model_dump(mode="json"), 200
+
+
+@console_ns.route("/admin/permission-groups/<uuid:group_id>")
+class AdminPermissionGroupApi(Resource):
+    @console_ns.doc("update_permission_group")
+    @console_ns.doc(description="Update workspace permission group")
+    @console_ns.doc(params={"group_id": "Permission group ID"})
+    @console_ns.expect(console_ns.models[PermissionGroupPayload.__name__])
+    @console_ns.response(200, "Success", console_ns.models[PermissionGroupResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def put(self, group_id):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        payload = PermissionGroupPayload.model_validate(console_ns.payload or {})
+        group = EnterprisePermissionTemplateService.update_group(
+            tenant_id,
+            str(group_id),
+            current_user,
+            payload.name,
+            payload.description,
+            payload.member_ids,
+        )
+        return PermissionGroupResponse(data=group).model_dump(mode="json"), 200
+
+    @console_ns.doc("delete_permission_group")
+    @console_ns.doc(description="Delete workspace permission group")
+    @console_ns.doc(params={"group_id": "Permission group ID"})
+    @console_ns.response(200, "Success", console_ns.models[SimpleResultResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def delete(self, group_id):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        EnterprisePermissionTemplateService.delete_group(tenant_id, str(group_id), current_user)
+        return {"result": "success"}, 200
+
+
 @console_ns.route("/admin/permission-templates")
 class AdminPermissionTemplateListApi(Resource):
     @console_ns.doc("list_permission_templates")
@@ -1081,6 +1203,7 @@ class AdminPermissionTemplateListApi(Resource):
             payload.name,
             payload.description,
             payload.member_ids,
+            payload.group_ids,
             payload.app_ids,
             payload.dataset_ids,
             payload.explore_app_ids,
@@ -1112,6 +1235,7 @@ class AdminPermissionTemplateApi(Resource):
             payload.name,
             payload.description,
             payload.member_ids,
+            payload.group_ids,
             payload.app_ids,
             payload.dataset_ids,
             payload.explore_app_ids,

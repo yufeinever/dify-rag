@@ -1,5 +1,5 @@
 import type { TracingProvider } from '@/app/(commonLayout)/app/(appDetailLayout)/[appId]/overview/tracing/type'
-import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, PartialMemberListResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
+import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, PartialMemberListResponse, PermissionGroupListResponse, PermissionGroupPayload, PermissionGroupResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
 import type { CommonResponse } from '@/models/common'
 import type { AppIconType, AppModeEnum, ModelConfig } from '@/types/app'
 import { del, get, patch, post, put } from './base'
@@ -192,6 +192,22 @@ export const updateExploreAppPermissionMembers = ({ appID, body }: { appID: stri
 
 export const fetchAdminAuditLogs = (): Promise<AuditLogListResponse> => {
   return get<AuditLogListResponse>('admin/audit')
+}
+
+export const fetchPermissionGroups = (): Promise<PermissionGroupListResponse> => {
+  return get<PermissionGroupListResponse>('admin/permission-groups')
+}
+
+export const createPermissionGroup = (body: PermissionGroupPayload): Promise<PermissionGroupResponse> => {
+  return post<PermissionGroupResponse>('admin/permission-groups', { body })
+}
+
+export const updatePermissionGroup = ({ groupID, body }: { groupID: string, body: PermissionGroupPayload }): Promise<PermissionGroupResponse> => {
+  return put<PermissionGroupResponse>(`admin/permission-groups/${groupID}`, { body })
+}
+
+export const deletePermissionGroup = (groupID: string): Promise<CommonResponse> => {
+  return del<CommonResponse>(`admin/permission-groups/${groupID}`)
 }
 
 export const fetchPermissionTemplates = (): Promise<PermissionTemplateListResponse> => {

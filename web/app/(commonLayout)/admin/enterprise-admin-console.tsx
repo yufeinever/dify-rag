@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { AuditLogItem, PermissionTemplate, PermissionTemplatePayload } from '@/models/app'
+import type { AuditLogItem, PermissionGroup, PermissionGroupPayload, PermissionTemplate, PermissionTemplatePayload } from '@/models/app'
 import type { InvitationResult, IWorkspace, Member } from '@/models/common'
 import type { DataSet } from '@/models/datasets'
 import type { InstalledApp } from '@/models/explore'
@@ -16,7 +16,7 @@ import { useAppContext } from '@/context/app-context'
 import { useProviderContext } from '@/context/provider-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
-import { applyPermissionTemplate, createPermissionTemplate, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchExploreAppPermissionMembers, fetchPermissionTemplates, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionTemplate } from '@/service/apps'
+import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
 import { deleteMemberOrCancelInvitation, updateMemberRole } from '@/service/common'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { fetchInstalledAppList } from '@/service/explore'
@@ -29,15 +29,24 @@ import {
   workspacePermissionRoles,
 } from '@/utils/workspace-permissions'
 
-type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'templates' | 'matrix' | 'explore' | 'apps' | 'datasets' | 'audit'
+type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'groups' | 'templates' | 'matrix' | 'explore' | 'apps' | 'datasets' | 'audit'
 
 type PermissionTemplateFormState = PermissionTemplatePayload & { id?: string | null }
+type PermissionGroupFormState = PermissionGroupPayload & { id?: string | null }
+
+const emptyGroupForm: PermissionGroupFormState = {
+  id: null,
+  name: '',
+  description: '',
+  member_ids: [],
+}
 
 const emptyTemplateForm: PermissionTemplateFormState = {
   id: null,
   name: '',
   description: '',
   member_ids: [],
+  group_ids: [],
   app_ids: [],
   dataset_ids: [],
   explore_app_ids: [],
@@ -47,7 +56,8 @@ const adminSections: Array<{ key: AdminSection, label: string, icon: string, des
   { key: 'accounts', label: '账号管理', icon: 'i-ri-user-settings-line', description: '成员账号、状态和所属角色' },
   { key: 'workspaces', label: '工作区管理', icon: 'i-ri-building-4-line', description: '租户工作区和计划状态' },
   { key: 'roles', label: '成员角色', icon: 'i-ri-shield-user-line', description: '角色分布与职责边界' },
-  { key: 'templates', label: '权限模板', icon: 'i-ri-git-branch-line', description: '按部门或岗位批量授权' },
+  { key: 'groups', label: '用户组/部门', icon: 'i-ri-group-line', description: '成员分组，供模板复用' },
+  { key: 'templates', label: '权限模板', icon: 'i-ri-git-branch-line', description: '用户组到资源的授权策略' },
   { key: 'matrix', label: '权限矩阵', icon: 'i-ri-table-2', description: 'B+ 企业权限策略' },
   { key: 'explore', label: '探索应用权限', icon: 'i-ri-compass-3-line', description: '探索模块应用访问权限' },
   { key: 'apps', label: '工作室应用权限', icon: 'i-ri-apps-2-line', description: '工作室应用访问权限' },
@@ -60,7 +70,7 @@ const adminSectionMap = Object.fromEntries(adminSections.map(section => [section
 type AdminSectionGroupKey = 'primary' | 'resources' | 'reference'
 
 const adminSectionGroups: Array<{ key: AdminSectionGroupKey, label: string, description: string, sections: AdminSection[] }> = [
-  { key: 'primary', label: '常用管理', description: '部门模板和账号', sections: ['templates', 'accounts'] },
+  { key: 'primary', label: '常用管理', description: '部门模板和账号', sections: ['groups', 'templates', 'accounts'] },
   { key: 'resources', label: '资源直授权', description: '需要排查时展开', sections: ['explore', 'apps', 'datasets'] },
   { key: 'reference', label: '参考与审计', description: '展示信息默认收起', sections: ['roles', 'matrix', 'workspaces', 'audit'] },
 ]
@@ -234,6 +244,9 @@ export default function EnterpriseAdminConsole() {
   const [savingAppAccess, setSavingAppAccess] = useState(false)
   const [savingExploreAppAccess, setSavingExploreAppAccess] = useState(false)
   const [savingDatasetAccess, setSavingDatasetAccess] = useState(false)
+  const [groupForm, setGroupForm] = useState<PermissionGroupFormState>(emptyGroupForm)
+  const [savingGroup, setSavingGroup] = useState(false)
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null)
   const [templateForm, setTemplateForm] = useState<PermissionTemplateFormState>(emptyTemplateForm)
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null)
@@ -275,6 +288,12 @@ export default function EnterpriseAdminConsole() {
     enabled: canEnterAdmin,
   })
 
+  const groupsQuery = useQuery({
+    queryKey: ['enterprise-admin', 'permission-groups'],
+    queryFn: fetchPermissionGroups,
+    enabled: canEnterAdmin,
+  })
+
   const templatesQuery = useQuery({
     queryKey: ['enterprise-admin', 'permission-templates'],
     queryFn: fetchPermissionTemplates,
@@ -287,6 +306,7 @@ export default function EnterpriseAdminConsole() {
   const exploreApps = exploreAppsQuery.data?.installed_apps ?? []
   const datasets = datasetsQuery.data?.data ?? []
   const auditLogs = auditQuery.data?.data ?? []
+  const permissionGroups = groupsQuery.data?.data ?? []
   const permissionTemplates = templatesQuery.data?.data ?? []
 
   const filteredMembers = useMemo(() => {
@@ -331,6 +351,8 @@ export default function EnterpriseAdminConsole() {
       void exploreAppsQuery.refetch()
     if (activeSection === 'datasets')
       void datasetsQuery.refetch()
+    if (activeSection === 'groups')
+      void groupsQuery.refetch()
     if (activeSection === 'templates')
       void templatesQuery.refetch()
     if (activeSection === 'audit')
@@ -423,7 +445,86 @@ export default function EnterpriseAdminConsole() {
     })
   }
 
-  const toggleTemplateValue = (field: 'member_ids' | 'app_ids' | 'dataset_ids' | 'explore_app_ids', id: string) => {
+  const toggleGroupMember = (memberId: string) => {
+    setGroupForm((current) => {
+      const values = current.member_ids
+      return {
+        ...current,
+        member_ids: values.includes(memberId) ? values.filter(value => value !== memberId) : [...values, memberId],
+      }
+    })
+  }
+
+  const editGroup = (group: PermissionGroup) => {
+    setGroupForm({
+      id: group.id,
+      name: group.name,
+      description: group.description ?? '',
+      member_ids: group.member_ids,
+    })
+  }
+
+  const resetGroupForm = () => {
+    setGroupForm(emptyGroupForm)
+  }
+
+  const handleSaveGroup = async () => {
+    const name = groupForm.name.trim()
+    if (!name) {
+      toast.error('请填写用户组名称')
+      return
+    }
+
+    setSavingGroup(true)
+    const body: PermissionGroupPayload = {
+      name,
+      description: groupForm.description?.trim() || null,
+      member_ids: groupForm.member_ids,
+    }
+    try {
+      if (groupForm.id)
+        await updatePermissionGroup({ groupID: groupForm.id, body })
+      else
+        await createPermissionGroup(body)
+
+      await Promise.all([
+        groupsQuery.refetch(),
+        templatesQuery.refetch(),
+        exploreAppsQuery.refetch(),
+        appsQuery.refetch(),
+        datasetsQuery.refetch(),
+        auditQuery.refetch(),
+      ])
+      resetGroupForm()
+      toast.success('用户组已保存')
+    }
+    finally {
+      setSavingGroup(false)
+    }
+  }
+
+  const handleDeleteGroup = async (group: PermissionGroup) => {
+    setDeletingGroupId(group.id)
+    try {
+      await deletePermissionGroup(group.id)
+      await Promise.all([
+        groupsQuery.refetch(),
+        templatesQuery.refetch(),
+        exploreAppsQuery.refetch(),
+        appsQuery.refetch(),
+        datasetsQuery.refetch(),
+        auditQuery.refetch(),
+      ])
+      if (groupForm.id === group.id)
+        resetGroupForm()
+      toast.success('用户组已删除')
+    }
+    finally {
+      setDeletingGroupId(null)
+    }
+  }
+
+  const toggleTemplateValue = (field: 'member_ids' | 'group_ids' | 'app_ids' | 'dataset_ids' | 'explore_app_ids', id: string) => {
     setTemplateForm((current) => {
       const values = current[field]
       return {
@@ -438,7 +539,8 @@ export default function EnterpriseAdminConsole() {
       id: template.id,
       name: template.name,
       description: template.description ?? '',
-      member_ids: template.member_ids,
+      member_ids: template.member_ids ?? [],
+      group_ids: template.group_ids ?? [],
       app_ids: template.app_ids,
       dataset_ids: template.dataset_ids,
       explore_app_ids: template.explore_app_ids ?? [],
@@ -461,6 +563,7 @@ export default function EnterpriseAdminConsole() {
       name,
       description: templateForm.description?.trim() || null,
       member_ids: templateForm.member_ids,
+      group_ids: templateForm.group_ids,
       app_ids: templateForm.app_ids,
       dataset_ids: templateForm.dataset_ids,
       explore_app_ids: templateForm.explore_app_ids,
@@ -472,6 +575,7 @@ export default function EnterpriseAdminConsole() {
         await createPermissionTemplate(body)
 
       await Promise.all([
+        groupsQuery.refetch(),
         templatesQuery.refetch(),
         exploreAppsQuery.refetch(),
         appsQuery.refetch(),
@@ -858,11 +962,119 @@ export default function EnterpriseAdminConsole() {
             </div>
           )}
 
+          {activeSection === 'groups' && (
+            <div>
+              <SectionHeader
+                title="用户组/部门"
+                description="先维护部门、岗位或项目组成员，再把用户组绑定到权限模板。账号归属和资源授权分开管理。"
+                action={groupForm.id
+                  ? (
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center gap-2 rounded-md border border-divider-deep bg-background-default px-3 text-sm font-medium text-text-secondary hover:bg-background-default-hover"
+                        onClick={resetGroupForm}
+                      >
+                        <span className="i-ri-add-line size-4" aria-hidden />
+                        新建用户组
+                      </button>
+                    )
+                  : null}
+              />
+              <div className="grid grid-cols-[360px_1fr] gap-0 max-xl:grid-cols-1">
+                <div className="border-r border-divider-subtle p-5 max-xl:border-r-0 max-xl:border-b">
+                  <div className="text-sm font-semibold text-text-primary">{groupForm.id ? '编辑用户组' : '新建用户组'}</div>
+                  <div className="mt-4 space-y-4">
+                    <label className="block">
+                      <span className="text-xs font-medium text-text-tertiary">用户组名称</span>
+                      <input
+                        value={groupForm.name}
+                        onChange={event => setGroupForm(current => ({ ...current, name: event.target.value }))}
+                        placeholder="例如：A 部门、客服组、数据运营"
+                        className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-text-tertiary">说明</span>
+                      <textarea
+                        value={groupForm.description ?? ''}
+                        onChange={event => setGroupForm(current => ({ ...current, description: event.target.value }))}
+                        placeholder="用于记录部门、岗位或审批口径"
+                        className="mt-1 min-h-20 w-full resize-none rounded-md border border-divider-deep bg-background-default px-3 py-2 text-sm text-text-primary outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <TemplatePicker
+                      title="成员"
+                      emptyText="暂无成员"
+                      items={members.map(member => ({ id: member.id, title: member.name || member.email, subtitle: `${member.email} · ${roleLabelMap[member.role]}` }))}
+                      selectedIds={groupForm.member_ids}
+                      onToggle={toggleGroupMember}
+                    />
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-components-button-primary-bg px-3 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={savingGroup}
+                      onClick={() => void handleSaveGroup()}
+                    >
+                      <span className="i-ri-save-line size-4" aria-hidden />
+                      {savingGroup ? '保存中...' : '保存用户组'}
+                    </button>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[720px] text-left text-sm">
+                      <thead className="bg-background-default text-xs font-medium text-text-tertiary">
+                        <tr>
+                          <th className="px-6 py-3">用户组</th>
+                          <th className="px-4 py-3">成员数</th>
+                          <th className="px-4 py-3">更新时间</th>
+                          <th className="px-4 py-3 text-right">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-divider-subtle">
+                        {permissionGroups.map(group => (
+                          <tr key={group.id} className="hover:bg-background-default-hover">
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-text-primary">{group.name}</div>
+                              <div className="mt-1 line-clamp-1 text-xs text-text-tertiary">{group.description || '暂无说明'}</div>
+                            </td>
+                            <td className="px-4 py-4 text-text-secondary">{group.member_count}</td>
+                            <td className="px-4 py-4 text-text-tertiary">{formatDateTime(group.updated_at || group.created_at)}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center rounded-md border border-divider-deep bg-background-default px-2 text-xs font-medium text-text-secondary hover:bg-background-default-hover"
+                                  onClick={() => editGroup(group)}
+                                >
+                                  编辑
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center rounded-md border border-red-200 bg-red-50 px-2 text-xs font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={deletingGroupId === group.id}
+                                  onClick={() => void handleDeleteGroup(group)}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {!groupsQuery.isLoading && permissionGroups.length === 0 && <EmptyTable text="暂无用户组" />}
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeSection === 'templates' && (
             <div>
               <SectionHeader
                 title="权限模板"
-                description="按部门或岗位维护一组成员和资源。保存会同步撤销已取消勾选的历史授权；需要重新下发时再同步权限。"
+                description="模板只描述用户组到资源的授权策略。账号归属在用户组里维护，模板保存后会同步撤销已取消勾选的历史授权。"
                 action={templateForm.id
                   ? (
                       <button
@@ -899,11 +1111,11 @@ export default function EnterpriseAdminConsole() {
                       />
                     </label>
                     <TemplatePicker
-                      title="成员"
-                      emptyText="暂无成员"
-                      items={members.map(member => ({ id: member.id, title: member.name || member.email, subtitle: `${member.email} · ${roleLabelMap[member.role]}` }))}
-                      selectedIds={templateForm.member_ids}
-                      onToggle={id => toggleTemplateValue('member_ids', id)}
+                      title="适用用户组"
+                      emptyText="暂无用户组，请先在用户组/部门中创建"
+                      items={permissionGroups.map(group => ({ id: group.id, title: group.name, subtitle: `${group.member_count} 个成员${group.description ? ` · ${group.description}` : ''}` }))}
+                      selectedIds={templateForm.group_ids}
+                      onToggle={id => toggleTemplateValue('group_ids', id)}
                     />
                     <TemplatePicker
                       title="探索应用"
@@ -943,7 +1155,8 @@ export default function EnterpriseAdminConsole() {
                       <thead className="bg-background-default text-xs font-medium text-text-tertiary">
                         <tr>
                           <th className="px-6 py-3">模板</th>
-                          <th className="px-4 py-3">成员</th>
+                          <th className="px-4 py-3">用户组</th>
+                          <th className="px-4 py-3">影响成员</th>
                           <th className="px-4 py-3">探索应用</th>
                           <th className="px-4 py-3">工作室应用</th>
                           <th className="px-4 py-3">知识库</th>
@@ -958,6 +1171,7 @@ export default function EnterpriseAdminConsole() {
                               <div className="font-medium text-text-primary">{template.name}</div>
                               <div className="mt-1 line-clamp-1 text-xs text-text-tertiary">{template.description || '暂无说明'}</div>
                             </td>
+                            <td className="px-4 py-4 text-text-secondary">{template.group_count ?? template.group_ids?.length ?? 0}</td>
                             <td className="px-4 py-4 text-text-secondary">{template.member_count}</td>
                             <td className="px-4 py-4 text-text-secondary">{template.explore_app_count ?? 0}</td>
                             <td className="px-4 py-4 text-text-secondary">{template.app_count}</td>

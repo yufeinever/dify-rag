@@ -37,7 +37,9 @@ from libs.datetime_utils import naive_utc_now
 from libs.login import current_user
 from models import (
     Account,
+    EnterprisePermissionGroupMember,
     EnterprisePermissionTemplateDataset,
+    EnterprisePermissionTemplateGroup,
     EnterprisePermissionTemplateMember,
     TenantAccountRole,
 )
@@ -218,7 +220,7 @@ class DatasetService:
 
     @staticmethod
     def _get_template_dataset_ids(user_id: str, tenant_id: str) -> set[str]:
-        return set(
+        direct_dataset_ids = set(
             db.session.scalars(
                 select(EnterprisePermissionTemplateDataset.dataset_id)
                 .join(
@@ -236,6 +238,32 @@ class DatasetService:
                 )
             ).all()
         )
+        group_dataset_ids = set(
+            db.session.scalars(
+                select(EnterprisePermissionTemplateDataset.dataset_id)
+                .join(
+                    EnterprisePermissionTemplateGroup,
+                    sa.and_(
+                        EnterprisePermissionTemplateGroup.tenant_id
+                        == EnterprisePermissionTemplateDataset.tenant_id,
+                        EnterprisePermissionTemplateGroup.template_id
+                        == EnterprisePermissionTemplateDataset.template_id,
+                    ),
+                )
+                .join(
+                    EnterprisePermissionGroupMember,
+                    sa.and_(
+                        EnterprisePermissionGroupMember.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                        EnterprisePermissionGroupMember.group_id == EnterprisePermissionTemplateGroup.group_id,
+                    ),
+                )
+                .where(
+                    EnterprisePermissionTemplateDataset.tenant_id == tenant_id,
+                    EnterprisePermissionGroupMember.account_id == user_id,
+                )
+            ).all()
+        )
+        return direct_dataset_ids | group_dataset_ids
 
     @staticmethod
     def _get_permitted_dataset_ids(user_id: str, tenant_id: str) -> set[str]:
@@ -4110,8 +4138,26 @@ class DatasetPermissionService:
             )
             .where(EnterprisePermissionTemplateDataset.dataset_id == dataset_id)
         ).all()
+        template_group_member_ids = db.session.scalars(
+            select(EnterprisePermissionGroupMember.account_id)
+            .join(
+                EnterprisePermissionTemplateGroup,
+                sa.and_(
+                    EnterprisePermissionTemplateGroup.tenant_id == EnterprisePermissionGroupMember.tenant_id,
+                    EnterprisePermissionTemplateGroup.group_id == EnterprisePermissionGroupMember.group_id,
+                ),
+            )
+            .join(
+                EnterprisePermissionTemplateDataset,
+                sa.and_(
+                    EnterprisePermissionTemplateDataset.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                    EnterprisePermissionTemplateDataset.template_id == EnterprisePermissionTemplateGroup.template_id,
+                ),
+            )
+            .where(EnterprisePermissionTemplateDataset.dataset_id == dataset_id)
+        ).all()
 
-        return sorted(set(direct_member_ids) | set(template_member_ids))
+        return sorted(set(direct_member_ids) | set(template_member_ids) | set(template_group_member_ids))
 
     @classmethod
     def update_partial_member_list(cls, tenant_id, dataset_id, user_list):
