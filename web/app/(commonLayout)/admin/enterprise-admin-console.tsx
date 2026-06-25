@@ -46,7 +46,7 @@ const adminSections: Array<{ key: AdminSection, label: string, icon: string, des
   { key: 'roles', label: '成员角色', icon: 'i-ri-shield-user-line', description: '角色分布与职责边界' },
   { key: 'templates', label: '权限模板', icon: 'i-ri-git-branch-line', description: '批量授权成员和资源' },
   { key: 'matrix', label: '权限矩阵', icon: 'i-ri-table-2', description: 'B+ 企业权限策略' },
-  { key: 'apps', label: '应用权限', icon: 'i-ri-apps-2-line', description: '应用访问和发布权限' },
+  { key: 'apps', label: '工作室应用权限', icon: 'i-ri-apps-2-line', description: '工作室应用访问权限' },
   { key: 'datasets', label: '知识库权限', icon: 'i-ri-database-2-line', description: '知识库访问和成员权限' },
   { key: 'audit', label: '审计日志', icon: 'i-ri-file-search-line', description: 'Plus 风格操作记录入口' },
 ]
@@ -432,7 +432,7 @@ export default function EnterpriseAdminConsole() {
     try {
       const result = await applyPermissionTemplate(template.id)
       await Promise.all([appsQuery.refetch(), datasetsQuery.refetch(), auditQuery.refetch()])
-      toast.success(`模板已应用：${result.data.member_count} 个成员，${result.data.app_count} 个应用，${result.data.dataset_count} 个知识库`)
+      toast.success(`模板已应用：${result.data.member_count} 个成员，${result.data.app_count} 个工作室应用，${result.data.dataset_count} 个知识库`)
     }
     finally {
       setApplyingTemplateId(null)
@@ -472,7 +472,7 @@ export default function EnterpriseAdminConsole() {
       await appsQuery.refetch()
       await auditQuery.refetch()
       setSelectedAppForAccess(null)
-      toast.success('应用授权已更新')
+      toast.success('工作室应用授权已更新')
     }
     finally {
       setSavingAppAccess(false)
@@ -736,7 +736,7 @@ export default function EnterpriseAdminConsole() {
             <div>
               <SectionHeader
                 title="权限模板"
-                description="按部门或岗位维护一组成员、应用和知识库，应用模板时会追加授权到现有资源，不覆盖手工授权。"
+                description="按部门或岗位维护一组成员、工作室应用和知识库，应用模板时会追加授权到现有资源，不覆盖手工授权。"
                 action={templateForm.id
                   ? (
                       <button
@@ -780,8 +780,8 @@ export default function EnterpriseAdminConsole() {
                       onToggle={id => toggleTemplateValue('member_ids', id)}
                     />
                     <TemplatePicker
-                      title="应用"
-                      emptyText={canViewApps ? '暂无应用' : '当前角色没有查看应用权限'}
+                      title="工作室应用"
+                      emptyText={canViewApps ? '暂无工作室应用' : '当前角色没有查看工作室应用权限'}
                       items={apps.map(app => ({ id: app.id, title: app.name, subtitle: appModeLabelMap[app.mode] || app.mode }))}
                       selectedIds={templateForm.app_ids}
                       onToggle={id => toggleTemplateValue('app_ids', id)}
@@ -811,7 +811,7 @@ export default function EnterpriseAdminConsole() {
                         <tr>
                           <th className="px-6 py-3">模板</th>
                           <th className="px-4 py-3">成员</th>
-                          <th className="px-4 py-3">应用</th>
+                          <th className="px-4 py-3">工作室应用</th>
                           <th className="px-4 py-3">知识库</th>
                           <th className="px-4 py-3">更新时间</th>
                           <th className="px-4 py-3 text-right">操作</th>
@@ -921,13 +921,13 @@ export default function EnterpriseAdminConsole() {
 
           {activeSection === 'apps' && (
             <div>
-              <SectionHeader title="应用权限" description="展示当前可见应用，并把应用相关的创建、发布、访问控制和 API Key 权限集中到同一入口。" />
+              <SectionHeader title="工作室应用权限" description="展示工作室里的应用，并集中管理这些应用的可见成员；探索应用和编排编辑权限属于独立权限层级。" />
               <PermissionStrip permissions={workspacePermissionKeys.filter(permission => workspacePermissionMetadata[permission].scope === 'app')} />
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[820px] text-left text-sm">
                   <thead className="bg-background-default text-xs font-medium text-text-tertiary">
                     <tr>
-                      <th className="px-6 py-3">应用</th>
+                      <th className="px-6 py-3">工作室应用</th>
                       <th className="px-4 py-3">类型</th>
                       <th className="px-4 py-3">站点</th>
                       <th className="px-4 py-3">API</th>
@@ -962,7 +962,7 @@ export default function EnterpriseAdminConsole() {
                   </tbody>
                 </table>
               </div>
-              {!appsQuery.isLoading && apps.length === 0 && <EmptyTable text={canViewApps ? '暂无可见应用' : '当前角色没有查看应用权限'} />}
+              {!appsQuery.isLoading && apps.length === 0 && <EmptyTable text={canViewApps ? '暂无可见工作室应用' : '当前角色没有查看工作室应用权限'} />}
             </div>
           )}
 
@@ -1071,11 +1071,11 @@ export default function EnterpriseAdminConsole() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-xl rounded-lg bg-background-section shadow-xl">
             <div className="border-b border-divider-subtle px-5 py-4">
-              <h3 className="text-base font-semibold text-text-primary">应用授权成员</h3>
+              <h3 className="text-base font-semibold text-text-primary">工作室应用授权成员</h3>
               <p className="mt-1 text-sm text-text-tertiary">
                 将「
                 {selectedAppForAccess.name}
-                」设置为指定成员可访问。保存后会写入当前工作区的应用授权表。
+                」设置为指定成员可访问。保存后会写入当前工作区的工作室应用授权表。
               </p>
             </div>
             <div className="max-h-[420px] overflow-y-auto px-5 py-3">

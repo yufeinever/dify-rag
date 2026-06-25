@@ -22,6 +22,7 @@ from libs.login import current_account_with_tenant, login_required
 from models import App, InstalledApp, RecommendedApp
 from models.model import IconType
 from services.account_service import TenantService
+from services.app_service import AppService
 from services.enterprise.enterprise_service import EnterpriseService
 from services.feature_service import FeatureService
 
@@ -149,6 +150,7 @@ class InstalledAppsListApi(Resource):
         if current_user.current_tenant is None:
             raise ValueError("current_user.current_tenant must not be None")
         current_user.role = TenantService.get_user_role(current_user, current_user.current_tenant)
+        app_service = AppService()
         installed_app_list: list[dict[str, Any]] = [
             {
                 "id": installed_app.id,
@@ -161,6 +163,7 @@ class InstalledAppsListApi(Resource):
             }
             for installed_app in installed_apps
             if installed_app.app is not None
+            and app_service.has_app_permission(current_user.id, current_tenant_id, installed_app.app_id)
         ]
 
         # filter out apps that user doesn't have access to
