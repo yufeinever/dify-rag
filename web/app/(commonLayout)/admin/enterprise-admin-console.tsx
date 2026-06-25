@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import type { AuditLogItem, PermissionTemplate, PermissionTemplatePayload } from '@/models/app'
 import type { InvitationResult, IWorkspace, Member } from '@/models/common'
 import type { DataSet } from '@/models/datasets'
+import type { InstalledApp } from '@/models/explore'
 import type { App } from '@/types/app'
 import type { WorkspacePermission, WorkspacePermissionRisk, WorkspacePermissionScope, WorkspaceRole } from '@/utils/workspace-permissions'
 import { toast } from '@langgenius/dify-ui/toast'
@@ -15,9 +16,10 @@ import { useAppContext } from '@/context/app-context'
 import { useProviderContext } from '@/context/provider-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
-import { applyPermissionTemplate, createPermissionTemplate, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchPermissionTemplates, updateAppPermissionMembers, updatePermissionTemplate } from '@/service/apps'
+import { applyPermissionTemplate, createPermissionTemplate, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchExploreAppPermissionMembers, fetchPermissionTemplates, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionTemplate } from '@/service/apps'
 import { deleteMemberOrCancelInvitation, updateMemberRole } from '@/service/common'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
+import { fetchInstalledAppList } from '@/service/explore'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { useMembers, useWorkspaces } from '@/service/use-common'
 import {
@@ -27,7 +29,7 @@ import {
   workspacePermissionRoles,
 } from '@/utils/workspace-permissions'
 
-type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'templates' | 'matrix' | 'apps' | 'datasets' | 'audit'
+type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'templates' | 'matrix' | 'explore' | 'apps' | 'datasets' | 'audit'
 
 type PermissionTemplateFormState = PermissionTemplatePayload & { id?: string | null }
 
@@ -38,6 +40,7 @@ const emptyTemplateForm: PermissionTemplateFormState = {
   member_ids: [],
   app_ids: [],
   dataset_ids: [],
+  explore_app_ids: [],
 }
 
 const adminSections: Array<{ key: AdminSection, label: string, icon: string, description: string }> = [
@@ -46,6 +49,7 @@ const adminSections: Array<{ key: AdminSection, label: string, icon: string, des
   { key: 'roles', label: '成员角色', icon: 'i-ri-shield-user-line', description: '角色分布与职责边界' },
   { key: 'templates', label: '权限模板', icon: 'i-ri-git-branch-line', description: '批量授权成员和资源' },
   { key: 'matrix', label: '权限矩阵', icon: 'i-ri-table-2', description: 'B+ 企业权限策略' },
+  { key: 'explore', label: '探索应用权限', icon: 'i-ri-compass-3-line', description: '探索模块应用访问权限' },
   { key: 'apps', label: '工作室应用权限', icon: 'i-ri-apps-2-line', description: '工作室应用访问权限' },
   { key: 'datasets', label: '知识库权限', icon: 'i-ri-database-2-line', description: '知识库访问和成员权限' },
   { key: 'audit', label: '审计日志', icon: 'i-ri-file-search-line', description: 'Plus 风格操作记录入口' },
@@ -206,10 +210,13 @@ export default function EnterpriseAdminConsole() {
   const [invitedModalVisible, setInvitedModalVisible] = useState(false)
   const [invitationResults, setInvitationResults] = useState<InvitationResult[]>([])
   const [selectedAppForAccess, setSelectedAppForAccess] = useState<App | null>(null)
+  const [selectedExploreAppForAccess, setSelectedExploreAppForAccess] = useState<InstalledApp | null>(null)
   const [selectedDatasetForAccess, setSelectedDatasetForAccess] = useState<DataSet | null>(null)
   const [selectedAppMemberIds, setSelectedAppMemberIds] = useState<string[]>([])
+  const [selectedExploreAppMemberIds, setSelectedExploreAppMemberIds] = useState<string[]>([])
   const [datasetMemberIds, setDatasetMemberIds] = useState<string[]>([])
   const [savingAppAccess, setSavingAppAccess] = useState(false)
+  const [savingExploreAppAccess, setSavingExploreAppAccess] = useState(false)
   const [savingDatasetAccess, setSavingDatasetAccess] = useState(false)
   const [templateForm, setTemplateForm] = useState<PermissionTemplateFormState>(emptyTemplateForm)
   const [savingTemplate, setSavingTemplate] = useState(false)
@@ -221,6 +228,7 @@ export default function EnterpriseAdminConsole() {
 
   const canEnterAdmin = hasAnyPermission(['workspace.member.view', 'workspace.member.manage']) || isCurrentWorkspaceManager
   const canViewApps = hasAnyPermission(['app.view'])
+  const canViewExplore = hasAnyPermission(['explore.view'])
   const canViewDatasets = hasAnyPermission(['dataset.view'])
 
   const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers } = useMembers()
@@ -231,6 +239,12 @@ export default function EnterpriseAdminConsole() {
     queryKey: ['enterprise-admin', 'apps'],
     queryFn: () => fetchAppList({ url: '/apps', params: { page: 1, limit: 100 } }),
     enabled: canEnterAdmin && canViewApps,
+  })
+
+  const exploreAppsQuery = useQuery({
+    queryKey: ['enterprise-admin', 'explore-apps'],
+    queryFn: () => fetchInstalledAppList(),
+    enabled: canEnterAdmin && canViewExplore,
   })
 
   const datasetsQuery = useQuery({
@@ -254,6 +268,7 @@ export default function EnterpriseAdminConsole() {
   const members = membersData?.accounts ?? []
   const workspaces = workspacesData?.workspaces ?? []
   const apps = appsQuery.data?.data ?? []
+  const exploreApps = exploreAppsQuery.data?.installed_apps ?? []
   const datasets = datasetsQuery.data?.data ?? []
   const auditLogs = auditQuery.data?.data ?? []
   const permissionTemplates = templatesQuery.data?.data ?? []
@@ -292,6 +307,8 @@ export default function EnterpriseAdminConsole() {
       void refetchWorkspaces()
     if (activeSection === 'apps')
       void appsQuery.refetch()
+    if (activeSection === 'explore')
+      void exploreAppsQuery.refetch()
     if (activeSection === 'datasets')
       void datasetsQuery.refetch()
     if (activeSection === 'templates')
@@ -348,6 +365,12 @@ export default function EnterpriseAdminConsole() {
     setSelectedAppMemberIds(result.data ?? [])
   }
 
+  const openExploreAppAccess = async (installedApp: InstalledApp) => {
+    setSelectedExploreAppForAccess(installedApp)
+    const result = await fetchExploreAppPermissionMembers({ appID: installedApp.app.id })
+    setSelectedExploreAppMemberIds(result.data ?? [])
+  }
+
   const openDatasetAccess = (dataset: DataSet) => {
     setSelectedDatasetForAccess(dataset)
     setDatasetMemberIds(dataset.partial_member_list ?? [])
@@ -355,6 +378,15 @@ export default function EnterpriseAdminConsole() {
 
   const toggleAppMember = (memberId: string) => {
     setSelectedAppMemberIds((current) => {
+      if (current.includes(memberId))
+        return current.filter(id => id !== memberId)
+
+      return [...current, memberId]
+    })
+  }
+
+  const toggleExploreAppMember = (memberId: string) => {
+    setSelectedExploreAppMemberIds((current) => {
       if (current.includes(memberId))
         return current.filter(id => id !== memberId)
 
@@ -371,7 +403,7 @@ export default function EnterpriseAdminConsole() {
     })
   }
 
-  const toggleTemplateValue = (field: 'member_ids' | 'app_ids' | 'dataset_ids', id: string) => {
+  const toggleTemplateValue = (field: 'member_ids' | 'app_ids' | 'dataset_ids' | 'explore_app_ids', id: string) => {
     setTemplateForm((current) => {
       const values = current[field]
       return {
@@ -389,6 +421,7 @@ export default function EnterpriseAdminConsole() {
       member_ids: template.member_ids,
       app_ids: template.app_ids,
       dataset_ids: template.dataset_ids,
+      explore_app_ids: template.explore_app_ids ?? [],
     })
   }
 
@@ -410,6 +443,7 @@ export default function EnterpriseAdminConsole() {
       member_ids: templateForm.member_ids,
       app_ids: templateForm.app_ids,
       dataset_ids: templateForm.dataset_ids,
+      explore_app_ids: templateForm.explore_app_ids,
     }
     try {
       if (templateForm.id)
@@ -431,8 +465,8 @@ export default function EnterpriseAdminConsole() {
     setApplyingTemplateId(template.id)
     try {
       const result = await applyPermissionTemplate(template.id)
-      await Promise.all([appsQuery.refetch(), datasetsQuery.refetch(), auditQuery.refetch()])
-      toast.success(`模板已应用：${result.data.member_count} 个成员，${result.data.app_count} 个工作室应用，${result.data.dataset_count} 个知识库`)
+      await Promise.all([exploreAppsQuery.refetch(), appsQuery.refetch(), datasetsQuery.refetch(), auditQuery.refetch()])
+      toast.success(`模板已应用：${result.data.member_count} 个成员，${result.data.explore_app_count} 个探索应用，${result.data.app_count} 个工作室应用，${result.data.dataset_count} 个知识库`)
     }
     finally {
       setApplyingTemplateId(null)
@@ -476,6 +510,31 @@ export default function EnterpriseAdminConsole() {
     }
     finally {
       setSavingAppAccess(false)
+    }
+  }
+
+  const handleSaveExploreAppAccess = async () => {
+    if (!selectedExploreAppForAccess)
+      return
+
+    setSavingExploreAppAccess(true)
+    try {
+      await updateExploreAppPermissionMembers({
+        appID: selectedExploreAppForAccess.app.id,
+        body: {
+          partial_member_list: selectedExploreAppMemberIds.map(id => ({
+            user_id: id,
+            role: members.find(item => item.id === id)?.role ?? 'normal',
+          })),
+        },
+      })
+      await exploreAppsQuery.refetch()
+      await auditQuery.refetch()
+      setSelectedExploreAppForAccess(null)
+      toast.success('探索应用授权已更新')
+    }
+    finally {
+      setSavingExploreAppAccess(false)
     }
   }
 
@@ -736,7 +795,7 @@ export default function EnterpriseAdminConsole() {
             <div>
               <SectionHeader
                 title="权限模板"
-                description="按部门或岗位维护一组成员、工作室应用和知识库，应用模板时会追加授权到现有资源，不覆盖手工授权。"
+                description="按部门或岗位维护一组成员、探索应用、工作室应用和知识库，应用模板时会追加授权到现有资源，不覆盖手工授权。"
                 action={templateForm.id
                   ? (
                       <button
@@ -780,6 +839,13 @@ export default function EnterpriseAdminConsole() {
                       onToggle={id => toggleTemplateValue('member_ids', id)}
                     />
                     <TemplatePicker
+                      title="探索应用"
+                      emptyText={canViewExplore ? '暂无探索应用' : '当前角色没有查看探索权限'}
+                      items={exploreApps.map(installedApp => ({ id: installedApp.app.id, title: installedApp.app.name, subtitle: appModeLabelMap[installedApp.app.mode] || installedApp.app.mode }))}
+                      selectedIds={templateForm.explore_app_ids}
+                      onToggle={id => toggleTemplateValue('explore_app_ids', id)}
+                    />
+                    <TemplatePicker
                       title="工作室应用"
                       emptyText={canViewApps ? '暂无工作室应用' : '当前角色没有查看工作室应用权限'}
                       items={apps.map(app => ({ id: app.id, title: app.name, subtitle: appModeLabelMap[app.mode] || app.mode }))}
@@ -811,6 +877,7 @@ export default function EnterpriseAdminConsole() {
                         <tr>
                           <th className="px-6 py-3">模板</th>
                           <th className="px-4 py-3">成员</th>
+                          <th className="px-4 py-3">探索应用</th>
                           <th className="px-4 py-3">工作室应用</th>
                           <th className="px-4 py-3">知识库</th>
                           <th className="px-4 py-3">更新时间</th>
@@ -825,6 +892,7 @@ export default function EnterpriseAdminConsole() {
                               <div className="mt-1 line-clamp-1 text-xs text-text-tertiary">{template.description || '暂无说明'}</div>
                             </td>
                             <td className="px-4 py-4 text-text-secondary">{template.member_count}</td>
+                            <td className="px-4 py-4 text-text-secondary">{template.explore_app_count ?? 0}</td>
                             <td className="px-4 py-4 text-text-secondary">{template.app_count}</td>
                             <td className="px-4 py-4 text-text-secondary">{template.dataset_count}</td>
                             <td className="px-4 py-4 text-text-tertiary">{formatDateTime(template.updated_at || template.created_at)}</td>
@@ -916,6 +984,49 @@ export default function EnterpriseAdminConsole() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {activeSection === 'explore' && (
+            <div>
+              <SectionHeader title="探索应用权限" description="展示探索模块里已安装的应用，并集中管理这些应用在探索入口的可见和运行成员。" />
+              <PermissionStrip permissions={workspacePermissionKeys.filter(permission => workspacePermissionMetadata[permission].scope === 'navigation' && permission === 'explore.view')} />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="bg-background-default text-xs font-medium text-text-tertiary">
+                    <tr>
+                      <th className="px-6 py-3">探索应用</th>
+                      <th className="px-4 py-3">类型</th>
+                      <th className="px-4 py-3">固定</th>
+                      <th className="px-4 py-3">可卸载</th>
+                      <th className="px-4 py-3 text-right">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-divider-subtle">
+                    {exploreApps.map((installedApp: InstalledApp) => (
+                      <tr key={installedApp.id} className="hover:bg-background-default-hover">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-text-primary">{installedApp.app.name}</div>
+                          <div className="mt-1 line-clamp-1 text-xs text-text-tertiary">{installedApp.app.id}</div>
+                        </td>
+                        <td className="px-4 py-4 text-text-secondary">{appModeLabelMap[installedApp.app.mode] || installedApp.app.mode}</td>
+                        <td className="px-4 py-4 text-text-secondary">{installedApp.is_pinned ? '是' : '否'}</td>
+                        <td className="px-4 py-4 text-text-secondary">{installedApp.uninstallable ? '是' : '否'}</td>
+                        <td className="px-4 py-4 text-right">
+                          <button
+                            type="button"
+                            className="inline-flex h-8 items-center rounded-md border border-divider-deep bg-background-default px-2 text-xs font-medium text-text-secondary hover:bg-background-default-hover"
+                            onClick={() => void openExploreAppAccess(installedApp)}
+                          >
+                            授权成员
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!exploreAppsQuery.isLoading && exploreApps.length === 0 && <EmptyTable text={canViewExplore ? '暂无可见探索应用' : '当前角色没有查看探索权限'} />}
             </div>
           )}
 
@@ -1066,6 +1177,63 @@ export default function EnterpriseAdminConsole() {
           invitationResults={invitationResults}
           onCancel={() => setInvitedModalVisible(false)}
         />
+      )}
+      {selectedExploreAppForAccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-xl rounded-lg bg-background-section shadow-xl">
+            <div className="border-b border-divider-subtle px-5 py-4">
+              <h3 className="text-base font-semibold text-text-primary">探索应用授权成员</h3>
+              <p className="mt-1 text-sm text-text-tertiary">
+                将「
+                {selectedExploreAppForAccess.app.name}
+                」设置为指定成员可在探索模块查看和运行。保存后会写入当前工作区的探索应用授权表。
+              </p>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto px-5 py-3">
+              {members.map(member => (
+                <label key={member.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-background-default-hover">
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-divider-deep text-components-button-primary-bg focus:ring-components-button-primary-bg"
+                    checked={selectedExploreAppMemberIds.includes(member.id)}
+                    onChange={() => toggleExploreAppMember(member.id)}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-text-primary">{member.name || member.email}</span>
+                    <span className="mt-0.5 block truncate text-xs text-text-tertiary">
+                      {member.email}
+                      {' '}
+                      ·
+                      {' '}
+                      {roleLabelMap[member.role]}
+                    </span>
+                  </span>
+                  <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusClassMap[member.status]}`}>{statusLabelMap[member.status]}</span>
+                </label>
+              ))}
+              {members.length === 0 && (
+                <div className="py-12 text-center text-sm text-text-tertiary">暂无可授权成员</div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-divider-subtle px-5 py-4">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center rounded-md border border-divider-deep bg-background-default px-4 text-sm font-medium text-text-secondary hover:bg-background-default-hover"
+                onClick={() => setSelectedExploreAppForAccess(null)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-9 items-center rounded-md bg-components-button-primary-bg px-4 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={savingExploreAppAccess}
+                onClick={() => void handleSaveExploreAppAccess()}
+              >
+                {savingExploreAppAccess ? '保存中...' : '保存授权'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {selectedAppForAccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

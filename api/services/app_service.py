@@ -25,7 +25,9 @@ from libs.login import current_user
 from models import (
     Account,
     EnterprisePermissionTemplateApp,
+    EnterprisePermissionTemplateExploreApp,
     EnterprisePermissionTemplateMember,
+    ExploreAppPermission,
     OperationLog,
     TenantAccountRole,
 )
@@ -93,6 +95,26 @@ class AppService:
             ).all()
         )
 
+    def _get_template_explore_app_ids(self, user_id: str, tenant_id: str) -> set[str]:
+        return set(
+            db.session.scalars(
+                select(EnterprisePermissionTemplateExploreApp.app_id)
+                .join(
+                    EnterprisePermissionTemplateMember,
+                    sa.and_(
+                        EnterprisePermissionTemplateMember.tenant_id
+                        == EnterprisePermissionTemplateExploreApp.tenant_id,
+                        EnterprisePermissionTemplateMember.template_id
+                        == EnterprisePermissionTemplateExploreApp.template_id,
+                    ),
+                )
+                .where(
+                    EnterprisePermissionTemplateExploreApp.tenant_id == tenant_id,
+                    EnterprisePermissionTemplateMember.account_id == user_id,
+                )
+            ).all()
+        )
+
     def _get_limited_app_ids(self, user_id: str, tenant_id: str) -> list[str] | None:
         role = self._get_account_role(user_id, tenant_id)
 
@@ -144,6 +166,94 @@ class AppService:
                 )
             )
         ) or app_id in template_app_ids
+
+    def has_explore_app_permission(self, user_id: str, tenant_id: str, app_id: str) -> bool:
+        role = self._get_account_role(user_id, tenant_id)
+        if role in {TenantAccountRole.OWNER, TenantAccountRole.ADMIN}:
+            return True
+
+        explicit_permission_count = db.session.scalar(
+            select(sa.func.count()).select_from(ExploreAppPermission).where(
+                ExploreAppPermission.account_id == user_id,
+                ExploreAppPermission.tenant_id == tenant_id,
+            )
+        )
+        template_app_ids = self._get_template_explore_app_ids(user_id, tenant_id)
+        if not explicit_permission_count and not template_app_ids:
+            return True
+
+        return bool(
+            db.session.scalar(
+                select(ExploreAppPermission.id).where(
+                    ExploreAppPermission.account_id == user_id,
+                    ExploreAppPermission.tenant_id == tenant_id,
+                    ExploreAppPermission.app_id == app_id,
+                    ExploreAppPermission.has_permission == sa.true(),
+                )
+            )
+        ) or app_id in template_app_ids
+
+    def get_explore_app_partial_member_list(self, tenant_id: str, app_id: str) -> list[str]:
+        direct_member_ids = db.session.scalars(
+            select(ExploreAppPermission.account_id).where(
+                ExploreAppPermission.tenant_id == tenant_id,
+                ExploreAppPermission.app_id == app_id,
+                ExploreAppPermission.has_permission == sa.true(),
+            )
+        ).all()
+        template_member_ids = db.session.scalars(
+            select(EnterprisePermissionTemplateMember.account_id)
+            .join(
+                EnterprisePermissionTemplateExploreApp,
+                sa.and_(
+                    EnterprisePermissionTemplateExploreApp.tenant_id == EnterprisePermissionTemplateMember.tenant_id,
+                    EnterprisePermissionTemplateExploreApp.template_id
+                    == EnterprisePermissionTemplateMember.template_id,
+                ),
+            )
+            .where(
+                EnterprisePermissionTemplateMember.tenant_id == tenant_id,
+                EnterprisePermissionTemplateExploreApp.app_id == app_id,
+            )
+        ).all()
+
+        return sorted(set(direct_member_ids) | set(template_member_ids))
+
+    def update_explore_app_partial_member_list(
+        self,
+        tenant_id: str,
+        app_id: str,
+        user_list: list[dict[str, str]],
+        operator: Account,
+    ) -> list[str]:
+        account_ids = sorted({user["user_id"] for user in user_list if user.get("user_id")})
+
+        try:
+            db.session.execute(
+                delete(ExploreAppPermission).where(
+                    ExploreAppPermission.tenant_id == tenant_id,
+                    ExploreAppPermission.app_id == app_id,
+                )
+            )
+            db.session.add_all([
+                ExploreAppPermission(tenant_id=tenant_id, app_id=app_id, account_id=account_id)
+                for account_id in account_ids
+            ])
+            db.session.add(
+                OperationLog(
+                    tenant_id=tenant_id,
+                    account_id=operator.id,
+                    action='explore_app_permissions.updated',
+                    content={'app_id': app_id, 'member_ids': account_ids},
+                    created_ip=extract_remote_ip(request),
+                )
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return account_ids
 
     def get_app_partial_member_list(self, tenant_id: str, app_id: str) -> list[str]:
         direct_member_ids = db.session.scalars(

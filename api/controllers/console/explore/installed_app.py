@@ -163,7 +163,7 @@ class InstalledAppsListApi(Resource):
             }
             for installed_app in installed_apps
             if installed_app.app is not None
-            and app_service.has_app_permission(current_user.id, current_tenant_id, installed_app.app_id)
+            and app_service.has_explore_app_permission(current_user.id, current_tenant_id, installed_app.app_id)
         ]
 
         # filter out apps that user doesn't have access to

@@ -36,7 +36,7 @@ from fields.base import ResponseModel
 from graphon.enums import WorkflowExecutionStatus
 from libs.helper import build_icon_url, to_timestamp
 from libs.login import current_account_with_tenant, login_required
-from models import App, DatasetPermissionEnum, OperationLog, Workflow
+from models import App, DatasetPermissionEnum, InstalledApp, OperationLog, Workflow
 from models.model import IconType
 from services.app_dsl_service import AppDslService
 from services.app_service import AppListParams, AppService, CreateAppParams
@@ -193,8 +193,9 @@ class PermissionTemplatePayload(BaseModel):
     name: str = Field(..., max_length=120, description="Template name")
     description: str | None = Field(default=None, max_length=500, description="Template description")
     member_ids: list[str] = Field(default_factory=list, description="Workspace member IDs")
-    app_ids: list[str] = Field(default_factory=list, description="App IDs")
+    app_ids: list[str] = Field(default_factory=list, description="Studio app IDs")
     dataset_ids: list[str] = Field(default_factory=list, description="Dataset IDs")
+    explore_app_ids: list[str] = Field(default_factory=list, description="Explore app IDs")
 
 
 class PermissionTemplateItem(ResponseModel):
@@ -204,9 +205,11 @@ class PermissionTemplateItem(ResponseModel):
     member_ids: list[str]
     app_ids: list[str]
     dataset_ids: list[str]
+    explore_app_ids: list[str]
     member_count: int
     app_count: int
     dataset_count: int
+    explore_app_count: int
     created_at: int | None = None
     updated_at: int | None = None
 
@@ -228,7 +231,9 @@ class PermissionTemplateApplyResult(ResponseModel):
     member_count: int
     app_count: int
     dataset_count: int
+    explore_app_count: int
     app_permission_count: int
+    explore_app_permission_count: int
     dataset_permission_count: int
 
 
@@ -982,6 +987,63 @@ class AppPermissionApi(Resource):
         return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
 
 
+@console_ns.route("/apps/<uuid:app_id>/explore-permissions")
+class ExploreAppPermissionApi(Resource):
+    @console_ns.doc("get_explore_app_permission_users")
+    @console_ns.doc(description="Get explore app permission user list")
+    @console_ns.doc(params={"app_id": "Application ID"})
+    @console_ns.response(200, "Success", console_ns.models[PartialMemberListResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def get(self, app_id):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+        installed_app = db.session.scalar(
+            select(InstalledApp).where(InstalledApp.tenant_id == tenant_id, InstalledApp.app_id == str(app_id))
+        )
+        if not installed_app:
+            raise Forbidden("Selected explore app must be installed in the current workspace")
+
+        result = AppService().get_explore_app_partial_member_list(tenant_id, str(app_id))
+        return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
+
+    @console_ns.doc("update_explore_app_permission_users")
+    @console_ns.doc(description="Replace explore app permission user list")
+    @console_ns.doc(params={"app_id": "Application ID"})
+    @console_ns.expect(console_ns.models[AppPermissionUpdatePayload.__name__])
+    @console_ns.response(200, "Success", console_ns.models[PartialMemberListResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def put(self, app_id):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+        installed_app = db.session.scalar(
+            select(InstalledApp).where(InstalledApp.tenant_id == tenant_id, InstalledApp.app_id == str(app_id))
+        )
+        if not installed_app:
+            raise Forbidden("Selected explore app must be installed in the current workspace")
+
+        payload = AppPermissionUpdatePayload.model_validate(console_ns.payload or {})
+        member_ids = {member.user_id for member in payload.partial_member_list}
+        workspace_members = {member.id for member in current_user.current_tenant.get_accounts()}
+        if not member_ids.issubset(workspace_members):
+            raise Forbidden("Selected explore app members must belong to the current workspace")
+
+        result = AppService().update_explore_app_partial_member_list(
+            tenant_id,
+            str(app_id),
+            [member.model_dump(mode="python") for member in payload.partial_member_list],
+            current_user,
+        )
+        return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
+
+
 @console_ns.route("/admin/permission-templates")
 class AdminPermissionTemplateListApi(Resource):
     @console_ns.doc("list_permission_templates")
@@ -1021,6 +1083,7 @@ class AdminPermissionTemplateListApi(Resource):
             payload.member_ids,
             payload.app_ids,
             payload.dataset_ids,
+            payload.explore_app_ids,
         )
         return PermissionTemplateResponse(data=template).model_dump(mode="json"), 200
 
@@ -1051,6 +1114,7 @@ class AdminPermissionTemplateApi(Resource):
             payload.member_ids,
             payload.app_ids,
             payload.dataset_ids,
+            payload.explore_app_ids,
         )
         return PermissionTemplateResponse(data=template).model_dump(mode="json"), 200
 

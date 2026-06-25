@@ -182,6 +182,14 @@ export const updateAppPermissionMembers = ({ appID, body }: { appID: string, bod
   return put<PartialMemberListResponse>(`apps/${appID}/permissions`, { body })
 }
 
+export const fetchExploreAppPermissionMembers = ({ appID }: { appID: string }): Promise<PartialMemberListResponse> => {
+  return get<PartialMemberListResponse>(`apps/${appID}/explore-permissions`)
+}
+
+export const updateExploreAppPermissionMembers = ({ appID, body }: { appID: string, body: { partial_member_list: Array<{ user_id: string, role?: string }> } }): Promise<PartialMemberListResponse> => {
+  return put<PartialMemberListResponse>(`apps/${appID}/explore-permissions`, { body })
+}
+
 export const fetchAdminAuditLogs = (): Promise<AuditLogListResponse> => {
   return get<AuditLogListResponse>('admin/audit')
 }

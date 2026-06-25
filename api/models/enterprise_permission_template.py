@@ -10,7 +10,7 @@ from .types import StringUUID
 
 
 class EnterprisePermissionTemplate(TypeBase):
-    """Workspace-level reusable grants for members, apps, and datasets."""
+    """Workspace-level reusable grants for members, explore apps, studio apps, and datasets."""
 
     __tablename__ = "enterprise_permission_templates"
     __table_args__ = (
@@ -73,6 +73,32 @@ class EnterprisePermissionTemplateApp(TypeBase):
         sa.Index("idx_enterprise_permission_template_apps_tenant_id", "tenant_id"),
         sa.Index("idx_enterprise_permission_template_apps_template_id", "template_id"),
         sa.UniqueConstraint("template_id", "app_id", name="unique_enterprise_permission_template_app"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        StringUUID,
+        insert_default=lambda: str(uuid4()),
+        default_factory=lambda: str(uuid4()),
+        primary_key=True,
+        init=False,
+    )
+    tenant_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    template_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    app_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(), init=False
+    )
+
+
+class EnterprisePermissionTemplateExploreApp(TypeBase):
+    __tablename__ = "enterprise_permission_template_explore_apps"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="enterprise_permission_template_explore_app_pkey"),
+        sa.Index("idx_enterprise_permission_template_explore_apps_tenant_id", "tenant_id"),
+        sa.Index("idx_enterprise_permission_template_explore_apps_template_id", "template_id"),
+        sa.UniqueConstraint(
+            "template_id", "app_id", name="unique_enterprise_permission_template_explore_app"
+        ),
     )
 
     id: Mapped[str] = mapped_column(

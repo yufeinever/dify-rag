@@ -48,6 +48,7 @@ from .enterprise_permission_template import (
     EnterprisePermissionTemplate,
     EnterprisePermissionTemplateApp,
     EnterprisePermissionTemplateDataset,
+    EnterprisePermissionTemplateExploreApp,
     EnterprisePermissionTemplateMember,
 )
 from .enums import (
@@ -74,6 +75,7 @@ from .model import (
     DatasetRetrieverResource,
     DifySetup,
     EndUser,
+    ExploreAppPermission,
     ExporleBanner,
     IconType,
     InstalledApp,
@@ -194,8 +196,10 @@ __all__ = [
     "EnterprisePermissionTemplate",
     "EnterprisePermissionTemplateApp",
     "EnterprisePermissionTemplateDataset",
+    "EnterprisePermissionTemplateExploreApp",
     "EnterprisePermissionTemplateMember",
     "ExecutionExtraContent",
+    "ExploreAppPermission",
     "ExporleBanner",
     "ExternalKnowledgeApis",
     "ExternalKnowledgeBindings",

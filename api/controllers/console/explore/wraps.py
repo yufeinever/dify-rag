@@ -51,7 +51,7 @@ def user_allowed_to_access_app[**P, R](view: Callable[Concatenate[InstalledApp, 
         @wraps(view)
         def decorated(installed_app: InstalledApp, *args: P.args, **kwargs: P.kwargs):
             current_user, current_tenant_id = current_account_with_tenant()
-            if not AppService().has_app_permission(current_user.id, current_tenant_id, installed_app.app_id):
+            if not AppService().has_explore_app_permission(current_user.id, current_tenant_id, installed_app.app_id):
                 raise AppAccessDeniedError()
 
             feature = FeatureService.get_system_features()

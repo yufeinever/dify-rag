@@ -61,9 +61,11 @@ export type PermissionTemplate = {
   member_ids: string[]
   app_ids: string[]
   dataset_ids: string[]
+  explore_app_ids: string[]
   member_count: number
   app_count: number
   dataset_count: number
+  explore_app_count: number
   created_at?: number | null
   updated_at?: number | null
 }
@@ -74,6 +76,7 @@ export type PermissionTemplatePayload = {
   member_ids: string[]
   app_ids: string[]
   dataset_ids: string[]
+  explore_app_ids: string[]
 }
 
 export type PermissionTemplateListResponse = {
@@ -89,7 +92,9 @@ export type PermissionTemplateApplyResponse = {
     member_count: number
     app_count: number
     dataset_count: number
+    explore_app_count: number
     app_permission_count: number
+    explore_app_permission_count: number
     dataset_permission_count: number
   }
 }
