@@ -29,10 +29,10 @@ The codebase is split into:
   - `docker build -f web/Dockerfile -t mmbai/dify-web:local .`
 - If API migrations changed, run them from `/home/yu/projects/dify-rag/docker` with `docker compose run --rm --no-deps api flask db upgrade`; verify `alembic_version` when needed.
 - Recreate the runtime services from `/home/yu/projects/dify-rag/docker` with `docker compose up -d --no-build --force-recreate api api_websocket worker worker_beat web`.
-- Restart nginx after recreating web because nginx can cache the old Docker DNS upstream IP: `docker compose restart nginx`.
-- Verify both the internal and public entrypoints before reporting completion:
-  - On T1000: `curl -I http://127.0.0.1/admin`
-  - On 118: `ssh root@118.196.65.83 "curl -I http://127.0.0.1:18088/admin"`
+- Restart nginx after recreating api or web because nginx can cache old Docker DNS upstream IPs for both upstreams: `docker compose restart nginx`.
+- Verify both the internal and public UI/API entrypoints before reporting completion:
+  - On T1000: `curl -I http://127.0.0.1/admin` and `curl -I http://127.0.0.1/console/api/setup`
+  - Public: `curl -I http://118.196.65.83:18088/admin` and `curl -I http://118.196.65.83:18088/console/api/setup`
   - Check logs when relevant: `docker compose logs --tail=100 api web nginx`
 - If the browser still shows the old UI after deployment, tell the user to hard refresh with `Ctrl+F5` because stale Next.js chunks may be cached.
 

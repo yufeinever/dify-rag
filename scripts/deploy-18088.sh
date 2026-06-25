@@ -15,7 +15,9 @@ fi
 API_IMAGE="${DIFY_API_IMAGE:-mmbai/dify-api:local}"
 WEB_IMAGE="${DIFY_WEB_IMAGE:-mmbai/dify-web:local}"
 LOCAL_VERIFY_URL="${LOCAL_VERIFY_URL:-http://127.0.0.1/admin}"
+LOCAL_API_VERIFY_URL="${LOCAL_API_VERIFY_URL:-http://127.0.0.1/console/api/setup}"
 PUBLIC_VERIFY_URL="${PUBLIC_VERIFY_URL:-http://118.196.65.83:18088/admin}"
+PUBLIC_API_VERIFY_URL="${PUBLIC_API_VERIFY_URL:-http://118.196.65.83:18088/console/api/setup}"
 STATE_FILE="${DEPLOY_18088_STATE_FILE:-/tmp/dify-rag-deploy-18088-last-sha}"
 
 AUTO=1
@@ -38,7 +40,7 @@ Default behavior:
   Detect changed paths since the last successful deploy recorded in
   /tmp/dify-rag-deploy-18088-last-sha, build only the needed image(s), run
   migrations only when api/migrations changed, restart the needed services,
-  restart nginx when web changed, and verify both local and public entrypoints.
+  restart nginx when api or web changed, and verify both local and public UI/API entrypoints.
   When run from a clean deploy worktree, the script automatically uses the
   canonical compose directory /home/yu/projects/dify-rag/docker for .env files.
 
@@ -244,17 +246,23 @@ else
   log "No runtime service changes detected; skipping rebuild and restart."
 fi
 
-if [[ "$BUILD_WEB" == "1" ]]; then
+if [[ "$BUILD_API" == "1" || "$BUILD_WEB" == "1" ]]; then
   log "Restarting nginx to refresh Docker DNS upstreams"
   (cd "$COMPOSE_DIR" && run docker compose restart nginx)
 fi
 
 if [[ "$VERIFY" == "1" ]]; then
-  log "Verifying local entrypoint: $LOCAL_VERIFY_URL"
+  log "Verifying local UI entrypoint: $LOCAL_VERIFY_URL"
   run curl -fsSIL --max-time 20 "$LOCAL_VERIFY_URL"
 
-  log "Verifying public entrypoint: $PUBLIC_VERIFY_URL"
+  log "Verifying local API entrypoint: $LOCAL_API_VERIFY_URL"
+  run curl -fsSIL --max-time 20 "$LOCAL_API_VERIFY_URL"
+
+  log "Verifying public UI entrypoint: $PUBLIC_VERIFY_URL"
   run curl -fsSIL --max-time 20 "$PUBLIC_VERIFY_URL"
+
+  log "Verifying public API entrypoint: $PUBLIC_API_VERIFY_URL"
+  run curl -fsSIL --max-time 20 "$PUBLIC_API_VERIFY_URL"
 fi
 
 if [[ "$DRY_RUN" == "0" ]]; then
