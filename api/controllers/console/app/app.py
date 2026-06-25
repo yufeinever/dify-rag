@@ -915,7 +915,7 @@ class AppPermissionApi(Resource):
 
         payload = AppPermissionUpdatePayload.model_validate(console_ns.payload or {})
         member_ids = {member.user_id for member in payload.partial_member_list}
-        workspace_members = {member.id for member in current_user.current_tenant.accounts}
+        workspace_members = {member.id for member in current_user.current_tenant.get_accounts()}
         if not member_ids.issubset(workspace_members):
             raise Forbidden("Selected app members must belong to the current workspace")
 
