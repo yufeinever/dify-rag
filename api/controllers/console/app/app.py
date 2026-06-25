@@ -274,6 +274,41 @@ class PermissionTemplateApplyResponse(ResponseModel):
     data: PermissionTemplateApplyResult
 
 
+class EffectivePermissionSourceItem(ResponseModel):
+    source: str
+    source_id: str | None = None
+    source_name: str | None = None
+
+
+class EffectivePermissionResourceItem(ResponseModel):
+    id: str
+    name: str
+    resource_type: str
+    mode: str | None = None
+    permission: str | None = None
+    sources: list[EffectivePermissionSourceItem]
+
+
+class EffectivePermissionAccountItem(ResponseModel):
+    id: str
+    name: str | None = None
+    email: str
+    role: str
+
+
+class EffectivePermissionSummary(ResponseModel):
+    account: EffectivePermissionAccountItem
+    is_workspace_admin: bool
+    apps: list[EffectivePermissionResourceItem]
+    explore_apps: list[EffectivePermissionResourceItem]
+    datasets: list[EffectivePermissionResourceItem]
+    source_counts: dict[str, int]
+
+
+class EffectivePermissionResponse(ResponseModel):
+    data: EffectivePermissionSummary
+
+
 class AuditLogItem(ResponseModel):
     id: str
     tenant_id: str
@@ -569,6 +604,11 @@ register_schema_models(
     PermissionTemplateListResponse,
     PermissionTemplateApplyResult,
     PermissionTemplateApplyResponse,
+    EffectivePermissionSourceItem,
+    EffectivePermissionResourceItem,
+    EffectivePermissionAccountItem,
+    EffectivePermissionSummary,
+    EffectivePermissionResponse,
     PartialMemberListResponse,
     AuditLogItem,
     AuditLogListResponse,
@@ -1276,6 +1316,29 @@ class AdminPermissionTemplateApplyApi(Resource):
 
         result = EnterprisePermissionTemplateService.apply_template(tenant_id, str(template_id), current_user)
         return PermissionTemplateApplyResponse(data=result).model_dump(mode="json"), 200
+
+
+@console_ns.route("/admin/effective-permissions")
+class AdminEffectivePermissionApi(Resource):
+    @console_ns.doc("get_effective_permissions")
+    @console_ns.doc(description="Get effective resource permissions for a workspace member")
+    @console_ns.doc(params={"account_id": "Workspace member account ID"})
+    @console_ns.response(200, "Success", console_ns.models[EffectivePermissionResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def get(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        account_id = request.args.get("account_id")
+        if not account_id:
+            raise BadRequest("account_id is required")
+
+        summary = EnterprisePermissionTemplateService.get_effective_permissions(tenant_id, account_id)
+        return EffectivePermissionResponse(data=summary).model_dump(mode="json"), 200
 
 
 @console_ns.route("/admin/audit")

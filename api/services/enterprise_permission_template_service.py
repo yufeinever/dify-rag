@@ -27,6 +27,7 @@ from models import (
     InstalledApp,
     OperationLog,
     TenantAccountJoin,
+    TenantAccountRole,
 )
 
 
@@ -875,6 +876,294 @@ class EnterprisePermissionTemplateService:
         except Exception:
             db.session.rollback()
             raise
+
+    @staticmethod
+    def _source_item(source: str, source_id: str | None = None, source_name: str | None = None) -> dict[str, Any]:
+        return {"source": source, "source_id": source_id, "source_name": source_name}
+
+    @staticmethod
+    def _append_permission_source(
+        resources: dict[str, dict[str, Any]],
+        resource_id: str,
+        source: dict[str, Any],
+    ) -> None:
+        resource = resources.setdefault(resource_id, {"sources": []})
+        existing = {
+            (item.get("source"), item.get("source_id"), item.get("source_name")) for item in resource["sources"]
+        }
+        key = (source.get("source"), source.get("source_id"), source.get("source_name"))
+        if key not in existing:
+            resource["sources"].append(source)
+
+    @staticmethod
+    def _resource_rows(model: Any, ids: Iterable[str]) -> dict[str, Any]:
+        resource_ids = list(dict.fromkeys(str(resource_id) for resource_id in ids if resource_id))
+        if not resource_ids:
+            return {}
+
+        return {
+            str(resource.id): resource
+            for resource in db.session.scalars(select(model).where(model.id.in_(resource_ids))).all()
+        }
+
+    @classmethod
+    def _direct_template_resource_sources(
+        cls,
+        tenant_id: str,
+        account_id: str,
+        resource_model: Any,
+        resource_attr_name: str,
+    ) -> list[tuple[str, dict[str, Any]]]:
+        resource_column = getattr(resource_model, resource_attr_name)
+        rows = db.session.execute(
+            select(resource_column, EnterprisePermissionTemplate.id, EnterprisePermissionTemplate.name)
+            .join(
+                EnterprisePermissionTemplateMember,
+                sa.and_(
+                    EnterprisePermissionTemplateMember.tenant_id == resource_model.tenant_id,
+                    EnterprisePermissionTemplateMember.template_id == resource_model.template_id,
+                ),
+            )
+            .join(
+                EnterprisePermissionTemplate,
+                sa.and_(
+                    EnterprisePermissionTemplate.tenant_id == resource_model.tenant_id,
+                    EnterprisePermissionTemplate.id == resource_model.template_id,
+                ),
+            )
+            .where(
+                resource_model.tenant_id == tenant_id,
+                EnterprisePermissionTemplateMember.account_id == account_id,
+            )
+        ).all()
+        return [
+            (str(resource_id), cls._source_item("direct_template", str(template_id), template_name))
+            for resource_id, template_id, template_name in rows
+        ]
+
+    @classmethod
+    def _group_template_resource_sources(
+        cls,
+        tenant_id: str,
+        account_id: str,
+        resource_model: Any,
+        resource_attr_name: str,
+    ) -> list[tuple[str, dict[str, Any]]]:
+        resource_column = getattr(resource_model, resource_attr_name)
+        rows = db.session.execute(
+            select(
+                resource_column,
+                EnterprisePermissionTemplate.id,
+                EnterprisePermissionTemplate.name,
+                EnterprisePermissionGroup.id,
+                EnterprisePermissionGroup.name,
+            )
+            .join(
+                EnterprisePermissionTemplateGroup,
+                sa.and_(
+                    EnterprisePermissionTemplateGroup.tenant_id == resource_model.tenant_id,
+                    EnterprisePermissionTemplateGroup.template_id == resource_model.template_id,
+                ),
+            )
+            .join(
+                EnterprisePermissionGroupMember,
+                sa.and_(
+                    EnterprisePermissionGroupMember.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                    EnterprisePermissionGroupMember.group_id == EnterprisePermissionTemplateGroup.group_id,
+                ),
+            )
+            .join(
+                EnterprisePermissionTemplate,
+                sa.and_(
+                    EnterprisePermissionTemplate.tenant_id == resource_model.tenant_id,
+                    EnterprisePermissionTemplate.id == resource_model.template_id,
+                ),
+            )
+            .join(
+                EnterprisePermissionGroup,
+                sa.and_(
+                    EnterprisePermissionGroup.tenant_id == EnterprisePermissionTemplateGroup.tenant_id,
+                    EnterprisePermissionGroup.id == EnterprisePermissionTemplateGroup.group_id,
+                ),
+            )
+            .where(
+                resource_model.tenant_id == tenant_id,
+                EnterprisePermissionGroupMember.account_id == account_id,
+            )
+        ).all()
+        return [
+            (
+                str(resource_id),
+                cls._source_item(
+                    "group_template",
+                    str(template_id),
+                    f"{template_name} / {group_name}",
+                ),
+            )
+            for resource_id, template_id, template_name, _group_id, group_name in rows
+        ]
+
+    @staticmethod
+    def _serialize_effective_resource(
+        resource: Any,
+        resource_type: str,
+        sources: list[dict[str, Any]],
+        permission: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "id": str(resource.id),
+            "name": getattr(resource, "name", "Untitled"),
+            "resource_type": resource_type,
+            "mode": getattr(resource, "mode", None),
+            "permission": permission,
+            "sources": sources,
+        }
+
+    @classmethod
+    def get_effective_permissions(cls, tenant_id: str, account_id: str) -> dict[str, Any]:
+        join = db.session.scalar(
+            select(TenantAccountJoin).where(
+                TenantAccountJoin.tenant_id == tenant_id,
+                TenantAccountJoin.account_id == account_id,
+            )
+        )
+        if not join:
+            raise Forbidden("Selected member must belong to the current workspace")
+
+        account = db.session.get(Account, account_id)
+        if not account:
+            raise NotFound("Account not found")
+
+        role = join.role
+        is_workspace_admin = role in {TenantAccountRole.OWNER, TenantAccountRole.ADMIN}
+        workspace_source = cls._source_item("workspace_role", account_id, role)
+
+        app_sources: dict[str, dict[str, Any]] = {}
+        explore_sources: dict[str, dict[str, Any]] = {}
+        dataset_sources: dict[str, dict[str, Any]] = {}
+
+        if is_workspace_admin:
+            for app_id in db.session.scalars(select(App.id).where(App.tenant_id == tenant_id)).all():
+                cls._append_permission_source(app_sources, str(app_id), workspace_source)
+            installed_app_ids = db.session.scalars(
+                select(InstalledApp.app_id).where(InstalledApp.tenant_id == tenant_id)
+            ).all()
+            for app_id in installed_app_ids:
+                cls._append_permission_source(explore_sources, str(app_id), workspace_source)
+            for dataset_id in db.session.scalars(select(Dataset.id).where(Dataset.tenant_id == tenant_id)).all():
+                cls._append_permission_source(dataset_sources, str(dataset_id), workspace_source)
+        else:
+            for app_id in db.session.scalars(
+                select(AppPermission.app_id).where(
+                    AppPermission.tenant_id == tenant_id,
+                    AppPermission.account_id == account_id,
+                    AppPermission.has_permission == sa.true(),
+                )
+            ).all():
+                cls._append_permission_source(
+                    app_sources,
+                    str(app_id),
+                    cls._source_item("direct", account_id, "工作室直授权"),
+                )
+            for app_id, source in cls._direct_template_resource_sources(
+                tenant_id, account_id, EnterprisePermissionTemplateApp, "app_id"
+            ):
+                cls._append_permission_source(app_sources, app_id, source)
+            for app_id, source in cls._group_template_resource_sources(
+                tenant_id, account_id, EnterprisePermissionTemplateApp, "app_id"
+            ):
+                cls._append_permission_source(app_sources, app_id, source)
+
+            for app_id in db.session.scalars(
+                select(ExploreAppPermission.app_id).where(
+                    ExploreAppPermission.tenant_id == tenant_id,
+                    ExploreAppPermission.account_id == account_id,
+                    ExploreAppPermission.has_permission == sa.true(),
+                )
+            ).all():
+                cls._append_permission_source(
+                    explore_sources, str(app_id), cls._source_item("direct", account_id, "探索直授权")
+                )
+            for app_id, source in cls._direct_template_resource_sources(
+                tenant_id, account_id, EnterprisePermissionTemplateExploreApp, "app_id"
+            ):
+                cls._append_permission_source(explore_sources, app_id, source)
+            for app_id, source in cls._group_template_resource_sources(
+                tenant_id, account_id, EnterprisePermissionTemplateExploreApp, "app_id"
+            ):
+                cls._append_permission_source(explore_sources, app_id, source)
+
+            for dataset_id in db.session.scalars(
+                select(DatasetPermission.dataset_id).where(
+                    DatasetPermission.tenant_id == tenant_id,
+                    DatasetPermission.account_id == account_id,
+                    DatasetPermission.has_permission == sa.true(),
+                )
+            ).all():
+                cls._append_permission_source(
+                    dataset_sources, str(dataset_id), cls._source_item("direct", account_id, "知识库直授权")
+                )
+            for dataset_id in db.session.scalars(
+                select(Dataset.id).where(
+                    Dataset.tenant_id == tenant_id,
+                    Dataset.permission == DatasetPermissionEnum.ALL_TEAM,
+                )
+            ).all():
+                cls._append_permission_source(
+                    dataset_sources, str(dataset_id), cls._source_item("workspace_role", account_id, "全员知识库")
+                )
+            for dataset_id, source in cls._direct_template_resource_sources(
+                tenant_id, account_id, EnterprisePermissionTemplateDataset, "dataset_id"
+            ):
+                cls._append_permission_source(dataset_sources, dataset_id, source)
+            for dataset_id, source in cls._group_template_resource_sources(
+                tenant_id, account_id, EnterprisePermissionTemplateDataset, "dataset_id"
+            ):
+                cls._append_permission_source(dataset_sources, dataset_id, source)
+
+        app_rows = cls._resource_rows(App, app_sources.keys())
+        explore_app_rows = cls._resource_rows(App, explore_sources.keys())
+        dataset_rows = cls._resource_rows(Dataset, dataset_sources.keys())
+
+        apps = [
+            cls._serialize_effective_resource(app_rows[app_id], "app", data["sources"])
+            for app_id, data in app_sources.items()
+            if app_id in app_rows
+        ]
+        explore_apps = [
+            cls._serialize_effective_resource(explore_app_rows[app_id], "explore_app", data["sources"])
+            for app_id, data in explore_sources.items()
+            if app_id in explore_app_rows
+        ]
+        datasets = [
+            cls._serialize_effective_resource(
+                dataset_rows[dataset_id],
+                "dataset",
+                data["sources"],
+                getattr(dataset_rows[dataset_id], "permission", None),
+            )
+            for dataset_id, data in dataset_sources.items()
+            if dataset_id in dataset_rows
+        ]
+
+        source_counts: dict[str, int] = {}
+        for resource in [*apps, *explore_apps, *datasets]:
+            for source in resource["sources"]:
+                source_counts[source["source"]] = source_counts.get(source["source"], 0) + 1
+
+        return {
+            "account": {
+                "id": account.id,
+                "name": account.name,
+                "email": account.email,
+                "role": role,
+            },
+            "is_workspace_admin": is_workspace_admin,
+            "apps": sorted(apps, key=lambda item: item["name"].lower()),
+            "explore_apps": sorted(explore_apps, key=lambda item: item["name"].lower()),
+            "datasets": sorted(datasets, key=lambda item: item["name"].lower()),
+            "source_counts": source_counts,
+        }
 
     @classmethod
     def apply_template(cls, tenant_id: str, template_id: str, operator: Account) -> dict[str, int]:

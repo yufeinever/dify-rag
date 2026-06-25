@@ -1,5 +1,5 @@
 import type { TracingProvider } from '@/app/(commonLayout)/app/(appDetailLayout)/[appId]/overview/tracing/type'
-import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, PartialMemberListResponse, PermissionGroupListResponse, PermissionGroupPayload, PermissionGroupResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
+import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, EffectivePermissionResponse, PartialMemberListResponse, PermissionGroupListResponse, PermissionGroupPayload, PermissionGroupResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
 import type { CommonResponse } from '@/models/common'
 import type { AppIconType, AppModeEnum, ModelConfig } from '@/types/app'
 import { del, get, patch, post, put } from './base'
@@ -192,6 +192,10 @@ export const updateExploreAppPermissionMembers = ({ appID, body }: { appID: stri
 
 export const fetchAdminAuditLogs = (): Promise<AuditLogListResponse> => {
   return get<AuditLogListResponse>('admin/audit')
+}
+
+export const fetchEffectivePermissions = (accountID: string): Promise<EffectivePermissionResponse> => {
+  return get<EffectivePermissionResponse>('admin/effective-permissions', { params: { account_id: accountID } })
 }
 
 export const fetchPermissionGroups = (): Promise<PermissionGroupListResponse> => {

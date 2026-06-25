@@ -127,6 +127,43 @@ export type PermissionTemplateApplyResponse = {
   }
 }
 
+export type PermissionSource = 'workspace_role' | 'direct' | 'group_template' | 'direct_template'
+
+export type EffectivePermissionSourceItem = {
+  source: PermissionSource
+  source_id?: string | null
+  source_name?: string | null
+}
+
+export type EffectivePermissionResource = {
+  id: string
+  name: string
+  resource_type: 'app' | 'explore_app' | 'dataset'
+  mode?: string | null
+  permission?: string | null
+  sources: EffectivePermissionSourceItem[]
+}
+
+export type EffectivePermissionSummary = {
+  account: {
+    id: string
+    name?: string | null
+    email: string
+    role: string
+  }
+  is_workspace_admin: boolean
+  apps: EffectivePermissionResource[]
+  explore_apps: EffectivePermissionResource[]
+  datasets: EffectivePermissionResource[]
+  source_counts: Record<PermissionSource | string, number>
+}
+
+export type EffectivePermissionResponse = {
+  data: EffectivePermissionSummary
+}
+
+export type RbacPreviewTab = 'members' | 'groups' | 'templates' | 'effective' | 'resources' | 'audit'
+
 export type DSLImportResponse = {
   id: string
   status: DSLImportStatus
