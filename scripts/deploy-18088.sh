@@ -2,7 +2,16 @@
 set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_DIR="${COMPOSE_DIR:-$REPO_ROOT/docker}"
+DEFAULT_COMPOSE_DIR="${DEPLOY_18088_DEFAULT_COMPOSE_DIR:-/home/yu/projects/dify-rag/docker}"
+if [[ -n "${COMPOSE_DIR:-}" ]]; then
+  COMPOSE_DIR="$COMPOSE_DIR"
+elif [[ -f "$REPO_ROOT/docker/.env" ]]; then
+  COMPOSE_DIR="$REPO_ROOT/docker"
+elif [[ -f "$DEFAULT_COMPOSE_DIR/.env" ]]; then
+  COMPOSE_DIR="$DEFAULT_COMPOSE_DIR"
+else
+  COMPOSE_DIR="$REPO_ROOT/docker"
+fi
 API_IMAGE="${DIFY_API_IMAGE:-mmbai/dify-api:local}"
 WEB_IMAGE="${DIFY_WEB_IMAGE:-mmbai/dify-web:local}"
 LOCAL_VERIFY_URL="${LOCAL_VERIFY_URL:-http://127.0.0.1/admin}"
@@ -30,6 +39,8 @@ Default behavior:
   /tmp/dify-rag-deploy-18088-last-sha, build only the needed image(s), run
   migrations only when api/migrations changed, restart the needed services,
   restart nginx when web changed, and verify both local and public entrypoints.
+  When run from a clean deploy worktree, the script automatically uses the
+  canonical compose directory /home/yu/projects/dify-rag/docker for .env files.
 
 Options:
   --from <ref>       Diff base for auto detection. Defaults to last deploy ref,
