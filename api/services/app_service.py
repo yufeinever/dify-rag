@@ -22,7 +22,13 @@ from graphon.model_runtime.model_providers.base.large_language_model import Larg
 from libs.datetime_utils import naive_utc_now
 from libs.helper import extract_remote_ip
 from libs.login import current_user
-from models import Account, OperationLog, TenantAccountRole
+from models import (
+    Account,
+    EnterprisePermissionTemplateApp,
+    EnterprisePermissionTemplateMember,
+    OperationLog,
+    TenantAccountRole,
+)
 from models.model import App, AppMode, AppModelConfig, AppPermission, IconType, Site
 from models.tools import ApiToolProvider
 from services.billing_service import BillingService
@@ -69,6 +75,24 @@ class AppService:
             {"user_id": user_id, "tenant_id": tenant_id},
         ).scalar_one_or_none()
 
+    def _get_template_app_ids(self, user_id: str, tenant_id: str) -> set[str]:
+        return set(
+            db.session.scalars(
+                select(EnterprisePermissionTemplateApp.app_id)
+                .join(
+                    EnterprisePermissionTemplateMember,
+                    sa.and_(
+                        EnterprisePermissionTemplateMember.tenant_id == EnterprisePermissionTemplateApp.tenant_id,
+                        EnterprisePermissionTemplateMember.template_id == EnterprisePermissionTemplateApp.template_id,
+                    ),
+                )
+                .where(
+                    EnterprisePermissionTemplateApp.tenant_id == tenant_id,
+                    EnterprisePermissionTemplateMember.account_id == user_id,
+                )
+            ).all()
+        )
+
     def _get_limited_app_ids(self, user_id: str, tenant_id: str) -> list[str] | None:
         role = self._get_account_role(user_id, tenant_id)
 
@@ -81,7 +105,8 @@ class AppService:
                 AppPermission.tenant_id == tenant_id,
             )
         )
-        if not explicit_permission_count:
+        template_app_ids = self._get_template_app_ids(user_id, tenant_id)
+        if not explicit_permission_count and not template_app_ids:
             return None
 
         permitted_app_ids = db.session.scalars(
@@ -92,7 +117,7 @@ class AppService:
             )
         ).all()
 
-        return list(permitted_app_ids)
+        return sorted(set(permitted_app_ids) | template_app_ids)
 
     def has_app_permission(self, user_id: str, tenant_id: str, app_id: str) -> bool:
         role = self._get_account_role(user_id, tenant_id)
@@ -105,7 +130,8 @@ class AppService:
                 AppPermission.tenant_id == tenant_id,
             )
         )
-        if not explicit_permission_count:
+        template_app_ids = self._get_template_app_ids(user_id, tenant_id)
+        if not explicit_permission_count and not template_app_ids:
             return True
 
         return bool(
@@ -117,16 +143,32 @@ class AppService:
                     AppPermission.has_permission == sa.true(),
                 )
             )
-        )
+        ) or app_id in template_app_ids
 
     def get_app_partial_member_list(self, tenant_id: str, app_id: str) -> list[str]:
-        return db.session.scalars(
+        direct_member_ids = db.session.scalars(
             select(AppPermission.account_id).where(
                 AppPermission.tenant_id == tenant_id,
                 AppPermission.app_id == app_id,
                 AppPermission.has_permission == sa.true(),
             )
         ).all()
+        template_member_ids = db.session.scalars(
+            select(EnterprisePermissionTemplateMember.account_id)
+            .join(
+                EnterprisePermissionTemplateApp,
+                sa.and_(
+                    EnterprisePermissionTemplateApp.tenant_id == EnterprisePermissionTemplateMember.tenant_id,
+                    EnterprisePermissionTemplateApp.template_id == EnterprisePermissionTemplateMember.template_id,
+                ),
+            )
+            .where(
+                EnterprisePermissionTemplateMember.tenant_id == tenant_id,
+                EnterprisePermissionTemplateApp.app_id == app_id,
+            )
+        ).all()
+
+        return sorted(set(direct_member_ids) | set(template_member_ids))
 
     def update_app_partial_member_list(
         self,

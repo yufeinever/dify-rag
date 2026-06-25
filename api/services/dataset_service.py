@@ -35,7 +35,12 @@ from graphon.model_runtime.model_providers.base.text_embedding_model import Text
 from libs import helper
 from libs.datetime_utils import naive_utc_now
 from libs.login import current_user
-from models import Account, TenantAccountRole
+from models import (
+    Account,
+    EnterprisePermissionTemplateDataset,
+    EnterprisePermissionTemplateMember,
+    TenantAccountRole,
+)
 from models.dataset import (
     AppDatasetJoin,
     ChildChunk,
@@ -200,6 +205,27 @@ class _EstimateArgs(BaseModel):
 
 class DatasetService:
     @staticmethod
+    def _get_template_dataset_ids(user_id: str, tenant_id: str) -> set[str]:
+        return set(
+            db.session.scalars(
+                select(EnterprisePermissionTemplateDataset.dataset_id)
+                .join(
+                    EnterprisePermissionTemplateMember,
+                    sa.and_(
+                        EnterprisePermissionTemplateMember.tenant_id
+                        == EnterprisePermissionTemplateDataset.tenant_id,
+                        EnterprisePermissionTemplateMember.template_id
+                        == EnterprisePermissionTemplateDataset.template_id,
+                    ),
+                )
+                .where(
+                    EnterprisePermissionTemplateDataset.tenant_id == tenant_id,
+                    EnterprisePermissionTemplateMember.account_id == user_id,
+                )
+            ).all()
+        )
+
+    @staticmethod
     def get_datasets(page, per_page, tenant_id=None, user=None, search=None, tag_ids=None, include_all=False):
         query = select(Dataset).where(Dataset.tenant_id == tenant_id).order_by(Dataset.created_at.desc(), Dataset.id)
 
@@ -207,10 +233,13 @@ class DatasetService:
             # get permitted dataset ids
             dataset_permission = db.session.scalars(
                 select(DatasetPermission).where(
-                    DatasetPermission.account_id == user.id, DatasetPermission.tenant_id == tenant_id
+                    DatasetPermission.account_id == user.id,
+                    DatasetPermission.tenant_id == tenant_id,
+                    DatasetPermission.has_permission == sa.true(),
                 )
             ).all()
-            permitted_dataset_ids = {dp.dataset_id for dp in dataset_permission} if dataset_permission else None
+            permitted_dataset_ids = {dp.dataset_id for dp in dataset_permission}
+            permitted_dataset_ids.update(DatasetService._get_template_dataset_ids(user.id, tenant_id))
 
             if user.current_role == TenantAccountRole.DATASET_OPERATOR:
                 # only show datasets that the user has permission to access
@@ -1232,12 +1261,18 @@ class DatasetService:
             if dataset.permission == DatasetPermissionEnum.PARTIAL_TEAM:
                 # For partial team permission, user needs explicit permission or be the creator
                 if dataset.created_by != user.id:
-                    user_permission = db.session.scalar(
-                        select(DatasetPermission)
-                        .where(DatasetPermission.dataset_id == dataset.id, DatasetPermission.account_id == user.id)
+                    permitted_dataset_ids = DatasetService._get_template_dataset_ids(user.id, dataset.tenant_id)
+                    has_template_permission = dataset.id in permitted_dataset_ids
+                    has_direct_permission = db.session.scalar(
+                        select(DatasetPermission.id)
+                        .where(
+                            DatasetPermission.dataset_id == dataset.id,
+                            DatasetPermission.account_id == user.id,
+                            DatasetPermission.has_permission == sa.true(),
+                        )
                         .limit(1)
                     )
-                    if not user_permission:
+                    if not has_direct_permission and not has_template_permission:
                         logger.debug("User %s does not have permission to access dataset %s", user.id, dataset.id)
                         raise NoPermissionError("You do not have permission to access this dataset.")
 
@@ -1255,12 +1290,19 @@ class DatasetService:
                     raise NoPermissionError("You do not have permission to access this dataset.")
 
             elif dataset.permission == DatasetPermissionEnum.PARTIAL_TEAM:
-                if not any(
-                    dp.dataset_id == dataset.id
-                    for dp in db.session.scalars(
-                        select(DatasetPermission).where(DatasetPermission.account_id == user.id)
-                    ).all()
-                ):
+                has_direct_permission = db.session.scalar(
+                    select(DatasetPermission.id)
+                    .where(
+                        DatasetPermission.dataset_id == dataset.id,
+                        DatasetPermission.account_id == user.id,
+                        DatasetPermission.has_permission == sa.true(),
+                    )
+                    .limit(1)
+                )
+                has_template_permission = dataset.id in DatasetService._get_template_dataset_ids(
+                    user.id, dataset.tenant_id
+                )
+                if not has_direct_permission and not has_template_permission:
                     raise NoPermissionError("You do not have permission to access this dataset.")
 
     @staticmethod
@@ -4036,13 +4078,27 @@ class DatasetCollectionBindingService:
 class DatasetPermissionService:
     @classmethod
     def get_dataset_partial_member_list(cls, dataset_id):
-        user_list_query = db.session.scalars(
+        direct_member_ids = db.session.scalars(
             select(
                 DatasetPermission.account_id,
-            ).where(DatasetPermission.dataset_id == dataset_id)
+            ).where(
+                DatasetPermission.dataset_id == dataset_id,
+                DatasetPermission.has_permission == sa.true(),
+            )
+        ).all()
+        template_member_ids = db.session.scalars(
+            select(EnterprisePermissionTemplateMember.account_id)
+            .join(
+                EnterprisePermissionTemplateDataset,
+                sa.and_(
+                    EnterprisePermissionTemplateDataset.tenant_id == EnterprisePermissionTemplateMember.tenant_id,
+                    EnterprisePermissionTemplateDataset.template_id == EnterprisePermissionTemplateMember.template_id,
+                ),
+            )
+            .where(EnterprisePermissionTemplateDataset.dataset_id == dataset_id)
         ).all()
 
-        return user_list_query
+        return sorted(set(direct_member_ids) | set(template_member_ids))
 
     @classmethod
     def update_partial_member_list(cls, tenant_id, dataset_id, user_list):
