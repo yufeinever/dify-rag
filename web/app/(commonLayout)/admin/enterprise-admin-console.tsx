@@ -47,12 +47,22 @@ const adminSections: Array<{ key: AdminSection, label: string, icon: string, des
   { key: 'accounts', label: '账号管理', icon: 'i-ri-user-settings-line', description: '成员账号、状态和所属角色' },
   { key: 'workspaces', label: '工作区管理', icon: 'i-ri-building-4-line', description: '租户工作区和计划状态' },
   { key: 'roles', label: '成员角色', icon: 'i-ri-shield-user-line', description: '角色分布与职责边界' },
-  { key: 'templates', label: '权限模板', icon: 'i-ri-git-branch-line', description: '批量授权成员和资源' },
+  { key: 'templates', label: '权限模板', icon: 'i-ri-git-branch-line', description: '按部门或岗位批量授权' },
   { key: 'matrix', label: '权限矩阵', icon: 'i-ri-table-2', description: 'B+ 企业权限策略' },
   { key: 'explore', label: '探索应用权限', icon: 'i-ri-compass-3-line', description: '探索模块应用访问权限' },
   { key: 'apps', label: '工作室应用权限', icon: 'i-ri-apps-2-line', description: '工作室应用访问权限' },
   { key: 'datasets', label: '知识库权限', icon: 'i-ri-database-2-line', description: '知识库访问和成员权限' },
-  { key: 'audit', label: '审计日志', icon: 'i-ri-file-search-line', description: 'Plus 风格操作记录入口' },
+  { key: 'audit', label: '审计日志', icon: 'i-ri-file-search-line', description: '管理操作记录' },
+]
+
+const adminSectionMap = Object.fromEntries(adminSections.map(section => [section.key, section])) as Record<AdminSection, typeof adminSections[number]>
+
+type AdminSectionGroupKey = 'primary' | 'resources' | 'reference'
+
+const adminSectionGroups: Array<{ key: AdminSectionGroupKey, label: string, description: string, sections: AdminSection[] }> = [
+  { key: 'primary', label: '常用管理', description: '部门模板和账号', sections: ['templates', 'accounts'] },
+  { key: 'resources', label: '资源直授权', description: '需要排查时展开', sections: ['explore', 'apps', 'datasets'] },
+  { key: 'reference', label: '参考与审计', description: '展示信息默认收起', sections: ['roles', 'matrix', 'workspaces', 'audit'] },
 ]
 
 const orderedRoles: WorkspaceRole[] = ['owner', 'admin', 'editor', 'dataset_operator', 'normal']
@@ -203,8 +213,14 @@ const EmptyTable = ({ text }: { text: string }) => (
 )
 
 export default function EnterpriseAdminConsole() {
-  const [activeSection, setActiveSection] = useState<AdminSection>('accounts')
+  const [activeSection, setActiveSection] = useState<AdminSection>('templates')
   const [keyword, setKeyword] = useState('')
+  const [showOverview, setShowOverview] = useState(false)
+  const [openAdminGroups, setOpenAdminGroups] = useState<Record<AdminSectionGroupKey, boolean>>({
+    primary: true,
+    resources: false,
+    reference: false,
+  })
   const [operatingMemberId, setOperatingMemberId] = useState<string | null>(null)
   const [inviteModalVisible, setInviteModalVisible] = useState(false)
   const [invitedModalVisible, setInvitedModalVisible] = useState(false)
@@ -299,6 +315,10 @@ export default function EnterpriseAdminConsole() {
       return { scope: scope as WorkspacePermissionScope, label, count: permissions.length }
     })
   }, [])
+
+  const toggleAdminGroup = (groupKey: AdminSectionGroupKey) => {
+    setOpenAdminGroups(current => ({ ...current, [groupKey]: !current[groupKey] }))
+  }
 
   const refetchActive = () => {
     if (activeSection === 'accounts' || activeSection === 'roles')
@@ -600,7 +620,7 @@ export default function EnterpriseAdminConsole() {
             <div className="text-xs font-semibold text-text-tertiary uppercase">MMB Enterprise Admin</div>
             <h1 className="mt-1 text-2xl font-semibold text-text-primary">企业管理后台</h1>
             <p className="mt-1 text-sm text-text-tertiary">
-              参考企业级权限管理结构，聚合当前工作区的账号、角色、权限和资源治理入口。
+              按部门模板管理成员和资源授权，低频配置与审计信息默认折叠。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -629,30 +649,67 @@ export default function EnterpriseAdminConsole() {
               {currentWorkspace?.role ? roleLabelMap[currentWorkspace.role] : '未知'}
             </div>
           </div>
-          <nav className="p-2">
-            {adminSections.map(section => (
-              <button
-                key={section.key}
-                type="button"
-                className={`mb-1 flex w-full items-start gap-3 rounded-md px-3 py-3 text-left transition-colors ${activeSection === section.key ? 'bg-blue-50 text-blue-700' : 'text-text-secondary hover:bg-background-default-hover'}`}
-                onClick={() => setActiveSection(section.key)}
-              >
-                <span className={`${section.icon} mt-0.5 size-4 shrink-0`} aria-hidden />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium">{section.label}</span>
-                  <span className="mt-0.5 block truncate text-xs opacity-75">{section.description}</span>
-                </span>
-              </button>
+          <nav className="space-y-2 p-2">
+            {adminSectionGroups.map(group => (
+              <div key={group.key} className="rounded-lg border border-divider-subtle bg-background-default/40">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-background-default-hover"
+                  onClick={() => toggleAdminGroup(group.key)}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-text-secondary">{group.label}</span>
+                    <span className="mt-0.5 block truncate text-xs text-text-tertiary">{group.description}</span>
+                  </span>
+                  <span className={`${openAdminGroups[group.key] ? 'i-ri-arrow-up-s-line' : 'i-ri-arrow-down-s-line'} size-4 shrink-0 text-text-tertiary`} aria-hidden />
+                </button>
+                {openAdminGroups[group.key] && (
+                  <div className="border-t border-divider-subtle p-1">
+                    {group.sections.map((sectionKey) => {
+                      const section = adminSectionMap[sectionKey]
+                      return (
+                        <button
+                          key={section.key}
+                          type="button"
+                          className={`mb-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors ${activeSection === section.key ? 'bg-blue-50 text-blue-700' : 'text-text-secondary hover:bg-background-default-hover'}`}
+                          onClick={() => setActiveSection(section.key)}
+                        >
+                          <span className={`${section.icon} size-4 shrink-0`} aria-hidden />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">{section.label}</span>
+                            <span className="mt-0.5 block truncate text-xs opacity-75">{section.description}</span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             ))}
           </nav>
         </aside>
 
         <section className="min-w-0 border-y border-r border-divider-subtle bg-background-section max-lg:border-l">
-          <div className="grid grid-cols-4 border-b border-divider-subtle max-xl:grid-cols-2 max-sm:grid-cols-1">
-            <Metric label="成员账号" value={members.length} hint="来自当前工作区成员接口" />
-            <Metric label="工作区" value={workspaces.length} hint="当前账号可见租户" />
-            <Metric label="应用" value={appsQuery.isLoading ? '...' : apps.length} hint="可见应用样本" />
-            <Metric label="知识库" value={datasetsQuery.isLoading ? '...' : datasets.length} hint="可见知识库样本" />
+          <div className="border-b border-divider-subtle">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 px-6 py-3 text-left hover:bg-background-default-hover"
+              onClick={() => setShowOverview(value => !value)}
+            >
+              <span>
+                <span className="block text-sm font-semibold text-text-primary">工作区概览</span>
+                <span className="mt-0.5 block text-xs text-text-tertiary">成员、应用和知识库数量，用于快速核对，默认收起。</span>
+              </span>
+              <span className={`${showOverview ? 'i-ri-arrow-up-s-line' : 'i-ri-arrow-down-s-line'} size-5 shrink-0 text-text-tertiary`} aria-hidden />
+            </button>
+            {showOverview && (
+              <div className="grid grid-cols-4 border-t border-divider-subtle max-xl:grid-cols-2 max-sm:grid-cols-1">
+                <Metric label="成员账号" value={members.length} hint="来自当前工作区成员接口" />
+                <Metric label="工作区" value={workspaces.length} hint="当前账号可见租户" />
+                <Metric label="应用" value={appsQuery.isLoading ? '...' : apps.length} hint="可见应用样本" />
+                <Metric label="知识库" value={datasetsQuery.isLoading ? '...' : datasets.length} hint="可见知识库样本" />
+              </div>
+            )}
           </div>
 
           {activeSection === 'accounts' && (
@@ -805,7 +862,7 @@ export default function EnterpriseAdminConsole() {
             <div>
               <SectionHeader
                 title="权限模板"
-                description="按部门或岗位维护一组成员、探索应用、工作室应用和知识库，应用模板时会追加授权到现有资源，不覆盖手工授权。"
+                description="按部门或岗位维护一组成员和资源。保存会同步撤销已取消勾选的历史授权；需要重新下发时再同步权限。"
                 action={templateForm.id
                   ? (
                       <button
@@ -876,7 +933,7 @@ export default function EnterpriseAdminConsole() {
                       onClick={() => void handleSaveTemplate()}
                     >
                       <span className="i-ri-save-line size-4" aria-hidden />
-                      {savingTemplate ? '保存中...' : '保存模板'}
+                      {savingTemplate ? '保存中...' : '保存并同步权限'}
                     </button>
                   </div>
                 </div>
@@ -921,7 +978,7 @@ export default function EnterpriseAdminConsole() {
                                   disabled={applyingTemplateId === template.id}
                                   onClick={() => void handleApplyTemplate(template)}
                                 >
-                                  {applyingTemplateId === template.id ? '应用中...' : '应用'}
+                                  {applyingTemplateId === template.id ? '同步中...' : '同步权限'}
                                 </button>
                                 <button
                                   type="button"
@@ -1376,30 +1433,47 @@ function TemplatePicker({
   selectedIds: string[]
   onToggle: (id: string) => void
 }) {
+  const selectedItems = items.filter(item => selectedIds.includes(item.id))
+  const summary = selectedItems.length > 0
+    ? selectedItems.slice(0, 2).map(item => item.title).join('、')
+    : '未选择'
+  const hiddenCount = Math.max(selectedItems.length - 2, 0)
+
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between text-xs font-medium text-text-tertiary">
-        <span>{title}</span>
-        <span>{selectedIds.length}</span>
+    <details className="group rounded-lg border border-divider-subtle bg-background-default">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 hover:bg-background-default-hover [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="flex items-center gap-2 text-sm font-medium text-text-primary">
+            {title}
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{selectedIds.length}</span>
+          </span>
+          <span className="mt-1 block truncate text-xs text-text-tertiary">
+            {summary}
+            {hiddenCount > 0 ? ` 等 ${selectedItems.length} 项` : ''}
+          </span>
+        </span>
+        <span className="i-ri-arrow-down-s-line size-4 shrink-0 text-text-tertiary transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="border-t border-divider-subtle p-2">
+        <div className="max-h-56 overflow-y-auto pr-1">
+          {items.map(item => (
+            <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 hover:bg-background-default-hover">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-divider-deep text-components-button-primary-bg focus:ring-components-button-primary-bg"
+                checked={selectedIds.includes(item.id)}
+                onChange={() => onToggle(item.id)}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-text-primary">{item.title}</span>
+                <span className="mt-0.5 block truncate text-xs text-text-tertiary">{item.subtitle}</span>
+              </span>
+            </label>
+          ))}
+          {items.length === 0 && <div className="px-2 py-8 text-center text-sm text-text-tertiary">{emptyText}</div>}
+        </div>
       </div>
-      <div className="max-h-44 overflow-y-auto rounded-md border border-divider-subtle bg-background-default p-1">
-        {items.map(item => (
-          <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 hover:bg-background-default-hover">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-divider-deep text-components-button-primary-bg focus:ring-components-button-primary-bg"
-              checked={selectedIds.includes(item.id)}
-              onChange={() => onToggle(item.id)}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-text-primary">{item.title}</span>
-              <span className="mt-0.5 block truncate text-xs text-text-tertiary">{item.subtitle}</span>
-            </span>
-          </label>
-        ))}
-        {items.length === 0 && <div className="px-2 py-8 text-center text-sm text-text-tertiary">{emptyText}</div>}
-      </div>
-    </div>
+    </details>
   )
 }
 
