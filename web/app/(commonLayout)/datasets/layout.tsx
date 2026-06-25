@@ -5,15 +5,20 @@ import Loading from '@/app/components/base/loading'
 import { useAppContext } from '@/context/app-context'
 import { ExternalApiPanelProvider } from '@/context/external-api-panel-context'
 import { ExternalKnowledgeApiProvider } from '@/context/external-knowledge-api-context'
+import { useHasAccessibleDatasets } from '@/hooks/use-has-accessible-datasets'
 import { useWorkspacePermission } from '@/hooks/use-workspace-permission'
 import { useRouter } from '@/next/navigation'
 
 export default function DatasetsLayout({ children }: { children: React.ReactNode }) {
   const { isCurrentWorkspaceEditor, isCurrentWorkspaceDatasetOperator, currentWorkspace, isLoadingCurrentWorkspace } = useAppContext()
   const canWorkspace = useWorkspacePermission()
-  const canViewDataset = canWorkspace('dataset.view', isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator)
+  const hasRoleDatasetView = canWorkspace('dataset.view', isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator)
+  const { data: hasAccessibleDatasets = false, isLoading: isLoadingAccessibleDatasets } = useHasAccessibleDatasets()
+  const canViewDataset = hasRoleDatasetView || hasAccessibleDatasets
+  const shouldWaitForDatasetAccess = !hasRoleDatasetView && isLoadingAccessibleDatasets
   const router = useRouter()
   const shouldRedirect = !isLoadingCurrentWorkspace
+    && !shouldWaitForDatasetAccess
     && currentWorkspace.id
     && !canViewDataset
 
@@ -22,7 +27,7 @@ export default function DatasetsLayout({ children }: { children: React.ReactNode
       router.replace('/apps')
   }, [shouldRedirect, router])
 
-  if (isLoadingCurrentWorkspace || !currentWorkspace.id)
+  if (isLoadingCurrentWorkspace || !currentWorkspace.id || shouldWaitForDatasetAccess)
     return <Loading type="app" />
 
   if (shouldRedirect) {

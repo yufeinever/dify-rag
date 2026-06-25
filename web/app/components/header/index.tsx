@@ -9,6 +9,7 @@ import { useModalContext } from '@/context/modal-context'
 import { useProviderContext } from '@/context/provider-context'
 import { WorkspaceProvider } from '@/context/workspace-context-provider'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
+import { useHasAccessibleDatasets } from '@/hooks/use-has-accessible-datasets'
 import Link from '@/next/link'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { Plan } from '../billing/type'
@@ -35,6 +36,8 @@ const Header = () => {
   const { enableBilling, plan } = useProviderContext()
   const { setShowPricingModal, setShowAccountSettingModal } = useModalContext()
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
+  const { data: hasAccessibleDatasets = false } = useHasAccessibleDatasets()
+  const canShowDatasetNav = isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator || hasAccessibleDatasets
   const isFreePlan = plan.type === Plan.sandbox
   const isBrandingEnabled = systemFeatures.branding.enabled
   const brandingTitle = systemFeatures.branding.application_title?.trim()
@@ -87,7 +90,7 @@ const Header = () => {
         <div className="my-1 flex items-center justify-center space-x-1">
           {!isCurrentWorkspaceDatasetOperator && <ExploreNav className={navClassName} />}
           {!isCurrentWorkspaceDatasetOperator && <AppNav />}
-          {(isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator) && <DatasetNav />}
+          {canShowDatasetNav && <DatasetNav />}
           {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
         </div>
       </div>
@@ -107,7 +110,7 @@ const Header = () => {
       <div className="flex items-center space-x-2">
         {!isCurrentWorkspaceDatasetOperator && <ExploreNav className={navClassName} />}
         {!isCurrentWorkspaceDatasetOperator && <AppNav />}
-        {(isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator) && <DatasetNav />}
+        {canShowDatasetNav && <DatasetNav />}
         {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-end pr-3 pl-2 min-[1280px]:pl-3">
