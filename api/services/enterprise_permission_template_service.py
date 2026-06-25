@@ -214,6 +214,130 @@ class EnterprisePermissionTemplateService:
         ).all()
         return list(member_ids), list(app_ids), list(dataset_ids), list(explore_app_ids)
 
+    @staticmethod
+    def _permission_pairs(member_ids: Iterable[str], resource_ids: Iterable[str]) -> set[tuple[str, str]]:
+        return {(member_id, resource_id) for member_id in member_ids for resource_id in resource_ids}
+
+    @staticmethod
+    def _group_pairs_by_resource(pairs: set[tuple[str, str]]) -> dict[str, set[str]]:
+        grouped: dict[str, set[str]] = {}
+        for member_id, resource_id in pairs:
+            grouped.setdefault(resource_id, set()).add(member_id)
+        return grouped
+
+    @staticmethod
+    def _pairs_covered_by_other_templates(
+        tenant_id: str,
+        template_id: str,
+        pairs: set[tuple[str, str]],
+        resource_model: Any,
+        resource_attr_name: str,
+    ) -> set[tuple[str, str]]:
+        if not pairs:
+            return set()
+
+        member_ids = {member_id for member_id, _ in pairs}
+        resource_ids = {resource_id for _, resource_id in pairs}
+        resource_column = getattr(resource_model, resource_attr_name)
+        rows = db.session.execute(
+            select(EnterprisePermissionTemplateMember.account_id, resource_column)
+            .join(
+                resource_model,
+                sa.and_(
+                    EnterprisePermissionTemplateMember.tenant_id == resource_model.tenant_id,
+                    EnterprisePermissionTemplateMember.template_id == resource_model.template_id,
+                ),
+            )
+            .where(
+                EnterprisePermissionTemplateMember.tenant_id == tenant_id,
+                EnterprisePermissionTemplateMember.template_id != template_id,
+                EnterprisePermissionTemplateMember.account_id.in_(member_ids),
+                resource_column.in_(resource_ids),
+            )
+        ).all()
+        return {(account_id, resource_id) for account_id, resource_id in rows}
+
+    @staticmethod
+    def _revoke_direct_permission_pairs(
+        tenant_id: str,
+        pairs: set[tuple[str, str]],
+        permission_model: Any,
+        resource_attr_name: str,
+    ) -> int:
+        if not pairs:
+            return 0
+
+        revoked_count = 0
+        resource_column = getattr(permission_model, resource_attr_name)
+        for resource_id, member_ids in EnterprisePermissionTemplateService._group_pairs_by_resource(pairs).items():
+            result = db.session.execute(
+                update(permission_model)
+                .where(
+                    permission_model.tenant_id == tenant_id,
+                    resource_column == resource_id,
+                    permission_model.account_id.in_(member_ids),
+                )
+                .values(has_permission=sa.false())
+            )
+            revoked_count += result.rowcount or 0
+        return revoked_count
+
+    @classmethod
+    def _revoke_removed_template_permissions(
+        cls,
+        tenant_id: str,
+        template_id: str,
+        old_member_ids: Iterable[str],
+        old_app_ids: Iterable[str],
+        old_dataset_ids: Iterable[str],
+        old_explore_app_ids: Iterable[str],
+        new_member_ids: Iterable[str],
+        new_app_ids: Iterable[str],
+        new_dataset_ids: Iterable[str],
+        new_explore_app_ids: Iterable[str],
+    ) -> dict[str, int]:
+        old_members = set(old_member_ids)
+        new_members = set(new_member_ids)
+
+        def revoked_pairs(
+            old_resource_ids: Iterable[str],
+            new_resource_ids: Iterable[str],
+            resource_model: Any,
+            resource_attr_name: str,
+        ) -> set[tuple[str, str]]:
+            removed = cls._permission_pairs(old_members, old_resource_ids) - cls._permission_pairs(
+                new_members, new_resource_ids
+            )
+            return removed - cls._pairs_covered_by_other_templates(
+                tenant_id, template_id, removed, resource_model, resource_attr_name
+            )
+
+        explore_pairs = revoked_pairs(
+            old_explore_app_ids,
+            new_explore_app_ids,
+            EnterprisePermissionTemplateExploreApp,
+            "app_id",
+        )
+        app_pairs = revoked_pairs(old_app_ids, new_app_ids, EnterprisePermissionTemplateApp, "app_id")
+        dataset_pairs = revoked_pairs(
+            old_dataset_ids,
+            new_dataset_ids,
+            EnterprisePermissionTemplateDataset,
+            "dataset_id",
+        )
+
+        return {
+            "explore_app_permission_revoked_count": cls._revoke_direct_permission_pairs(
+                tenant_id, explore_pairs, ExploreAppPermission, "app_id"
+            ),
+            "app_permission_revoked_count": cls._revoke_direct_permission_pairs(
+                tenant_id, app_pairs, AppPermission, "app_id"
+            ),
+            "dataset_permission_revoked_count": cls._revoke_direct_permission_pairs(
+                tenant_id, dataset_pairs, DatasetPermission, "dataset_id"
+            ),
+        }
+
     @classmethod
     def _serialize_template(cls, tenant_id: str, template: EnterprisePermissionTemplate) -> dict[str, Any]:
         member_ids, app_ids, dataset_ids, explore_app_ids = cls._binding_ids(tenant_id, template.id)
@@ -329,6 +453,7 @@ class EnterprisePermissionTemplateService:
             normalized_explore_app_ids,
         )
         template = cls._get_template(tenant_id, template_id)
+        old_member_ids, old_app_ids, old_dataset_ids, old_explore_app_ids = cls._binding_ids(tenant_id, template.id)
 
         try:
             template.name = name.strip()
@@ -341,11 +466,23 @@ class EnterprisePermissionTemplateService:
                 normalized_dataset_ids,
                 normalized_explore_app_ids,
             )
+            revoked_counts = cls._revoke_removed_template_permissions(
+                tenant_id,
+                template.id,
+                old_member_ids,
+                old_app_ids,
+                old_dataset_ids,
+                old_explore_app_ids,
+                normalized_member_ids,
+                normalized_app_ids,
+                normalized_dataset_ids,
+                normalized_explore_app_ids,
+            )
             db.session.add(OperationLog(
                 tenant_id=tenant_id,
                 account_id=operator.id,
                 action="permission_template.updated",
-                content={"template_id": template.id, "name": template.name},
+                content={"template_id": template.id, "name": template.name, **revoked_counts},
                 created_ip=extract_remote_ip(request),
             ))
             db.session.commit()
@@ -358,14 +495,27 @@ class EnterprisePermissionTemplateService:
     @classmethod
     def delete_template(cls, tenant_id: str, template_id: str, operator: Account) -> None:
         template = cls._get_template(tenant_id, template_id)
+        old_member_ids, old_app_ids, old_dataset_ids, old_explore_app_ids = cls._binding_ids(tenant_id, template.id)
         try:
             cls._replace_bindings(tenant_id, template.id, [], [], [], [])
+            revoked_counts = cls._revoke_removed_template_permissions(
+                tenant_id,
+                template.id,
+                old_member_ids,
+                old_app_ids,
+                old_dataset_ids,
+                old_explore_app_ids,
+                [],
+                [],
+                [],
+                [],
+            )
             db.session.delete(template)
             db.session.add(OperationLog(
                 tenant_id=tenant_id,
                 account_id=operator.id,
                 action="permission_template.deleted",
-                content={"template_id": template_id, "name": template.name},
+                content={"template_id": template_id, "name": template.name, **revoked_counts},
                 created_ip=extract_remote_ip(request),
             ))
             db.session.commit()

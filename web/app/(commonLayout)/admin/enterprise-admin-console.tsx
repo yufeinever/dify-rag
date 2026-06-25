@@ -451,8 +451,13 @@ export default function EnterpriseAdminConsole() {
       else
         await createPermissionTemplate(body)
 
-      await templatesQuery.refetch()
-      await auditQuery.refetch()
+      await Promise.all([
+        templatesQuery.refetch(),
+        exploreAppsQuery.refetch(),
+        appsQuery.refetch(),
+        datasetsQuery.refetch(),
+        auditQuery.refetch(),
+      ])
       resetTemplateForm()
       toast.success('权限模板已保存')
     }
@@ -477,8 +482,13 @@ export default function EnterpriseAdminConsole() {
     setDeletingTemplateId(template.id)
     try {
       await deletePermissionTemplate(template.id)
-      await templatesQuery.refetch()
-      await auditQuery.refetch()
+      await Promise.all([
+        templatesQuery.refetch(),
+        exploreAppsQuery.refetch(),
+        appsQuery.refetch(),
+        datasetsQuery.refetch(),
+        auditQuery.refetch(),
+      ])
       if (templateForm.id === template.id)
         resetTemplateForm()
       toast.success('权限模板已删除')
