@@ -54,6 +54,46 @@ export type AuditLogListResponse = {
   data: AuditLogItem[]
 }
 
+export type PermissionTemplate = {
+  id: string
+  name: string
+  description?: string | null
+  member_ids: string[]
+  app_ids: string[]
+  dataset_ids: string[]
+  member_count: number
+  app_count: number
+  dataset_count: number
+  created_at?: number | null
+  updated_at?: number | null
+}
+
+export type PermissionTemplatePayload = {
+  name: string
+  description?: string | null
+  member_ids: string[]
+  app_ids: string[]
+  dataset_ids: string[]
+}
+
+export type PermissionTemplateListResponse = {
+  data: PermissionTemplate[]
+}
+
+export type PermissionTemplateResponse = {
+  data: PermissionTemplate
+}
+
+export type PermissionTemplateApplyResponse = {
+  data: {
+    member_count: number
+    app_count: number
+    dataset_count: number
+    app_permission_count: number
+    dataset_permission_count: number
+  }
+}
+
 export type DSLImportResponse = {
   id: string
   status: DSLImportStatus

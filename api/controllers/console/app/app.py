@@ -41,6 +41,7 @@ from models.model import IconType
 from services.app_dsl_service import AppDslService
 from services.app_service import AppListParams, AppService, CreateAppParams
 from services.enterprise.enterprise_service import EnterpriseService
+from services.enterprise_permission_template_service import EnterprisePermissionTemplateService
 from services.entities.dsl_entities import ImportMode, ImportStatus
 from services.entities.knowledge_entities.knowledge_entities import (
     DataSource,
@@ -186,6 +187,53 @@ class AppPermissionUpdatePayload(BaseModel):
 
 class PartialMemberListResponse(ResponseModel):
     data: list[str]
+
+
+class PermissionTemplatePayload(BaseModel):
+    name: str = Field(..., max_length=120, description="Template name")
+    description: str | None = Field(default=None, max_length=500, description="Template description")
+    member_ids: list[str] = Field(default_factory=list, description="Workspace member IDs")
+    app_ids: list[str] = Field(default_factory=list, description="App IDs")
+    dataset_ids: list[str] = Field(default_factory=list, description="Dataset IDs")
+
+
+class PermissionTemplateItem(ResponseModel):
+    id: str
+    name: str
+    description: str | None = None
+    member_ids: list[str]
+    app_ids: list[str]
+    dataset_ids: list[str]
+    member_count: int
+    app_count: int
+    dataset_count: int
+    created_at: int | None = None
+    updated_at: int | None = None
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def _normalize_timestamp(cls, value: datetime | int | None) -> int | None:
+        return to_timestamp(value)
+
+
+class PermissionTemplateResponse(ResponseModel):
+    data: PermissionTemplateItem
+
+
+class PermissionTemplateListResponse(ResponseModel):
+    data: list[PermissionTemplateItem]
+
+
+class PermissionTemplateApplyResult(ResponseModel):
+    member_count: int
+    app_count: int
+    dataset_count: int
+    app_permission_count: int
+    dataset_permission_count: int
+
+
+class PermissionTemplateApplyResponse(ResponseModel):
+    data: PermissionTemplateApplyResult
 
 
 class AuditLogItem(ResponseModel):
@@ -473,6 +521,12 @@ register_schema_models(
     AppDetailWithSite,
     AppPagination,
     AppExportResponse,
+    PermissionTemplatePayload,
+    PermissionTemplateItem,
+    PermissionTemplateResponse,
+    PermissionTemplateListResponse,
+    PermissionTemplateApplyResult,
+    PermissionTemplateApplyResponse,
     PartialMemberListResponse,
     AuditLogItem,
     AuditLogListResponse,
@@ -926,6 +980,114 @@ class AppPermissionApi(Resource):
             current_user,
         )
         return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
+
+
+@console_ns.route("/admin/permission-templates")
+class AdminPermissionTemplateListApi(Resource):
+    @console_ns.doc("list_permission_templates")
+    @console_ns.doc(description="List workspace permission templates")
+    @console_ns.response(200, "Success", console_ns.models[PermissionTemplateListResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def get(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        templates = EnterprisePermissionTemplateService.list_templates(tenant_id)
+        return PermissionTemplateListResponse(data=templates).model_dump(mode="json"), 200
+
+    @console_ns.doc("create_permission_template")
+    @console_ns.doc(description="Create workspace permission template")
+    @console_ns.expect(console_ns.models[PermissionTemplatePayload.__name__])
+    @console_ns.response(200, "Success", console_ns.models[PermissionTemplateResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def post(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        payload = PermissionTemplatePayload.model_validate(console_ns.payload or {})
+        template = EnterprisePermissionTemplateService.create_template(
+            tenant_id,
+            current_user,
+            payload.name,
+            payload.description,
+            payload.member_ids,
+            payload.app_ids,
+            payload.dataset_ids,
+        )
+        return PermissionTemplateResponse(data=template).model_dump(mode="json"), 200
+
+
+@console_ns.route("/admin/permission-templates/<uuid:template_id>")
+class AdminPermissionTemplateApi(Resource):
+    @console_ns.doc("update_permission_template")
+    @console_ns.doc(description="Update workspace permission template")
+    @console_ns.doc(params={"template_id": "Permission template ID"})
+    @console_ns.expect(console_ns.models[PermissionTemplatePayload.__name__])
+    @console_ns.response(200, "Success", console_ns.models[PermissionTemplateResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def put(self, template_id):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        payload = PermissionTemplatePayload.model_validate(console_ns.payload or {})
+        template = EnterprisePermissionTemplateService.update_template(
+            tenant_id,
+            str(template_id),
+            current_user,
+            payload.name,
+            payload.description,
+            payload.member_ids,
+            payload.app_ids,
+            payload.dataset_ids,
+        )
+        return PermissionTemplateResponse(data=template).model_dump(mode="json"), 200
+
+    @console_ns.doc("delete_permission_template")
+    @console_ns.doc(description="Delete workspace permission template")
+    @console_ns.doc(params={"template_id": "Permission template ID"})
+    @console_ns.response(200, "Success", console_ns.models[SimpleResultResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def delete(self, template_id):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        EnterprisePermissionTemplateService.delete_template(tenant_id, str(template_id), current_user)
+        return {"result": "success"}, 200
+
+
+@console_ns.route("/admin/permission-templates/<uuid:template_id>/apply")
+class AdminPermissionTemplateApplyApi(Resource):
+    @console_ns.doc("apply_permission_template")
+    @console_ns.doc(description="Apply workspace permission template to app and dataset grants")
+    @console_ns.doc(params={"template_id": "Permission template ID"})
+    @console_ns.response(200, "Success", console_ns.models[PermissionTemplateApplyResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def post(self, template_id):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        result = EnterprisePermissionTemplateService.apply_template(tenant_id, str(template_id), current_user)
+        return PermissionTemplateApplyResponse(data=result).model_dump(mode="json"), 200
 
 
 @console_ns.route("/admin/audit")

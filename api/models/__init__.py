@@ -44,6 +44,12 @@ from .dataset import (
     TidbAuthBinding,
     Whitelist,
 )
+from .enterprise_permission_template import (
+    EnterprisePermissionTemplate,
+    EnterprisePermissionTemplateApp,
+    EnterprisePermissionTemplateDataset,
+    EnterprisePermissionTemplateMember,
+)
 from .enums import (
     AppTriggerStatus,
     AppTriggerType,
@@ -185,6 +191,10 @@ __all__ = [
     "DocumentSegment",
     "Embedding",
     "EndUser",
+    "EnterprisePermissionTemplate",
+    "EnterprisePermissionTemplateApp",
+    "EnterprisePermissionTemplateDataset",
+    "EnterprisePermissionTemplateMember",
     "ExecutionExtraContent",
     "ExporleBanner",
     "ExternalKnowledgeApis",

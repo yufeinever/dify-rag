@@ -1,5 +1,5 @@
 import type { TracingProvider } from '@/app/(commonLayout)/app/(appDetailLayout)/[appId]/overview/tracing/type'
-import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, PartialMemberListResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
+import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, PartialMemberListResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
 import type { CommonResponse } from '@/models/common'
 import type { AppIconType, AppModeEnum, ModelConfig } from '@/types/app'
 import { del, get, patch, post, put } from './base'
@@ -184,4 +184,24 @@ export const updateAppPermissionMembers = ({ appID, body }: { appID: string, bod
 
 export const fetchAdminAuditLogs = (): Promise<AuditLogListResponse> => {
   return get<AuditLogListResponse>('admin/audit')
+}
+
+export const fetchPermissionTemplates = (): Promise<PermissionTemplateListResponse> => {
+  return get<PermissionTemplateListResponse>('admin/permission-templates')
+}
+
+export const createPermissionTemplate = (body: PermissionTemplatePayload): Promise<PermissionTemplateResponse> => {
+  return post<PermissionTemplateResponse>('admin/permission-templates', { body })
+}
+
+export const updatePermissionTemplate = ({ templateID, body }: { templateID: string, body: PermissionTemplatePayload }): Promise<PermissionTemplateResponse> => {
+  return put<PermissionTemplateResponse>(`admin/permission-templates/${templateID}`, { body })
+}
+
+export const deletePermissionTemplate = (templateID: string): Promise<CommonResponse> => {
+  return del<CommonResponse>(`admin/permission-templates/${templateID}`)
+}
+
+export const applyPermissionTemplate = (templateID: string): Promise<PermissionTemplateApplyResponse> => {
+  return post<PermissionTemplateApplyResponse>(`admin/permission-templates/${templateID}/apply`, { body: {} })
 }

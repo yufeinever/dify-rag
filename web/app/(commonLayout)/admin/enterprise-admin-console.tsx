@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { AuditLogItem } from '@/models/app'
+import type { AuditLogItem, PermissionTemplate, PermissionTemplatePayload } from '@/models/app'
 import type { InvitationResult, IWorkspace, Member } from '@/models/common'
 import type { DataSet } from '@/models/datasets'
 import type { App } from '@/types/app'
@@ -15,7 +15,7 @@ import { useAppContext } from '@/context/app-context'
 import { useProviderContext } from '@/context/provider-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
-import { fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, updateAppPermissionMembers } from '@/service/apps'
+import { applyPermissionTemplate, createPermissionTemplate, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchPermissionTemplates, updateAppPermissionMembers, updatePermissionTemplate } from '@/service/apps'
 import { deleteMemberOrCancelInvitation, updateMemberRole } from '@/service/common'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
@@ -27,12 +27,24 @@ import {
   workspacePermissionRoles,
 } from '@/utils/workspace-permissions'
 
-type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'matrix' | 'apps' | 'datasets' | 'audit'
+type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'templates' | 'matrix' | 'apps' | 'datasets' | 'audit'
+
+type PermissionTemplateFormState = PermissionTemplatePayload & { id?: string | null }
+
+const emptyTemplateForm: PermissionTemplateFormState = {
+  id: null,
+  name: '',
+  description: '',
+  member_ids: [],
+  app_ids: [],
+  dataset_ids: [],
+}
 
 const adminSections: Array<{ key: AdminSection, label: string, icon: string, description: string }> = [
   { key: 'accounts', label: '账号管理', icon: 'i-ri-user-settings-line', description: '成员账号、状态和所属角色' },
   { key: 'workspaces', label: '工作区管理', icon: 'i-ri-building-4-line', description: '租户工作区和计划状态' },
   { key: 'roles', label: '成员角色', icon: 'i-ri-shield-user-line', description: '角色分布与职责边界' },
+  { key: 'templates', label: '权限模板', icon: 'i-ri-git-branch-line', description: '批量授权成员和资源' },
   { key: 'matrix', label: '权限矩阵', icon: 'i-ri-table-2', description: 'B+ 企业权限策略' },
   { key: 'apps', label: '应用权限', icon: 'i-ri-apps-2-line', description: '应用访问和发布权限' },
   { key: 'datasets', label: '知识库权限', icon: 'i-ri-database-2-line', description: '知识库访问和成员权限' },
@@ -199,6 +211,10 @@ export default function EnterpriseAdminConsole() {
   const [datasetMemberIds, setDatasetMemberIds] = useState<string[]>([])
   const [savingAppAccess, setSavingAppAccess] = useState(false)
   const [savingDatasetAccess, setSavingDatasetAccess] = useState(false)
+  const [templateForm, setTemplateForm] = useState<PermissionTemplateFormState>(emptyTemplateForm)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null)
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null)
   const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
   const { datasetOperatorEnabled } = useProviderContext()
   const hasAnyPermission = canAny ?? (() => false)
@@ -213,13 +229,13 @@ export default function EnterpriseAdminConsole() {
 
   const appsQuery = useQuery({
     queryKey: ['enterprise-admin', 'apps'],
-    queryFn: () => fetchAppList({ url: '/apps', params: { page: 1, limit: 20 } }),
+    queryFn: () => fetchAppList({ url: '/apps', params: { page: 1, limit: 100 } }),
     enabled: canEnterAdmin && canViewApps,
   })
 
   const datasetsQuery = useQuery({
     queryKey: ['enterprise-admin', 'datasets'],
-    queryFn: () => fetchDatasets({ url: '/datasets', params: { page: 1, limit: 20 } }),
+    queryFn: () => fetchDatasets({ url: '/datasets', params: { page: 1, limit: 100 } }),
     enabled: canEnterAdmin && canViewDatasets,
   })
 
@@ -229,11 +245,18 @@ export default function EnterpriseAdminConsole() {
     enabled: canEnterAdmin,
   })
 
+  const templatesQuery = useQuery({
+    queryKey: ['enterprise-admin', 'permission-templates'],
+    queryFn: fetchPermissionTemplates,
+    enabled: canEnterAdmin,
+  })
+
   const members = membersData?.accounts ?? []
   const workspaces = workspacesData?.workspaces ?? []
   const apps = appsQuery.data?.data ?? []
   const datasets = datasetsQuery.data?.data ?? []
   const auditLogs = auditQuery.data?.data ?? []
+  const permissionTemplates = templatesQuery.data?.data ?? []
 
   const filteredMembers = useMemo(() => {
     const nextKeyword = keyword.trim().toLowerCase()
@@ -271,6 +294,8 @@ export default function EnterpriseAdminConsole() {
       void appsQuery.refetch()
     if (activeSection === 'datasets')
       void datasetsQuery.refetch()
+    if (activeSection === 'templates')
+      void templatesQuery.refetch()
     if (activeSection === 'audit')
       void auditQuery.refetch()
   }
@@ -344,6 +369,89 @@ export default function EnterpriseAdminConsole() {
 
       return [...current, memberId]
     })
+  }
+
+  const toggleTemplateValue = (field: 'member_ids' | 'app_ids' | 'dataset_ids', id: string) => {
+    setTemplateForm((current) => {
+      const values = current[field]
+      return {
+        ...current,
+        [field]: values.includes(id) ? values.filter(value => value !== id) : [...values, id],
+      }
+    })
+  }
+
+  const editTemplate = (template: PermissionTemplate) => {
+    setTemplateForm({
+      id: template.id,
+      name: template.name,
+      description: template.description ?? '',
+      member_ids: template.member_ids,
+      app_ids: template.app_ids,
+      dataset_ids: template.dataset_ids,
+    })
+  }
+
+  const resetTemplateForm = () => {
+    setTemplateForm(emptyTemplateForm)
+  }
+
+  const handleSaveTemplate = async () => {
+    const name = templateForm.name.trim()
+    if (!name) {
+      toast.error('请填写模板名称')
+      return
+    }
+
+    setSavingTemplate(true)
+    const body: PermissionTemplatePayload = {
+      name,
+      description: templateForm.description?.trim() || null,
+      member_ids: templateForm.member_ids,
+      app_ids: templateForm.app_ids,
+      dataset_ids: templateForm.dataset_ids,
+    }
+    try {
+      if (templateForm.id)
+        await updatePermissionTemplate({ templateID: templateForm.id, body })
+      else
+        await createPermissionTemplate(body)
+
+      await templatesQuery.refetch()
+      await auditQuery.refetch()
+      resetTemplateForm()
+      toast.success('权限模板已保存')
+    }
+    finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  const handleApplyTemplate = async (template: PermissionTemplate) => {
+    setApplyingTemplateId(template.id)
+    try {
+      const result = await applyPermissionTemplate(template.id)
+      await Promise.all([appsQuery.refetch(), datasetsQuery.refetch(), auditQuery.refetch()])
+      toast.success(`模板已应用：${result.data.member_count} 个成员，${result.data.app_count} 个应用，${result.data.dataset_count} 个知识库`)
+    }
+    finally {
+      setApplyingTemplateId(null)
+    }
+  }
+
+  const handleDeleteTemplate = async (template: PermissionTemplate) => {
+    setDeletingTemplateId(template.id)
+    try {
+      await deletePermissionTemplate(template.id)
+      await templatesQuery.refetch()
+      await auditQuery.refetch()
+      if (templateForm.id === template.id)
+        resetTemplateForm()
+      toast.success('权限模板已删除')
+    }
+    finally {
+      setDeletingTemplateId(null)
+    }
   }
 
   const handleSaveAppAccess = async () => {
@@ -620,6 +728,140 @@ export default function EnterpriseAdminConsole() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'templates' && (
+            <div>
+              <SectionHeader
+                title="权限模板"
+                description="按部门或岗位维护一组成员、应用和知识库，应用模板时会追加授权到现有资源，不覆盖手工授权。"
+                action={templateForm.id
+                  ? (
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center gap-2 rounded-md border border-divider-deep bg-background-default px-3 text-sm font-medium text-text-secondary hover:bg-background-default-hover"
+                        onClick={resetTemplateForm}
+                      >
+                        <span className="i-ri-add-line size-4" aria-hidden />
+                        新建模板
+                      </button>
+                    )
+                  : null}
+              />
+              <div className="grid grid-cols-[360px_1fr] gap-0 max-xl:grid-cols-1">
+                <div className="border-r border-divider-subtle p-5 max-xl:border-r-0 max-xl:border-b">
+                  <div className="text-sm font-semibold text-text-primary">{templateForm.id ? '编辑模板' : '新建模板'}</div>
+                  <div className="mt-4 space-y-4">
+                    <label className="block">
+                      <span className="text-xs font-medium text-text-tertiary">模板名称</span>
+                      <input
+                        value={templateForm.name}
+                        onChange={event => setTemplateForm(current => ({ ...current, name: event.target.value }))}
+                        placeholder="例如：A 部门通用权限"
+                        className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-text-tertiary">说明</span>
+                      <textarea
+                        value={templateForm.description ?? ''}
+                        onChange={event => setTemplateForm(current => ({ ...current, description: event.target.value }))}
+                        placeholder="用于记录模板适用部门、岗位或审批口径"
+                        className="mt-1 min-h-20 w-full resize-none rounded-md border border-divider-deep bg-background-default px-3 py-2 text-sm text-text-primary outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <TemplatePicker
+                      title="成员"
+                      emptyText="暂无成员"
+                      items={members.map(member => ({ id: member.id, title: member.name || member.email, subtitle: `${member.email} · ${roleLabelMap[member.role]}` }))}
+                      selectedIds={templateForm.member_ids}
+                      onToggle={id => toggleTemplateValue('member_ids', id)}
+                    />
+                    <TemplatePicker
+                      title="应用"
+                      emptyText={canViewApps ? '暂无应用' : '当前角色没有查看应用权限'}
+                      items={apps.map(app => ({ id: app.id, title: app.name, subtitle: appModeLabelMap[app.mode] || app.mode }))}
+                      selectedIds={templateForm.app_ids}
+                      onToggle={id => toggleTemplateValue('app_ids', id)}
+                    />
+                    <TemplatePicker
+                      title="知识库"
+                      emptyText={canViewDatasets ? '暂无知识库' : '当前角色没有查看知识库权限'}
+                      items={datasets.map(dataset => ({ id: dataset.id, title: dataset.name, subtitle: datasetPermissionLabelMap[dataset.permission] || dataset.permission }))}
+                      selectedIds={templateForm.dataset_ids}
+                      onToggle={id => toggleTemplateValue('dataset_ids', id)}
+                    />
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-components-button-primary-bg px-3 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={savingTemplate}
+                      onClick={() => void handleSaveTemplate()}
+                    >
+                      <span className="i-ri-save-line size-4" aria-hidden />
+                      {savingTemplate ? '保存中...' : '保存模板'}
+                    </button>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[780px] text-left text-sm">
+                      <thead className="bg-background-default text-xs font-medium text-text-tertiary">
+                        <tr>
+                          <th className="px-6 py-3">模板</th>
+                          <th className="px-4 py-3">成员</th>
+                          <th className="px-4 py-3">应用</th>
+                          <th className="px-4 py-3">知识库</th>
+                          <th className="px-4 py-3">更新时间</th>
+                          <th className="px-4 py-3 text-right">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-divider-subtle">
+                        {permissionTemplates.map(template => (
+                          <tr key={template.id} className="hover:bg-background-default-hover">
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-text-primary">{template.name}</div>
+                              <div className="mt-1 line-clamp-1 text-xs text-text-tertiary">{template.description || '暂无说明'}</div>
+                            </td>
+                            <td className="px-4 py-4 text-text-secondary">{template.member_count}</td>
+                            <td className="px-4 py-4 text-text-secondary">{template.app_count}</td>
+                            <td className="px-4 py-4 text-text-secondary">{template.dataset_count}</td>
+                            <td className="px-4 py-4 text-text-tertiary">{formatDateTime(template.updated_at || template.created_at)}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center rounded-md border border-divider-deep bg-background-default px-2 text-xs font-medium text-text-secondary hover:bg-background-default-hover"
+                                  onClick={() => editTemplate(template)}
+                                >
+                                  编辑
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center rounded-md bg-components-button-primary-bg px-2 text-xs font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={applyingTemplateId === template.id}
+                                  onClick={() => void handleApplyTemplate(template)}
+                                >
+                                  {applyingTemplateId === template.id ? '应用中...' : '应用'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center rounded-md border border-red-200 bg-red-50 px-2 text-xs font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={deletingTemplateId === template.id}
+                                  onClick={() => void handleDeleteTemplate(template)}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {!templatesQuery.isLoading && permissionTemplates.length === 0 && <EmptyTable text="暂无权限模板" />}
+                </div>
               </div>
             </div>
           )}
@@ -940,6 +1182,46 @@ export default function EnterpriseAdminConsole() {
         </div>
       )}
     </main>
+  )
+}
+
+function TemplatePicker({
+  title,
+  emptyText,
+  items,
+  selectedIds,
+  onToggle,
+}: {
+  title: string
+  emptyText: string
+  items: Array<{ id: string, title: string, subtitle: string }>
+  selectedIds: string[]
+  onToggle: (id: string) => void
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs font-medium text-text-tertiary">
+        <span>{title}</span>
+        <span>{selectedIds.length}</span>
+      </div>
+      <div className="max-h-44 overflow-y-auto rounded-md border border-divider-subtle bg-background-default p-1">
+        {items.map(item => (
+          <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 hover:bg-background-default-hover">
+            <input
+              type="checkbox"
+              className="size-4 rounded border-divider-deep text-components-button-primary-bg focus:ring-components-button-primary-bg"
+              checked={selectedIds.includes(item.id)}
+              onChange={() => onToggle(item.id)}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-text-primary">{item.title}</span>
+              <span className="mt-0.5 block truncate text-xs text-text-tertiary">{item.subtitle}</span>
+            </span>
+          </label>
+        ))}
+        {items.length === 0 && <div className="px-2 py-8 text-center text-sm text-text-tertiary">{emptyText}</div>}
+      </div>
+    </div>
   )
 }
 
