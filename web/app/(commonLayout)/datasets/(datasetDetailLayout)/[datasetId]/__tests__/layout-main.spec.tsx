@@ -5,6 +5,7 @@ import DatasetDetailLayout from '../layout-main'
 
 const mockReplace = vi.fn()
 const mockSetAppSidebarExpand = vi.fn()
+const mockUseAppContext = vi.hoisted(() => vi.fn())
 
 vi.mock('@/next/navigation', () => ({
   usePathname: vi.fn(),
@@ -23,9 +24,7 @@ vi.mock('@/app/components/app/store', () => ({
 }))
 
 vi.mock('@/context/app-context', () => ({
-  useAppContext: () => ({
-    isCurrentWorkspaceDatasetOperator: false,
-  }),
+  useAppContext: mockUseAppContext,
 }))
 
 vi.mock('@/context/event-emitter', () => ({
@@ -71,6 +70,10 @@ describe('DatasetDetailLayout', () => {
       prefetch: vi.fn(),
     })
     mockUseDatasetRelatedApps.mockReturnValue({ data: undefined } as ReturnType<typeof useDatasetRelatedApps>)
+    mockUseAppContext.mockReturnValue({
+      isCurrentWorkspaceEditor: true,
+      isCurrentWorkspaceDatasetOperator: false,
+    })
   })
 
   describe('Access Errors', () => {
@@ -121,6 +124,35 @@ describe('DatasetDetailLayout', () => {
   })
 
   describe('Rendering', () => {
+    it('should redirect non-edit viewers away from pipeline canvas', async () => {
+      mockUseAppContext.mockReturnValue({
+        isCurrentWorkspaceEditor: false,
+        isCurrentWorkspaceDatasetOperator: false,
+      })
+      mockUseDatasetDetail.mockReturnValue({
+        data: {
+          id: 'dataset-1',
+          name: 'Dataset 1',
+          provider: 'vendor',
+          runtime_mode: 'rag_pipeline',
+          is_published: false,
+        },
+        error: null,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useDatasetDetail>)
+
+      render(
+        <DatasetDetailLayout datasetId="dataset-1">
+          <div>Pipeline content</div>
+        </DatasetDetailLayout>,
+      )
+
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith('/datasets/dataset-1/documents')
+      })
+      expect(screen.queryByText('Pipeline content')).not.toBeInTheDocument()
+    })
+
     it('should render children when dataset detail is available', () => {
       // Arrange
       mockUseDatasetDetail.mockReturnValue({

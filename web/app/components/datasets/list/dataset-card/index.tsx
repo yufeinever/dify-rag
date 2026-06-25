@@ -27,6 +27,7 @@ const DatasetCard = ({
 }: DatasetCardProps) => {
   const { push } = useRouter()
 
+  const isCurrentWorkspaceEditor = useAppContextWithSelector(state => state.isCurrentWorkspaceEditor)
   const isCurrentWorkspaceDatasetOperator = useAppContextWithSelector(state => state.isCurrentWorkspaceDatasetOperator)
 
   const datasetCard = useDatasetCardController({ dataset, onSuccess })
@@ -41,6 +42,7 @@ const DatasetCard = ({
   } = datasetCard
 
   const isExternalProvider = dataset.provider === EXTERNAL_PROVIDER
+  const canEditDataset = isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator
   const isPipelineUnpublished = useMemo(() => {
     return dataset.runtime_mode === 'rag_pipeline' && !dataset.is_published
   }, [dataset.runtime_mode, dataset.is_published])
@@ -49,7 +51,7 @@ const DatasetCard = ({
     e.preventDefault()
     if (isExternalProvider)
       push(`/datasets/${dataset.id}/hitTesting`)
-    else if (isPipelineUnpublished)
+    else if (isPipelineUnpublished && canEditDataset)
       push(`/datasets/${dataset.id}/pipeline`)
     else
       push(`/datasets/${dataset.id}/documents`)

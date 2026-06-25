@@ -62,7 +62,8 @@ const DatasetDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
     if (v?.type === 'workflow-canvas-maximize')
       setHideHeader(v.payload)
   })
-  const { isCurrentWorkspaceDatasetOperator } = useAppContext()
+  const { isCurrentWorkspaceEditor, isCurrentWorkspaceDatasetOperator } = useAppContext()
+  const canEditDataset = isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator
 
   const media = useBreakpoints()
   const isMobile = media === MediaType.mobile
@@ -79,8 +80,10 @@ const DatasetDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
       return false
     if (datasetRes.runtime_mode === 'general')
       return false
+    if (!canEditDataset)
+      return false
     return !datasetRes.is_published
-  }, [datasetRes])
+  }, [canEditDataset, datasetRes])
 
   const navigation = useMemo(() => {
     const baseNavigation = [
@@ -96,7 +99,7 @@ const DatasetDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
         href: `/datasets/${datasetId}/settings`,
         icon: RiEqualizer2Line,
         selectedIcon: RiEqualizer2Fill,
-        disabled: false,
+        disabled: !canEditDataset,
       },
     ]
 
@@ -106,7 +109,7 @@ const DatasetDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
         href: `/datasets/${datasetId}/pipeline`,
         icon: PipelineLine as RemixiconComponentType,
         selectedIcon: PipelineFill as RemixiconComponentType,
-        disabled: false,
+        disabled: !canEditDataset,
       })
       baseNavigation.unshift({
         name: t('datasetMenus.documents', { ns: 'common' }),
@@ -118,7 +121,7 @@ const DatasetDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
     }
 
     return baseNavigation
-  }, [t, datasetId, isButtonDisabledWithPipeline, datasetRes?.provider])
+  }, [t, datasetId, isButtonDisabledWithPipeline, datasetRes?.provider, canEditDataset])
 
   useDocumentTitle(datasetRes?.name || t('menus.datasets', { ns: 'common' }))
 
@@ -135,10 +138,18 @@ const DatasetDetailLayout: FC<IAppDetailLayoutProps> = (props) => {
       router.replace('/datasets')
   }, [router, shouldRedirect])
 
+  useEffect(() => {
+    if (datasetRes && isPipelineCanvas && !canEditDataset)
+      router.replace(`/datasets/${datasetId}/documents`)
+  }, [canEditDataset, datasetId, datasetRes, isPipelineCanvas, router])
+
   if (!datasetRes && !error)
     return <Loading type="app" />
 
   if (shouldRedirect)
+    return <Loading type="app" />
+
+  if (datasetRes && isPipelineCanvas && !canEditDataset)
     return <Loading type="app" />
 
   return (

@@ -205,6 +205,18 @@ class _EstimateArgs(BaseModel):
 
 class DatasetService:
     @staticmethod
+    def _get_direct_dataset_ids(user_id: str, tenant_id: str) -> set[str]:
+        return set(
+            db.session.scalars(
+                select(DatasetPermission.dataset_id).where(
+                    DatasetPermission.account_id == user_id,
+                    DatasetPermission.tenant_id == tenant_id,
+                    DatasetPermission.has_permission == sa.true(),
+                )
+            ).all()
+        )
+
+    @staticmethod
     def _get_template_dataset_ids(user_id: str, tenant_id: str) -> set[str]:
         return set(
             db.session.scalars(
@@ -226,20 +238,17 @@ class DatasetService:
         )
 
     @staticmethod
+    def _get_permitted_dataset_ids(user_id: str, tenant_id: str) -> set[str]:
+        permitted_dataset_ids = DatasetService._get_direct_dataset_ids(user_id, tenant_id)
+        permitted_dataset_ids.update(DatasetService._get_template_dataset_ids(user_id, tenant_id))
+        return permitted_dataset_ids
+
+    @staticmethod
     def get_datasets(page, per_page, tenant_id=None, user=None, search=None, tag_ids=None, include_all=False):
         query = select(Dataset).where(Dataset.tenant_id == tenant_id).order_by(Dataset.created_at.desc(), Dataset.id)
 
         if user:
-            # get permitted dataset ids
-            dataset_permission = db.session.scalars(
-                select(DatasetPermission).where(
-                    DatasetPermission.account_id == user.id,
-                    DatasetPermission.tenant_id == tenant_id,
-                    DatasetPermission.has_permission == sa.true(),
-                )
-            ).all()
-            permitted_dataset_ids = {dp.dataset_id for dp in dataset_permission}
-            permitted_dataset_ids.update(DatasetService._get_template_dataset_ids(user.id, tenant_id))
+            permitted_dataset_ids = DatasetService._get_permitted_dataset_ids(user.id, tenant_id)
 
             if user.current_role == TenantAccountRole.DATASET_OPERATOR:
                 # only show datasets that the user has permission to access
@@ -250,9 +259,11 @@ class DatasetService:
                     return [], 0
             else:
                 if user.current_role != TenantAccountRole.OWNER or not include_all:
-                    # show all datasets that the user has permission to access
-                    # Check if permitted_dataset_ids is not empty to avoid WHERE false condition
-                    if permitted_dataset_ids and len(permitted_dataset_ids) > 0:
+                    if user.current_role == TenantAccountRole.NORMAL and permitted_dataset_ids:
+                        query = query.where(
+                            sa.or_(Dataset.id.in_(permitted_dataset_ids), Dataset.created_by == user.id)
+                        )
+                    elif permitted_dataset_ids and len(permitted_dataset_ids) > 0:
                         query = query.where(
                             sa.or_(
                                 Dataset.permission == DatasetPermissionEnum.ALL_TEAM,
@@ -1255,26 +1266,28 @@ class DatasetService:
             logger.debug("User %s does not have permission to access dataset %s", user.id, dataset.id)
             raise NoPermissionError("You do not have permission to access this dataset.")
         if user.current_role != TenantAccountRole.OWNER:
+            permitted_dataset_ids = DatasetService._get_permitted_dataset_ids(user.id, dataset.tenant_id)
+            is_personal_resource_role = user.current_role in {
+                TenantAccountRole.NORMAL,
+                TenantAccountRole.DATASET_OPERATOR,
+            }
+            if (
+                is_personal_resource_role
+                and permitted_dataset_ids
+                and dataset.created_by != user.id
+                and dataset.id not in permitted_dataset_ids
+            ):
+                logger.debug("User %s does not have permission to access dataset %s", user.id, dataset.id)
+                raise NoPermissionError("You do not have permission to access this dataset.")
+
             if dataset.permission == DatasetPermissionEnum.ONLY_ME and dataset.created_by != user.id:
                 logger.debug("User %s does not have permission to access dataset %s", user.id, dataset.id)
                 raise NoPermissionError("You do not have permission to access this dataset.")
             if dataset.permission == DatasetPermissionEnum.PARTIAL_TEAM:
                 # For partial team permission, user needs explicit permission or be the creator
-                if dataset.created_by != user.id:
-                    permitted_dataset_ids = DatasetService._get_template_dataset_ids(user.id, dataset.tenant_id)
-                    has_template_permission = dataset.id in permitted_dataset_ids
-                    has_direct_permission = db.session.scalar(
-                        select(DatasetPermission.id)
-                        .where(
-                            DatasetPermission.dataset_id == dataset.id,
-                            DatasetPermission.account_id == user.id,
-                            DatasetPermission.has_permission == sa.true(),
-                        )
-                        .limit(1)
-                    )
-                    if not has_direct_permission and not has_template_permission:
-                        logger.debug("User %s does not have permission to access dataset %s", user.id, dataset.id)
-                        raise NoPermissionError("You do not have permission to access this dataset.")
+                if dataset.created_by != user.id and dataset.id not in permitted_dataset_ids:
+                    logger.debug("User %s does not have permission to access dataset %s", user.id, dataset.id)
+                    raise NoPermissionError("You do not have permission to access this dataset.")
 
     @staticmethod
     def check_dataset_operator_permission(user: Account | None = None, dataset: Dataset | None = None):

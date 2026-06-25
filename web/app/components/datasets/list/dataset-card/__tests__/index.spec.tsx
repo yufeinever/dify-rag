@@ -19,13 +19,19 @@ vi.mock('@/hooks/use-format-time-from-now', () => ({
 }))
 
 const mockPush = vi.fn()
+const mockWorkspaceState = vi.hoisted(() => ({
+  value: {
+    isCurrentWorkspaceEditor: true,
+    isCurrentWorkspaceDatasetOperator: false,
+  },
+}))
 
 vi.mock('@/next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }))
 
 vi.mock('@/context/app-context', () => ({
-  useSelector: (selector: (state: { isCurrentWorkspaceDatasetOperator: boolean }) => boolean) => selector({ isCurrentWorkspaceDatasetOperator: false }),
+  useSelector: (selector: (state: typeof mockWorkspaceState.value) => boolean) => selector(mockWorkspaceState.value),
 }))
 
 vi.mock('../hooks/use-dataset-card-state', () => ({
@@ -234,6 +240,10 @@ describe('DatasetCard Integration', () => {
 describe('DatasetCard Component', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockWorkspaceState.value = {
+      isCurrentWorkspaceEditor: true,
+      isCurrentWorkspaceDatasetOperator: false,
+    }
   })
 
   it('should render and navigate to documents when clicked', () => {
@@ -252,12 +262,24 @@ describe('DatasetCard Component', () => {
     expect(mockPush).toHaveBeenCalledWith('/datasets/dataset-1/hitTesting')
   })
 
-  it('should navigate to pipeline for unpublished pipeline', () => {
+  it('should navigate to pipeline for unpublished pipeline when user can edit datasets', () => {
     const dataset = createMockDataset({ runtime_mode: 'rag_pipeline', is_published: false })
     render(<DatasetCard dataset={dataset} />)
 
     fireEvent.click(screen.getByText('Test Dataset'))
     expect(mockPush).toHaveBeenCalledWith('/datasets/dataset-1/pipeline')
+  })
+
+  it('should navigate to documents for unpublished pipeline when user cannot edit datasets', () => {
+    mockWorkspaceState.value = {
+      isCurrentWorkspaceEditor: false,
+      isCurrentWorkspaceDatasetOperator: false,
+    }
+    const dataset = createMockDataset({ runtime_mode: 'rag_pipeline', is_published: false })
+    render(<DatasetCard dataset={dataset} />)
+
+    fireEvent.click(screen.getByText('Test Dataset'))
+    expect(mockPush).toHaveBeenCalledWith('/datasets/dataset-1/documents')
   })
 
   it('should stop propagation when tag area is clicked', () => {
