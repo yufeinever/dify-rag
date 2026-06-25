@@ -26,7 +26,6 @@ import {
 } from '@/models/app'
 import { fetchAppDetail } from '@/service/explore'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
-import { useMembers } from '@/service/use-common'
 import { useExploreAppList } from '@/service/use-explore'
 import { trackCreateApp } from '@/utils/create-app-tracking'
 import TryApp from '../try-app'
@@ -40,12 +39,10 @@ const Apps = ({
   onSuccess,
 }: AppsProps) => {
   const { t } = useTranslation()
-  const { userProfile } = useAppContext()
+  const { can } = useAppContext()
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
-  const { data: membersData } = useMembers()
   const allCategoriesEn = t('apps.allCategories', { ns: 'explore', lng: 'en' })
-  const userAccount = membersData?.accounts?.find(account => account.id === userProfile.id)
-  const hasEditPermission = !!userAccount && userAccount.role !== 'normal'
+  const canCreateApp = can?.('app.create') ?? false
 
   const [keywords, setKeywords] = useState('')
   const [searchKeywords, setSearchKeywords] = useState('')
@@ -253,7 +250,7 @@ const Apps = ({
               <AppCard
                 key={app.app_id}
                 app={app}
-                canCreate={hasEditPermission}
+                canCreate={canCreateApp}
                 onCreate={() => {
                   currentCreateAppTrackingRef.current = {
                     source: 'explore_template_list',

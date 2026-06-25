@@ -6,7 +6,6 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { createSystemFeaturesWrapper } from '@/__tests__/utils/mock-system-features'
 import { useAppContext } from '@/context/app-context'
 import { fetchAppDetail } from '@/service/explore'
-import { useMembers } from '@/service/use-common'
 import { renderWithNuqs } from '@/test/nuqs-testing'
 import { AppModeEnum } from '@/types/app'
 import AppList from '../index'
@@ -33,10 +32,6 @@ vi.mock('@/service/explore', () => ({
 
 vi.mock('@/context/app-context', () => ({
   useAppContext: vi.fn(),
-}))
-
-vi.mock('@/service/use-common', () => ({
-  useMembers: vi.fn(),
 }))
 
 vi.mock('@/hooks/use-import-dsl', () => ({
@@ -138,14 +133,9 @@ const createApp = (overrides: Partial<App> = {}): App => ({
   is_agent: overrides.is_agent ?? false,
 })
 
-const mockMemberRole = (hasEditPermission: boolean) => {
+const mockWorkspacePermission = (hasCreatePermission: boolean) => {
   ;(useAppContext as Mock).mockReturnValue({
-    userProfile: { id: 'user-1' },
-  })
-  ;(useMembers as Mock).mockReturnValue({
-    data: {
-      accounts: [{ id: 'user-1', role: hasEditPermission ? 'admin' : 'normal' }],
-    },
+    can: (permission: string) => permission === 'app.create' && hasCreatePermission,
   })
 }
 
@@ -161,7 +151,7 @@ const renderAppList = (
   options: RenderOptions = {},
 ) => {
   mockConfig.isCloudEdition = options.isCloudEdition ?? false
-  mockMemberRole(hasEditPermission)
+  mockWorkspacePermission(hasEditPermission)
   const { wrapper: SystemFeaturesWrapper, queryClient } = createSystemFeaturesWrapper({
     systemFeatures: { enable_explore_banner: options.enableExploreBanner ?? false },
   })

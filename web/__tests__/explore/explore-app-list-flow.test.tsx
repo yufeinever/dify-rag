@@ -12,7 +12,6 @@ import { renderWithSystemFeatures as render } from '@/__tests__/utils/mock-syste
 import AppList from '@/app/components/explore/app-list'
 import { useAppContext } from '@/context/app-context'
 import { fetchAppDetail } from '@/service/explore'
-import { useMembers } from '@/service/use-common'
 import { AppModeEnum } from '@/types/app'
 
 const allCategoriesEn = 'explore.apps.allCategories:{"lng":"en"}'
@@ -61,10 +60,6 @@ vi.mock('@/service/explore', () => ({
 
 vi.mock('@/context/app-context', () => ({
   useAppContext: vi.fn(),
-}))
-
-vi.mock('@/service/use-common', () => ({
-  useMembers: vi.fn(),
 }))
 
 vi.mock('@/hooks/use-import-dsl', () => ({
@@ -136,24 +131,19 @@ const createApp = (overrides: Partial<App> = {}): App => ({
   is_agent: overrides.is_agent ?? false,
 })
 
-const mockMemberRole = (hasEditPermission: boolean) => {
+const mockWorkspacePermission = (hasCreatePermission: boolean) => {
   ;(useAppContext as Mock).mockReturnValue({
-    userProfile: { id: 'user-1' },
-  })
-  ;(useMembers as Mock).mockReturnValue({
-    data: {
-      accounts: [{ id: 'user-1', role: hasEditPermission ? 'admin' : 'normal' }],
-    },
+    can: (permission: string) => permission === 'app.create' && hasCreatePermission,
   })
 }
 
 const renderAppList = (hasEditPermission = true, onSuccess?: () => void) => {
-  mockMemberRole(hasEditPermission)
+  mockWorkspacePermission(hasEditPermission)
   return render(<AppList onSuccess={onSuccess} />)
 }
 
 const appListElement = (hasEditPermission = true, onSuccess?: () => void) => {
-  mockMemberRole(hasEditPermission)
+  mockWorkspacePermission(hasEditPermission)
   return <AppList onSuccess={onSuccess} />
 }
 
