@@ -21,6 +21,7 @@ The codebase is split into:
 
 - The public Dify node `http://118.196.65.83:18088` is the main environment the user checks. Do not assume a source commit is visible there until the Docker deployment has been rebuilt and restarted.
 - Traffic path: public 118 server HAProxy `:18088` -> FRP tunnel `127.0.0.1:18087` -> T1000 Docker Compose nginx -> `web`/`api` services in `/home/yu/projects/dify-rag/docker`.
+- Default to `scripts/deploy-18088.sh` for publishing after changes. Use the manual commands below only when the script is unavailable, needs debugging, or a special one-off deployment is required.
 - After any backend, frontend, migration, or user-visible product change, publish to this node as part of the task unless the user explicitly says not to deploy.
 - If the working tree has unrelated dirty files, create a clean deploy worktree from the intended commit, for example `git worktree add --detach /tmp/dify-rag-deploy-<sha> <sha>`, and build from that clean tree.
 - Build images from the repository root of the intended source state:
