@@ -1,0 +1,33 @@
+version: 0.1.1
+type: plugin
+author: mmb
+name: mmb_material_preprocessor
+label:
+  en_US: MMB Material Preprocessor
+  zh_Hans: MMB 材料预处理器
+description:
+  en_US: Normalize large business files, invoke MinerU, and return Markdown with source metadata for Dify RAG pipelines.
+  zh_Hans: 对大文档和图片做压缩副本处理，调用 MinerU，并为 Dify 知识流水线返回带来源元数据的 Markdown。
+icon: icon.svg
+resource:
+  memory: 536870912
+  permission:
+    tool:
+      enabled: true
+    storage:
+      enabled: true
+      size: 10485760
+plugins:
+  tools:
+    - provider/mmb_material_preprocessor.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
+created_at: 2026-06-26T00:00:00+08:00
+verified: false

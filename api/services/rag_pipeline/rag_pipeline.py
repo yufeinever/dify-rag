@@ -1231,7 +1231,7 @@ class RagPipelineService:
             install_count=0,
             position=max_position + 1 if max_position else 1,
             chunk_structure=dataset.chunk_structure,
-            language="en-US",
+            language=args.get("language") or "en-US",
             created_by=current_user.id,
         )
         db.session.add(pipeline_customized_template)

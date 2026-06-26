@@ -57,6 +57,7 @@ class Payload(BaseModel):
     name: str = Field(..., min_length=1, max_length=40)
     description: str = Field(default="", max_length=400)
     icon_info: dict[str, object] | None = None
+    language: str = Field(default="en-US", min_length=2, max_length=20)
 
 
 register_schema_models(console_ns, Payload)

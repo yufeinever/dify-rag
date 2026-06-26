@@ -1,0 +1,112 @@
+identity:
+  name: normalize-file
+  author: mmb
+  label:
+    en_US: Normalize and Parse File
+    zh_Hans: 压缩副本并解析文件
+description:
+  human:
+    en_US: Create a balanced compressed parsing copy, invoke MinerU, and output Markdown with source metadata.
+    zh_Hans: 为大文档或图片生成平衡压缩解析副本，调用 MinerU，并输出包含来源元数据的 Markdown。
+  llm: Normalize a file, parse it with MinerU, and return Markdown text plus metadata.
+parameters:
+  - name: file
+    type: file
+    required: true
+    label:
+      en_US: File
+      zh_Hans: 文件
+    human_description:
+      en_US: Supports pdf, doc, docx, ppt, pptx, png, jpg, jpeg, xls, xlsx, csv, md, html, json, yaml, txt.
+      zh_Hans: 支持 pdf、doc、docx、ppt、pptx、png、jpg、jpeg、xls、xlsx、csv、md、html、json、yaml、txt。
+    form: llm
+  - name: parse_method
+    type: select
+    required: false
+    default: auto
+    label:
+      en_US: Parse Method
+      zh_Hans: 解析方式
+    human_description:
+      en_US: MinerU parse method.
+      zh_Hans: MinerU 解析方式。
+    llm_description: MinerU parse method.
+    form: form
+    options:
+      - value: auto
+        label:
+          en_US: auto
+          zh_Hans: auto
+      - value: ocr
+        label:
+          en_US: ocr
+          zh_Hans: ocr
+      - value: txt
+        label:
+          en_US: txt
+          zh_Hans: txt
+  - name: language
+    type: string
+    required: false
+    default: ch
+    label:
+      en_US: Document Language
+      zh_Hans: 文档语言
+    human_description:
+      en_US: Document language for MinerU OCR.
+      zh_Hans: MinerU OCR 使用的文档语言。
+    llm_description: Document language for MinerU OCR.
+    form: form
+  - name: max_long_edge
+    type: number
+    required: false
+    default: 1800
+    label:
+      en_US: Max Image Long Edge
+      zh_Hans: 图片最长边
+    human_description:
+      en_US: Resize images only when the long edge exceeds this value.
+      zh_Hans: 图片最长边超过该值时才缩小解析副本。
+    llm_description: Max long edge for normalized images.
+    form: form
+  - name: jpeg_quality
+    type: number
+    required: false
+    default: 82
+    label:
+      en_US: JPEG Quality
+      zh_Hans: JPEG 质量
+    human_description:
+      en_US: JPEG quality used for normalized image copies.
+      zh_Hans: 压缩解析副本使用的 JPEG 质量。
+    llm_description: JPEG quality used for normalized image copies.
+    form: form
+  - name: large_file_mb
+    type: number
+    required: false
+    default: 30
+    label:
+      en_US: Large File Threshold MB
+      zh_Hans: 大文件阈值 MB
+    human_description:
+      en_US: Office/PDF files below this size keep their original binary for parsing quality.
+      zh_Hans: Office/PDF 文件低于该大小时保留原文件以保证解析质量。
+    llm_description: Large file threshold in MB.
+    form: form
+output_schema:
+  type: object
+  properties:
+    file_metadata:
+      type: object
+      description: Source file metadata.
+    compression_report:
+      type: object
+      description: Normalization decisions and size deltas.
+    content_list:
+      type: array
+      items:
+        type: object
+      description: MinerU content list.
+extra:
+  python:
+    source: tools/normalize.py

@@ -1,0 +1,42 @@
+identity:
+  author: mmb
+  name: mmb_material_preprocessor
+  label:
+    en_US: MMB Material Preprocessor
+    zh_Hans: MMB 材料预处理器
+  description:
+    en_US: Normalize files before MinerU parsing.
+    zh_Hans: 在 MinerU 解析前对材料做压缩副本和元数据整理。
+  icon: icon.svg
+credentials_for_provider:
+  base_url:
+    label:
+      en_US: MinerU Base URL
+      zh_Hans: MinerU 服务 Base URL
+    placeholder:
+      en_US: http://mineru:8000
+      zh_Hans: 请输入本地 MinerU 服务地址
+    required: true
+    type: text-input
+  server_type:
+    label:
+      en_US: Server Type
+      zh_Hans: 服务类型
+    required: true
+    type: select
+    options:
+      - value: local
+        label:
+          en_US: Local Deployment
+          zh_Hans: 本地部署
+  token:
+    label:
+      en_US: Token
+      zh_Hans: Token
+    required: false
+    type: secret-input
+extra:
+  python:
+    source: provider/mmb_material_preprocessor.py
+tools:
+  - tools/normalize.yaml

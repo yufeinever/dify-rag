@@ -1,0 +1,9 @@
+dify_plugin==0.5.0b15
+requests~=2.32.3
+Pillow~=10.4.0
+pypdf~=5.1.0
+pypdfium2~=4.30.0
+openpyxl~=3.1.5
+xlrd~=2.0.1
+beautifulsoup4~=4.12.3
+PyYAML~=6.0.2
