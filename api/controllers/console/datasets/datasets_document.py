@@ -1103,7 +1103,7 @@ class DocumentOfficePreviewApi(DocumentResource):
                 "permissions": {
                     "comment": False,
                     "copy": True,
-                    "download": True,
+                    "download": False,
                     "edit": False,
                     "print": True,
                 },
