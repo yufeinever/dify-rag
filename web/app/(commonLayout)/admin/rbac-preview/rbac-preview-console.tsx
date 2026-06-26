@@ -32,9 +32,14 @@ const tabs: Array<{ key: RbacPreviewTab, label: string, icon: string, desc: stri
   { key: 'audit', label: '审计日志', icon: 'i-ri-file-search-line', desc: 'RBAC 相关操作记录' },
 ]
 
+type MemberSortKey = 'account' | 'role' | 'status' | 'group' | 'created_at'
+type SortDirection = 'asc' | 'desc'
+type MemberSortState = { key: MemberSortKey, direction: SortDirection }
+
 const emptyGroup = { id: null, name: '', description: '', member_ids: [] } satisfies PermissionGroupPayload & { id: string | null }
 const emptyTemplate = { id: null, name: '', description: '', member_ids: [], group_ids: [], app_ids: [], dataset_ids: [], explore_app_ids: [] } satisfies PermissionTemplatePayload & { id: string | null }
 const toggle = (list: string[], id: string) => list.includes(id) ? list.filter(item => item !== id) : [...list, id]
+const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
 const match = (keyword: string, values: Array<string | null | undefined>) => !keyword.trim() || values.filter(Boolean).some(value => value!.toLowerCase().includes(keyword.trim().toLowerCase()))
 const fmt = (value?: string | number | null) => {
   if (!value)
@@ -49,7 +54,9 @@ export default function RbacPreviewConsole() {
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [groupFilter, setGroupFilter] = useState('all')
   const [batchGroupId, setBatchGroupId] = useState('')
+  const [memberSort, setMemberSort] = useState<MemberSortState>({ key: 'created_at', direction: 'desc' })
   const [groupForm, setGroupForm] = useState<PermissionGroupPayload & { id: string | null }>(emptyGroup)
   const [templateForm, setTemplateForm] = useState<PermissionTemplatePayload & { id: string | null }>(emptyTemplate)
   const [effectiveMemberId, setEffectiveMemberId] = useState('')
@@ -92,8 +99,35 @@ export default function RbacPreviewConsole() {
     const memberGroups = groupsByMember.get(member.id) ?? []
     return (roleFilter === 'all' || member.role === roleFilter)
       && (statusFilter === 'all' || member.status === statusFilter)
+      && (groupFilter === 'all' || (groupFilter === 'none' ? memberGroups.length === 0 : memberGroups.some(group => group.id === groupFilter)))
       && match(keyword, [member.name, member.email, roleLabelMap[member.role], statusLabelMap[member.status], ...memberGroups.map(group => group.name)])
-  }), [groupsByMember, keyword, members, roleFilter, statusFilter])
+  }), [groupFilter, groupsByMember, keyword, members, roleFilter, statusFilter])
+  const sortedMembers = useMemo(() => {
+    const direction = memberSort.direction === 'asc' ? 1 : -1
+    const accountName = (member: Member) => `${member.name || ''} ${member.email}`
+    const groupName = (member: Member) => (groupsByMember.get(member.id) ?? []).map(group => group.name).join('、') || '未入组'
+    const createdAt = (member: Member) => {
+      if (!member.created_at)
+        return 0
+      const date = new Date(member.created_at)
+      return Number.isNaN(date.getTime()) ? 0 : date.getTime()
+    }
+
+    return [...filteredMembers].sort((a, b) => {
+      let result = 0
+      if (memberSort.key === 'created_at')
+        result = createdAt(a) - createdAt(b)
+      else if (memberSort.key === 'role')
+        result = collator.compare(roleLabelMap[a.role], roleLabelMap[b.role])
+      else if (memberSort.key === 'status')
+        result = collator.compare(statusLabelMap[a.status], statusLabelMap[b.status])
+      else if (memberSort.key === 'group')
+        result = collator.compare(groupName(a), groupName(b))
+      else result = collator.compare(accountName(a), accountName(b))
+
+      return result === 0 ? collator.compare(accountName(a), accountName(b)) : result * direction
+    })
+  }, [filteredMembers, groupsByMember, memberSort.direction, memberSort.key])
   const filteredGroups = useMemo(() => groups.filter(group => match(keyword, [group.name, group.description])), [groups, keyword])
   const filteredTemplates = useMemo(() => templates.filter(template => match(keyword, [template.name, template.description])), [templates, keyword])
   const filteredAuditLogs = useMemo(() => auditLogs.filter(log => log.action.includes('permission_') || log.action.includes('app_permissions') || log.action.includes('dataset')), [auditLogs])
@@ -111,6 +145,11 @@ export default function RbacPreviewConsole() {
   const refreshAll = async () => {
     await Promise.all([refetchMembers(), appsQuery.refetch(), exploreQuery.refetch(), datasetsQuery.refetch(), groupsQuery.refetch(), templatesQuery.refetch(), auditQuery.refetch()])
     toast.success('数据已刷新')
+  }
+  const updateMemberSort = (key: MemberSortKey) => {
+    setMemberSort(current => current.key === key
+      ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+      : { key, direction: key === 'created_at' ? 'desc' : 'asc' })
   }
   const saveGroup = async () => {
     if (!groupForm.name.trim()) {
@@ -317,20 +356,29 @@ export default function RbacPreviewConsole() {
           <SectionTitle title={currentTab.label} description={currentTab.desc} />
           {activeTab === 'members' && (
             <MembersPanel
-              members={filteredMembers}
+              members={sortedMembers}
               groupsByMember={groupsByMember}
               selectedMemberIds={selectedMemberIds}
               roleFilter={roleFilter}
               statusFilter={statusFilter}
+              groupFilter={groupFilter}
               batchGroupId={batchGroupId}
+              sort={memberSort}
               groups={groups}
               isLoading={membersLoading}
               saving={saving}
               onRoleFilterChange={setRoleFilter}
               onStatusFilterChange={setStatusFilter}
+              onGroupFilterChange={setGroupFilter}
               onBatchGroupChange={setBatchGroupId}
+              onSortChange={updateMemberSort}
               onToggleMember={id => setSelectedMemberIds(current => toggle(current, id))}
-              onToggleAll={() => setSelectedMemberIds(current => current.length === filteredMembers.length ? [] : filteredMembers.map(member => member.id))}
+              onToggleAll={() => setSelectedMemberIds((current) => {
+                const visibleIds = sortedMembers.map(member => member.id)
+                const visibleIdSet = new Set(visibleIds)
+                const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => current.includes(id))
+                return allVisibleSelected ? current.filter(id => !visibleIdSet.has(id)) : Array.from(new Set([...current, ...visibleIds]))
+              })}
               onBatchUpdate={batchUpdateGroup}
               onOpenEffective={(id) => {
                 setEffectiveMemberId(id)
@@ -376,7 +424,7 @@ function EmptyState({ text }: { text: string }) {
   return <div className="flex h-40 items-center justify-center text-sm text-text-tertiary">{text}</div>
 }
 
-function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, statusFilter, batchGroupId, groups, isLoading, saving, onRoleFilterChange, onStatusFilterChange, onBatchGroupChange, onToggleMember, onToggleAll, onBatchUpdate, onOpenEffective }: { members: Member[], groupsByMember: Map<string, PermissionGroup[]>, selectedMemberIds: string[], roleFilter: string, statusFilter: string, batchGroupId: string, groups: PermissionGroup[], isLoading: boolean, saving: boolean, onRoleFilterChange: (v: string) => void, onStatusFilterChange: (v: string) => void, onBatchGroupChange: (v: string) => void, onToggleMember: (id: string) => void, onToggleAll: () => void, onBatchUpdate: (mode: 'add' | 'remove') => void, onOpenEffective: (id: string) => void }) {
+function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, statusFilter, groupFilter, batchGroupId, sort, groups, isLoading, saving, onRoleFilterChange, onStatusFilterChange, onGroupFilterChange, onBatchGroupChange, onSortChange, onToggleMember, onToggleAll, onBatchUpdate, onOpenEffective }: { members: Member[], groupsByMember: Map<string, PermissionGroup[]>, selectedMemberIds: string[], roleFilter: string, statusFilter: string, groupFilter: string, batchGroupId: string, sort: MemberSortState, groups: PermissionGroup[], isLoading: boolean, saving: boolean, onRoleFilterChange: (v: string) => void, onStatusFilterChange: (v: string) => void, onGroupFilterChange: (v: string) => void, onBatchGroupChange: (v: string) => void, onSortChange: (key: MemberSortKey) => void, onToggleMember: (id: string) => void, onToggleAll: () => void, onBatchUpdate: (mode: 'add' | 'remove') => void, onOpenEffective: (id: string) => void }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 border-b border-divider-subtle px-6 py-3">
@@ -387,6 +435,11 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
         <select value={statusFilter} onChange={e => onStatusFilterChange(e.target.value)} className="h-8 rounded-md border border-divider-deep bg-background-default px-2 text-xs">
           <option value="all">全部状态</option>
           {Object.entries(statusLabelMap).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
+        </select>
+        <select value={groupFilter} onChange={e => onGroupFilterChange(e.target.value)} className="h-8 rounded-md border border-divider-deep bg-background-default px-2 text-xs">
+          <option value="all">全部用户组</option>
+          <option value="none">未入组</option>
+          {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
         </select>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="text-xs text-text-tertiary">
@@ -404,14 +457,15 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-sm">
+        <table className="w-full min-w-[1040px] text-left text-sm">
           <thead className="bg-background-default text-xs text-text-tertiary">
             <tr>
-              <th className="px-6 py-3"><input type="checkbox" checked={members.length > 0 && selectedMemberIds.length === members.length} onChange={onToggleAll} /></th>
-              <th className="px-4 py-3">账号</th>
-              <th className="px-4 py-3">角色</th>
-              <th className="px-4 py-3">状态</th>
-              <th className="px-4 py-3">用户组</th>
+              <th className="px-6 py-3"><input type="checkbox" checked={members.length > 0 && members.every(member => selectedMemberIds.includes(member.id))} onChange={onToggleAll} /></th>
+              <SortableHeader label="账号" sortKey="account" activeSort={sort} onSort={onSortChange} />
+              <SortableHeader label="角色" sortKey="role" activeSort={sort} onSort={onSortChange} />
+              <SortableHeader label="状态" sortKey="status" activeSort={sort} onSort={onSortChange} />
+              <SortableHeader label="用户组" sortKey="group" activeSort={sort} onSort={onSortChange} />
+              <SortableHeader label="加入日期" sortKey="created_at" activeSort={sort} onSort={onSortChange} />
               <th className="px-4 py-3 text-right">操作</th>
             </tr>
           </thead>
@@ -426,6 +480,7 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
                 <td className="px-4 py-4">{roleLabelMap[member.role]}</td>
                 <td className="px-4 py-4">{statusLabelMap[member.status]}</td>
                 <td className="px-4 py-4">{(groupsByMember.get(member.id) ?? []).map(group => group.name).join('、') || '未入组'}</td>
+                <td className="px-4 py-4 text-text-secondary">{fmt(member.created_at)}</td>
                 <td className="px-4 py-4 text-right"><button className="text-xs font-medium text-blue-600" onClick={() => onOpenEffective(member.id)}>查看有效权限</button></td>
               </tr>
             ))}
@@ -434,6 +489,19 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
       </div>
       {!isLoading && members.length === 0 && <EmptyState text="没有匹配的成员" />}
     </div>
+  )
+}
+
+function SortableHeader({ label, sortKey, activeSort, onSort }: { label: string, sortKey: MemberSortKey, activeSort: MemberSortState, onSort: (key: MemberSortKey) => void }) {
+  const active = activeSort.key === sortKey
+
+  return (
+    <th className="px-4 py-3">
+      <button type="button" onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-1 font-medium ${active ? 'text-blue-700' : 'text-text-tertiary hover:text-text-secondary'}`}>
+        {label}
+        <span className={`size-3 ${active ? (activeSort.direction === 'asc' ? 'i-ri-arrow-up-s-line' : 'i-ri-arrow-down-s-line') : 'i-ri-expand-up-down-line'}`} />
+      </button>
+    </th>
   )
 }
 
