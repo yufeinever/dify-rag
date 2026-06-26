@@ -1649,6 +1649,14 @@ class DocumentService:
         return file_helpers.get_signed_file_url(upload_file_id=upload_file.id, as_attachment=True)
 
     @staticmethod
+    def get_document_preview_url(document: Document) -> str:
+        """
+        Return a signed inline URL for previewing an upload-file document.
+        """
+        upload_file = DocumentService._get_upload_file_for_upload_file_document(document)
+        return file_helpers.get_signed_file_url(upload_file_id=upload_file.id, as_attachment=False)
+
+    @staticmethod
     def enrich_documents_with_summary_index_status(
         documents: Sequence[Document],
         dataset: Dataset,

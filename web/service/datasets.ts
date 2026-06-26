@@ -163,6 +163,10 @@ export const fetchDocumentDownloadUrl = ({ datasetId, documentId }: CommonDocReq
   return get<DocumentDownloadResponse>(`/datasets/${datasetId}/documents/${documentId}/download`, {})
 }
 
+export const fetchDocumentPreviewUrl = ({ datasetId, documentId }: CommonDocReq): Promise<DocumentDownloadResponse> => {
+  return get<DocumentDownloadResponse>(`/datasets/${datasetId}/documents/${documentId}/preview`, {})
+}
+
 export const downloadDocumentsZip = ({ datasetId, documentIds }: DocumentDownloadZipRequest): Promise<Blob> => {
   return post<Blob>(`/datasets/${datasetId}/documents/download-zip`, {
     body: {

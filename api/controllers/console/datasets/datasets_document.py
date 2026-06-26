@@ -985,6 +985,23 @@ class DocumentDownloadApi(DocumentResource):
         return {"url": DocumentService.get_document_download_url(document)}
 
 
+@console_ns.route("/datasets/<uuid:dataset_id>/documents/<uuid:document_id>/preview")
+class DocumentPreviewApi(DocumentResource):
+    """Return a signed inline URL for a dataset document's original uploaded file."""
+
+    @console_ns.doc("get_dataset_document_preview_url")
+    @console_ns.doc(description="Get a signed inline URL for a dataset document's original uploaded file")
+    @console_ns.response(200, "Preview URL generated successfully", console_ns.models[UrlResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @cloud_edition_billing_rate_limit_check("knowledge")
+    def get(self, dataset_id: str, document_id: str) -> dict[str, Any]:
+        # Reuse the shared permission/tenant checks implemented in DocumentResource.
+        document = self.get_document(str(dataset_id), str(document_id))
+        return {"url": DocumentService.get_document_preview_url(document)}
+
+
 @console_ns.route("/datasets/<uuid:dataset_id>/documents/download-zip")
 class DocumentBatchDownloadZipApi(DocumentResource):
     """Download multiple uploaded-file documents as a single ZIP (avoids browser multi-download limits)."""
