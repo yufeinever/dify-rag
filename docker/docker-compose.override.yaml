@@ -1,0 +1,15 @@
+services:
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    restart: always
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      JWT_HEADER: AuthorizationJwt
+    networks:
+      - default
+    volumes:
+      - ./volumes/onlyoffice/logs:/var/log/onlyoffice
+      - ./volumes/onlyoffice/data:/var/www/onlyoffice/Data
+      - ./volumes/onlyoffice/lib:/var/lib/onlyoffice
+      - ./volumes/onlyoffice/db:/var/lib/postgresql

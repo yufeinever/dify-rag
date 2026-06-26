@@ -1,5 +1,7 @@
+import hashlib
 import json
 import logging
+import os
 from argparse import ArgumentTypeError
 from collections.abc import Sequence
 from contextlib import ExitStack
@@ -7,6 +9,7 @@ from datetime import datetime
 from typing import Any, Literal, cast
 from uuid import UUID
 
+import jwt
 import sqlalchemy as sa
 from flask import request, send_file
 from flask_restx import Resource, marshal
@@ -15,6 +18,7 @@ from sqlalchemy import asc, desc, func, select
 from werkzeug.exceptions import Forbidden, NotFound
 
 import services
+from configs import dify_config
 from controllers.common.controller_schemas import DocumentBatchDownloadZipPayload
 from controllers.common.fields import SimpleResultMessageResponse, SimpleResultResponse, UrlResponse
 from controllers.common.schema import register_response_schema_models, register_schema_models
@@ -72,6 +76,67 @@ from ..wraps import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_ONLYOFFICE_DOCUMENT_TYPES = {
+    "doc": "word",
+    "docm": "word",
+    "docx": "word",
+    "dot": "word",
+    "dotm": "word",
+    "dotx": "word",
+    "epub": "word",
+    "fb2": "word",
+    "fodt": "word",
+    "htm": "word",
+    "html": "word",
+    "mht": "word",
+    "mhtml": "word",
+    "odt": "word",
+    "ott": "word",
+    "pages": "word",
+    "rtf": "word",
+    "stw": "word",
+    "sxw": "word",
+    "txt": "word",
+    "wps": "word",
+    "wpt": "word",
+    "xml": "word",
+    "csv": "cell",
+    "et": "cell",
+    "ett": "cell",
+    "fods": "cell",
+    "numbers": "cell",
+    "ods": "cell",
+    "ots": "cell",
+    "sxc": "cell",
+    "xls": "cell",
+    "xlsb": "cell",
+    "xlsm": "cell",
+    "xlsx": "cell",
+    "xlt": "cell",
+    "xltm": "cell",
+    "xltx": "cell",
+    "fodp": "slide",
+    "key": "slide",
+    "odp": "slide",
+    "otp": "slide",
+    "pot": "slide",
+    "potm": "slide",
+    "potx": "slide",
+    "pps": "slide",
+    "ppsm": "slide",
+    "ppsx": "slide",
+    "ppt": "slide",
+    "pptm": "slide",
+    "pptx": "slide",
+    "sxi": "slide",
+    "pdf": "pdf",
+}
+
+
+def _onlyoffice_document_type(file_type: str) -> str | None:
+    return _ONLYOFFICE_DOCUMENT_TYPES.get(file_type.lower().lstrip("."))
 
 
 def _normalize_enum(value: Any) -> Any:
@@ -1000,6 +1065,87 @@ class DocumentPreviewApi(DocumentResource):
         # Reuse the shared permission/tenant checks implemented in DocumentResource.
         document = self.get_document(str(dataset_id), str(document_id))
         return {"url": DocumentService.get_document_preview_url(document)}
+
+
+@console_ns.route("/datasets/<uuid:dataset_id>/documents/<uuid:document_id>/office-preview")
+class DocumentOfficePreviewApi(DocumentResource):
+    """Return a signed ONLYOFFICE viewer config for a dataset document's original uploaded file."""
+
+    @console_ns.doc("get_dataset_document_office_preview_config")
+    @console_ns.doc(description="Get a signed ONLYOFFICE viewer config for a dataset document's original uploaded file")
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @cloud_edition_billing_rate_limit_check("knowledge")
+    def get(self, dataset_id: str, document_id: str) -> dict[str, Any]:
+        current_user, _ = current_account_with_tenant()
+        document = self.get_document(str(dataset_id), str(document_id))
+        upload_file = DocumentService._get_upload_file_for_upload_file_document(document)
+        file_type = (upload_file.extension or upload_file.name.rsplit(".", 1)[-1]).lower().lstrip(".")
+        preview_url = DocumentService.get_document_preview_url(document)
+        download_url = DocumentService.get_document_download_url(document)
+        document_type = _onlyoffice_document_type(file_type)
+
+        if not document_type:
+            return {
+                "mode": "native",
+                "file_type": file_type,
+                "name": upload_file.name,
+                "preview_url": preview_url,
+                "download_url": download_url,
+            }
+
+        config = {
+            "document": {
+                "fileType": file_type,
+                "key": hashlib.sha256(
+                    f"{document.id}:{upload_file.id}:{upload_file.created_at.isoformat()}".encode()
+                ).hexdigest(),
+                "permissions": {
+                    "comment": False,
+                    "copy": True,
+                    "download": True,
+                    "edit": False,
+                    "print": True,
+                },
+                "title": upload_file.name,
+                "url": preview_url,
+            },
+            "documentType": document_type,
+            "editorConfig": {
+                "callbackUrl": "",
+                "customization": {
+                    "autosave": False,
+                    "compactHeader": True,
+                    "compactToolbar": True,
+                    "forcesave": False,
+                    "help": False,
+                    "hideRightMenu": True,
+                },
+                "lang": "zh-CN",
+                "mode": "view",
+                "user": {
+                    "id": current_user.id,
+                    "name": current_user.name or current_user.email or "Dify User",
+                },
+            },
+            "height": "100%",
+            "type": "desktop",
+            "width": "100%",
+        }
+        jwt_secret = os.getenv("ONLYOFFICE_JWT_SECRET") or dify_config.SECRET_KEY
+        if jwt_secret:
+            config["token"] = jwt.encode(config, jwt_secret, algorithm="HS256")
+
+        return {
+            "mode": "onlyoffice",
+            "document_server_url": os.getenv("ONLYOFFICE_DOCUMENT_SERVER_PUBLIC_URL", ""),
+            "file_type": file_type,
+            "name": upload_file.name,
+            "preview_url": preview_url,
+            "download_url": download_url,
+            "config": config,
+        }
 
 
 @console_ns.route("/datasets/<uuid:dataset_id>/documents/download-zip")

@@ -17,7 +17,7 @@ import Loading from '@/app/components/base/loading'
 import useDocumentTitle from '@/hooks/use-document-title'
 import { DataSourceType } from '@/models/datasets'
 import Link from '@/next/link'
-import { fetchDatasets, fetchDocumentDownloadUrl, fetchDocumentPreviewUrl, fetchDocuments } from '@/service/datasets'
+import { fetchDatasets, fetchDocumentDownloadUrl, fetchDocuments } from '@/service/datasets'
 import { asyncRunSafe } from '@/utils'
 import { downloadUrl } from '@/utils/download'
 
@@ -143,7 +143,6 @@ const DocumentManagement = () => {
   const [keyword, setKeyword] = useState('')
   const [datasetId, setDatasetId] = useState('all')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
-  const [previewingId, setPreviewingId] = useState<string | null>(null)
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['document-management', 'documents'],
@@ -185,23 +184,15 @@ const DocumentManagement = () => {
     downloadUrl({ url: response.url, fileName: doc.name })
   }
 
-  const handlePreview = async (doc: ManagedDocument) => {
-    if (!isDownloadable(doc) || previewingId)
+  const handlePreview = (doc: ManagedDocument) => {
+    if (!isDownloadable(doc))
       return
 
-    setPreviewingId(doc.id)
-    const [error, response] = await asyncRunSafe(fetchDocumentPreviewUrl({
+    const params = new URLSearchParams({
       datasetId: doc.dataset.id,
       documentId: doc.id,
-    }))
-    setPreviewingId(null)
-
-    if (error || !response?.url) {
-      toast.error('原文预览链接生成失败')
-      return
-    }
-
-    window.open(response.url, '_blank', 'noopener,noreferrer')
+    })
+    window.open(`/document-management/preview?${params.toString()}`, '_blank', 'noopener,noreferrer')
   }
 
   const totalDocuments = data?.documents.length ?? 0
@@ -385,11 +376,11 @@ const DocumentManagement = () => {
                                 </Link>
                                 <button
                                   type="button"
-                                  disabled={!isDownloadable(doc) || previewingId === doc.id}
+                                  disabled={!isDownloadable(doc)}
                                   className="inline-flex h-8 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
                                   onClick={() => handlePreview(doc)}
                                 >
-                                  {previewingId === doc.id ? '打开中' : '预览原文'}
+                                  预览原文
                                   <RiArrowRightLine className="size-3.5" />
                                 </button>
                                 <button
@@ -418,7 +409,7 @@ const DocumentManagement = () => {
               {' '}
               份
             </span>
-            <span>“分段”查看入库后的 Chunk；“预览原文”会尝试在浏览器打开原始上传文件。</span>
+            <span>“分段”查看入库后的 Chunk；“预览原文”使用 OnlyOffice/PDF 原生能力打开原始上传文件。</span>
           </div>
         </main>
       </div>

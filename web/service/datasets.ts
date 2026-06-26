@@ -41,6 +41,16 @@ export type DocumentDownloadZipRequest = {
   documentIds: string[]
 }
 
+export type DocumentOfficePreviewConfigResponse = {
+  mode: 'onlyoffice' | 'native'
+  document_server_url?: string
+  file_type: string
+  name: string
+  preview_url: string
+  download_url: string
+  config?: Record<string, unknown>
+}
+
 type BatchReq = {
   datasetId: string
   batchId: string
@@ -167,6 +177,10 @@ export const fetchDocumentPreviewUrl = ({ datasetId, documentId }: CommonDocReq)
   return get<DocumentDownloadResponse>(`/datasets/${datasetId}/documents/${documentId}/preview`, {})
 }
 
+export const fetchDocumentOfficePreviewConfig = ({ datasetId, documentId }: CommonDocReq): Promise<DocumentOfficePreviewConfigResponse> => {
+  return get<DocumentOfficePreviewConfigResponse>(`/datasets/${datasetId}/documents/${documentId}/office-preview`, {})
+}
+
 export const downloadDocumentsZip = ({ datasetId, documentIds }: DocumentDownloadZipRequest): Promise<Blob> => {
   return post<Blob>(`/datasets/${datasetId}/documents/download-zip`, {
     body: {
@@ -175,7 +189,7 @@ export const downloadDocumentsZip = ({ datasetId, documentIds }: DocumentDownloa
   })
 }
 
-export const modifyDocMetadata = ({ datasetId, documentId, body }: CommonDocReq & { body: { doc_type: string, doc_metadata: Record<string, any> } }): Promise<CommonResponse> => {
+export const modifyDocMetadata = ({ datasetId, documentId, body }: CommonDocReq & { body: { doc_type: string, doc_metadata: Record<string, unknown> } }): Promise<CommonResponse> => {
   return put<CommonResponse>(`/datasets/${datasetId}/documents/${documentId}/metadata`, { body })
 }
 
@@ -192,15 +206,15 @@ export const fetchNotionPagePreview = ({ pageID, pageType, credentialID }: { pag
   })
 }
 
-export const delApikey = ({ url, params }: { url: string, params: Record<string, any> }): Promise<CommonResponse> => {
+export const delApikey = ({ url, params }: { url: string, params: Record<string, unknown> }): Promise<CommonResponse> => {
   return del<CommonResponse>(url, params)
 }
 
-export const createApikey = ({ url, body }: { url: string, body: Record<string, any> }): Promise<CreateApiKeyResponse> => {
+export const createApikey = ({ url, body }: { url: string, body: Record<string, unknown> }): Promise<CreateApiKeyResponse> => {
   return post<CreateApiKeyResponse>(url, body)
 }
 
-export const createFirecrawlTask = (body: Record<string, any>): Promise<CommonResponse> => {
+export const createFirecrawlTask = (body: Record<string, unknown>): Promise<CommonResponse> => {
   return post<CommonResponse>('website/crawl', {
     body: {
       ...body,
@@ -219,7 +233,7 @@ export const checkFirecrawlTaskStatus = (jobId: string): Promise<CommonResponse>
   })
 }
 
-export const createJinaReaderTask = (body: Record<string, any>): Promise<CommonResponse> => {
+export const createJinaReaderTask = (body: Record<string, unknown>): Promise<CommonResponse> => {
   return post<CommonResponse>('website/crawl', {
     body: {
       ...body,
@@ -238,7 +252,7 @@ export const checkJinaReaderTaskStatus = (jobId: string): Promise<CommonResponse
   })
 }
 
-export const createWatercrawlTask = (body: Record<string, any>): Promise<CommonResponse> => {
+export const createWatercrawlTask = (body: Record<string, unknown>): Promise<CommonResponse> => {
   return post<CommonResponse>('website/crawl', {
     body: {
       ...body,
