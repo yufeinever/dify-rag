@@ -301,7 +301,8 @@ const ChatWrapper = () => {
     allInputsHidden,
   ])
 
-  const answerIcon = (appData?.site && appData.site.use_icon_as_answer_icon)
+  const shouldUseAppIconAsAnswerIcon = !!appData?.site && (appData.site.use_icon_as_answer_icon || (appData.site.icon_type === 'image' && !!appData.site.icon_url))
+  const answerIcon = shouldUseAppIconAsAnswerIcon
     ? (
         <AnswerIcon
           iconType={appData.site.icon_type}

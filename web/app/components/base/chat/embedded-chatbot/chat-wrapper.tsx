@@ -286,18 +286,19 @@ const ChatWrapper = () => {
     )
   }, [chatList, respondingState, currentConversationId, collapsed, inputsForms.length, allInputsHidden, appData?.site, isMobile])
 
+  const shouldUseAppIconAsAnswerIcon = !!appData?.site && (appData.site.use_icon_as_answer_icon || (appData.site.icon_type === 'image' && !!appData.site.icon_url))
   const answerIcon = isDify()
     ? <LogoAvatar className="relative shrink-0" />
-    : (appData?.site && appData.site.use_icon_as_answer_icon)
-        ? (
-            <AnswerIcon
-              iconType={appData.site.icon_type}
-              icon={appData.site.icon}
-              background={appData.site.icon_background}
-              imageUrl={appData.site.icon_url}
-            />
-          )
-        : null
+    : shouldUseAppIconAsAnswerIcon
+      ? (
+          <AnswerIcon
+            iconType={appData.site.icon_type}
+            icon={appData.site.icon}
+            background={appData.site.icon_background}
+            imageUrl={appData.site.icon_url}
+          />
+        )
+      : null
 
   return (
     <Chat
