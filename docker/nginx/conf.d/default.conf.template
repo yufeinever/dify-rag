@@ -46,6 +46,12 @@ server {
       include proxy.conf;
     }
 
+    location ~ ^/[0-9]+\.[0-9]+\.[0-9]+-[^/]+/ {
+      proxy_pass http://onlyoffice;
+      include proxy.conf;
+      proxy_set_header X-Forwarded-Host $host;
+    }
+
     location /web-apps/ {
       proxy_pass http://onlyoffice;
       include proxy.conf;
