@@ -1,3 +1,4 @@
+import mimetypes
 from urllib.parse import quote
 from uuid import UUID
 
@@ -27,6 +28,21 @@ class FilePreviewQuery(FileSignatureQuery):
 
 
 register_schema_models(files_ns, FileSignatureQuery, FilePreviewQuery)
+
+
+def _file_preview_mime_type(upload_file) -> str:
+    guessed_type, _ = mimetypes.guess_type(upload_file.name or "")
+    mime_type = (guessed_type or upload_file.mime_type or "").strip().lower()
+    if not mime_type or mime_type == "application/octet-stream":
+        mime_type = {
+            "csv": "text/csv",
+            "json": "application/json",
+            "md": "text/markdown",
+            "pdf": "application/pdf",
+            "txt": "text/plain",
+            "xml": "application/xml",
+        }.get((upload_file.extension or "").lower(), "application/octet-stream")
+    return mime_type
 
 
 @files_ns.route("/<uuid:file_id>/image-preview")
@@ -107,14 +123,15 @@ class FilePreviewApi(Resource):
         except services.errors.file.UnsupportedFileTypeError:
             raise UnsupportedFileTypeError()
 
+        response_mime_type = "application/octet-stream" if args.as_attachment else _file_preview_mime_type(upload_file)
         response = Response(
             generator,
-            mimetype=upload_file.mime_type,
+            mimetype=response_mime_type,
             direct_passthrough=True,
             headers={},
         )
         # add Accept-Ranges header for audio/video files
-        if upload_file.mime_type in [
+        if response_mime_type in [
             "audio/mpeg",
             "audio/wav",
             "audio/mp4",
@@ -125,6 +142,7 @@ class FilePreviewApi(Resource):
             "video/webm",
             "video/quicktime",
             "audio/x-m4a",
+            "application/pdf",
         ]:
             response.headers["Accept-Ranges"] = "bytes"
         if upload_file.size > 0:
@@ -132,11 +150,13 @@ class FilePreviewApi(Resource):
         if args.as_attachment:
             encoded_filename = quote(upload_file.name)
             response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
-        response.headers["Content-Type"] = "application/octet-stream"
+        elif upload_file.name:
+            encoded_filename = quote(upload_file.name)
+            response.headers["Content-Disposition"] = f"inline; filename*=UTF-8''{encoded_filename}"
 
         enforce_download_for_html(
             response,
-            mime_type=upload_file.mime_type,
+            mime_type=response_mime_type,
             filename=upload_file.name,
             extension=upload_file.extension,
         )
