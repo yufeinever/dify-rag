@@ -85,24 +85,15 @@ _ONLYOFFICE_DOCUMENT_TYPES = {
     "dot": "word",
     "dotm": "word",
     "dotx": "word",
-    "epub": "word",
-    "fb2": "word",
     "fodt": "word",
-    "htm": "word",
-    "html": "word",
-    "mht": "word",
-    "mhtml": "word",
     "odt": "word",
     "ott": "word",
     "pages": "word",
     "rtf": "word",
     "stw": "word",
     "sxw": "word",
-    "txt": "word",
     "wps": "word",
     "wpt": "word",
-    "xml": "word",
-    "csv": "cell",
     "et": "cell",
     "ett": "cell",
     "fods": "cell",
@@ -134,8 +125,29 @@ _ONLYOFFICE_DOCUMENT_TYPES = {
 }
 
 
+_NATIVE_PREVIEW_TYPES = {
+    "bmp",
+    "csv",
+    "gif",
+    "jpeg",
+    "jpg",
+    "json",
+    "log",
+    "md",
+    "pdf",
+    "png",
+    "svg",
+    "txt",
+    "webp",
+    "xml",
+}
+
+
 def _onlyoffice_document_type(file_type: str) -> str | None:
-    return _ONLYOFFICE_DOCUMENT_TYPES.get(file_type.lower().lstrip("."))
+    normalized_file_type = file_type.lower().lstrip(".")
+    if normalized_file_type in _NATIVE_PREVIEW_TYPES:
+        return None
+    return _ONLYOFFICE_DOCUMENT_TYPES.get(normalized_file_type)
 
 
 def _normalize_enum(value: Any) -> Any:
