@@ -9,6 +9,7 @@ import type {
   createDocumentResponse,
   DataSet,
   DataSetListResponse,
+  DocumentListResponse,
   ExternalAPIDeleteResponse,
   ExternalAPIItem,
   ExternalAPIUsage,
@@ -124,6 +125,24 @@ export const fetchIndexingStatus = ({ datasetId, documentId }: CommonDocReq): Pr
 
 export const fetchIndexingStatusBatch = ({ datasetId, batchId }: BatchReq): Promise<IndexingStatusBatchResponse> => {
   return get<IndexingStatusBatchResponse>(`/datasets/${datasetId}/batch/${batchId}/indexing-status`, {})
+}
+
+export const fetchDocuments = ({
+  datasetId,
+  query,
+}: {
+  datasetId: string
+  query: {
+    keyword?: string
+    page: number
+    limit: number
+    sort?: SortType
+    status?: string
+  }
+}): Promise<DocumentListResponse> => {
+  return get<DocumentListResponse>(`/datasets/${datasetId}/documents`, {
+    params: query,
+  })
 }
 
 export const renameDocumentName = ({ datasetId, documentId, name }: CommonDocReq & { name: string }): Promise<CommonResponse> => {

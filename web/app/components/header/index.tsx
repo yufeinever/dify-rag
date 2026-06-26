@@ -16,6 +16,7 @@ import { Plan } from '../billing/type'
 import AccountDropdown from './account-dropdown'
 import AppNav from './app-nav'
 import DatasetNav from './dataset-nav'
+import DocumentManagementNav from './document-management-nav'
 import EnvNav from './env-nav'
 import ExploreNav from './explore-nav'
 import LicenseNav from './license-env'
@@ -92,6 +93,7 @@ const Header = () => {
           {!isCurrentWorkspaceDatasetOperator && <AppNav />}
           {canShowDatasetNav && <DatasetNav />}
           {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
+          {canShowDatasetNav && <DocumentManagementNav className={navClassName} />}
         </div>
       </div>
     )
@@ -112,6 +114,7 @@ const Header = () => {
         {!isCurrentWorkspaceDatasetOperator && <AppNav />}
         {canShowDatasetNav && <DatasetNav />}
         {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
+        {canShowDatasetNav && <DocumentManagementNav className={navClassName} />}
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-end pr-3 pl-2 min-[1280px]:pl-3">
         <EnvNav />
