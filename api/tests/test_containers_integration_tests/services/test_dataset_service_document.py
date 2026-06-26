@@ -268,6 +268,29 @@ def test_get_upload_file_id_for_upload_file_document_returns_string_id(db_sessio
     assert result == "99"
 
 
+def test_get_upload_file_id_for_local_file_document_returns_related_id(db_session_with_containers: Session):
+    dataset = DocumentServiceIntegrationFactory.create_dataset(db_session_with_containers)
+    upload_file = DocumentServiceIntegrationFactory.create_upload_file(
+        db_session_with_containers,
+        tenant_id=dataset.tenant_id,
+        created_by=dataset.created_by,
+    )
+    document = DocumentServiceIntegrationFactory.create_document(
+        db_session_with_containers,
+        dataset=dataset,
+        data_source_type=DataSourceType.LOCAL_FILE,
+        data_source_info={"related_id": upload_file.id, "transfer_method": "local_file"},
+    )
+
+    result = DocumentService._get_upload_file_id_for_upload_file_document(
+        document,
+        invalid_source_message="invalid source",
+        missing_file_message="missing file",
+    )
+
+    assert result == str(upload_file.id)
+
+
 def test_get_upload_file_for_upload_file_document_raises_when_file_service_returns_nothing(
     db_session_with_containers: Session,
 ):

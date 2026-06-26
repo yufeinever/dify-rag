@@ -66,11 +66,12 @@ const statusClassName = (status: string) => {
 }
 
 const isDownloadable = (doc: ManagedDocument) => {
-  if (doc.data_source_type !== DataSourceType.FILE)
+  if (![DataSourceType.FILE, DataSourceType.LOCAL_FILE].includes(doc.data_source_type as DataSourceType))
     return false
 
   const sourceInfo = doc.data_source_info
-  return !!sourceInfo && typeof sourceInfo === 'object' && 'upload_file_id' in sourceInfo
+  return !!sourceInfo && typeof sourceInfo === 'object'
+    && ('upload_file_id' in sourceInfo || 'related_id' in sourceInfo)
 }
 
 const fetchAllDatasets = async () => {

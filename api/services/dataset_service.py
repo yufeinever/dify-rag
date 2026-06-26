@@ -1744,12 +1744,16 @@ class DocumentService:
     ) -> str:
         """
         Normalize and validate `Document -> UploadFile` linkage for download flows.
+
+        Classic dataset uploads store the upload file as `upload_file_id` on an
+        `upload_file` document. RAG pipeline local-file sources store the same
+        UploadFile id as `related_id` on a `local_file` document.
         """
-        if document.data_source_type != DataSourceType.UPLOAD_FILE:
+        if document.data_source_type not in (DataSourceType.UPLOAD_FILE, DataSourceType.LOCAL_FILE):
             raise NotFound(invalid_source_message)
 
         data_source_info: dict[str, Any] = document.data_source_info_dict or {}
-        upload_file_id: str | None = data_source_info.get("upload_file_id")
+        upload_file_id: str | None = data_source_info.get("upload_file_id") or data_source_info.get("related_id")
         if not upload_file_id:
             raise NotFound(missing_file_message)
 

@@ -12,6 +12,7 @@ import { ExternalKnowledgeBase, General, ParentChild, Qa } from '@/app/component
 export enum DataSourceType {
   FILE = 'upload_file',
   NOTION = 'notion_import',
+  LOCAL_FILE = 'local_file',
   WEB = 'website_crawl',
 }
 
