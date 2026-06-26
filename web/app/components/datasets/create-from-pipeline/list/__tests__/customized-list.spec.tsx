@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CustomizedList from '../customized-list'
 
-// Mock TemplateCard
 vi.mock('../template-card', () => ({
   default: ({ type, pipeline }: { type: string, pipeline: { name: string } }) => (
     <div data-testid="template-card" data-type={type}>
@@ -12,20 +11,23 @@ vi.mock('../template-card', () => ({
   ),
 }))
 
-// Mock usePipelineTemplateList hook
+let mockLocale = 'zh-Hans'
+
+vi.mock('@/context/i18n', () => ({
+  useLocale: () => mockLocale,
+}))
+
 const mockUsePipelineTemplateList = vi.fn()
 vi.mock('@/service/use-pipeline', () => ({
   usePipelineTemplateList: (...args: unknown[]) => mockUsePipelineTemplateList(...args),
 }))
 
-// CustomizedList Component Tests
-
 describe('CustomizedList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockLocale = 'zh-Hans'
   })
 
-  // Loading State Tests
   describe('Loading State', () => {
     it('should return null when loading', () => {
       mockUsePipelineTemplateList.mockReturnValue({
@@ -38,7 +40,6 @@ describe('CustomizedList', () => {
     })
   })
 
-  // Empty State Tests
   describe('Empty State', () => {
     it('should return null when list is empty', () => {
       mockUsePipelineTemplateList.mockReturnValue({
@@ -61,7 +62,6 @@ describe('CustomizedList', () => {
     })
   })
 
-  // Rendering with Data Tests
   describe('Rendering with Data', () => {
     it('should render title when list has items', () => {
       mockUsePipelineTemplateList.mockReturnValue({
@@ -108,16 +108,26 @@ describe('CustomizedList', () => {
     })
   })
 
-  // API Call Tests
   describe('API Call', () => {
-    it('should call usePipelineTemplateList with type customized', () => {
+    it('should call usePipelineTemplateList with current language', () => {
       mockUsePipelineTemplateList.mockReturnValue({
         data: null,
         isLoading: true,
       })
 
       render(<CustomizedList />)
-      expect(mockUsePipelineTemplateList).toHaveBeenCalledWith({ type: 'customized' })
+      expect(mockUsePipelineTemplateList).toHaveBeenCalledWith({ type: 'customized', language: 'zh-Hans' })
+    })
+
+    it('should fallback to en-US for unsupported locales', () => {
+      mockLocale = 'fr-FR'
+      mockUsePipelineTemplateList.mockReturnValue({
+        data: null,
+        isLoading: true,
+      })
+
+      render(<CustomizedList />)
+      expect(mockUsePipelineTemplateList).toHaveBeenCalledWith({ type: 'customized', language: 'en-US' })
     })
   })
 

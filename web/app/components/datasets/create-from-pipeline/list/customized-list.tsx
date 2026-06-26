@@ -1,10 +1,19 @@
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocale } from '@/context/i18n'
+import { LanguagesSupported } from '@/i18n-config/language'
 import { usePipelineTemplateList } from '@/service/use-pipeline'
 import TemplateCard from './template-card'
 
 const CustomizedList = () => {
   const { t } = useTranslation()
-  const { data: pipelineList, isLoading } = usePipelineTemplateList({ type: 'customized' })
+  const locale = useLocale()
+  const language = useMemo(() => {
+    if (['zh-Hans', 'ja-JP'].includes(locale))
+      return locale
+    return LanguagesSupported[0]
+  }, [locale])
+  const { data: pipelineList, isLoading } = usePipelineTemplateList({ type: 'customized', language })
   const list = pipelineList?.pipeline_templates || []
 
   if (isLoading || list.length === 0)
