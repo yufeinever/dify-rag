@@ -183,13 +183,6 @@ const NormalForm = () => {
               <div className="mx-auto w-full">
                 <div className="mb-4 flex items-center justify-between rounded-lg bg-[#121722]/38 px-3 py-2">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center">
-                      <img
-                        src="/custom-assets/mmb-logo/logo-embedded-chat-avatar.png"
-                        className="size-full object-contain drop-shadow-[0_5px_12px_rgba(0,0,0,0.18)]"
-                        alt="MMB"
-                      />
-                    </div>
                     <div className="min-w-0">
                       <div className="text-[12px] font-medium text-white/42">访问入口</div>
                       <div className="mt-0.5 truncate text-[13px] font-semibold text-white">MMBAI 身份中心</div>

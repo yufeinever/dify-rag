@@ -32,13 +32,11 @@ export default function SignInLayout({ children }: any) {
             <div className="absolute inset-y-0 right-0 w-px bg-white/10" />
 
             <div className="absolute top-6 left-6 flex items-center gap-3 sm:top-9 sm:left-10 lg:left-14">
-              <div className="flex size-12 items-center justify-center rounded-md border border-[#d6a54d]/28 bg-[#12151d]/82 p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur">
-                <img
-                  src="/custom-assets/mmb-logo/logo-embedded-chat-avatar.png"
-                  className="size-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.26)]"
-                  alt="MMB"
-                />
-              </div>
+              <img
+                src="/custom-assets/mmb-logo/logo-embedded-chat-avatar.png"
+                className="size-10 object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.26)]"
+                alt="MMB"
+              />
               <div className="hidden text-[13px] font-medium text-white/70 sm:block">MMBAI 企业 AI 中台</div>
             </div>
 
