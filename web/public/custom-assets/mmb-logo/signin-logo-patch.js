@@ -2,7 +2,6 @@
   if (!location.pathname.startsWith('/signin')) return;
 
   const LOGO = '/custom-assets/mmb-logo/logo-embedded-chat-avatar.png';
-  const AVATAR = '/custom-assets/mmb-logo/logo-embedded-chat-avatar.png';
 
   const visible = (el) => {
     const rect = el.getBoundingClientRect();
@@ -188,48 +187,16 @@
     const entryCard = findEntryCard() || info;
     if (entryCard) {
       styleEntryCard(entryCard);
-      const legacyIconWrap = entryCard.querySelector('img[src*="logo-embedded-chat-avatar"]')?.parentElement;
-      if (legacyIconWrap && legacyIconWrap !== entryCard)
-        styleEntryIconWrap(legacyIconWrap);
+      entryCard.querySelectorAll('[data-mmb-entry-logo], img[src*="logo-embedded-chat-avatar"]').forEach((el) => el.remove());
       entryCard.querySelectorAll('div').forEach((el) => {
         if ((el.textContent || '').trim() === 'mmb 企业身份中心') el.textContent = 'MMBAI 身份中心';
       });
     }
 
-    if (entryTitle && info && !entryCard?.querySelector('img[src*="logo-embedded-chat-avatar"]')) {
-      let textWrap = info.querySelector('[data-mmb-entry-text]');
-      if (!textWrap) {
-        textWrap = document.createElement('div');
-        textWrap.setAttribute('data-mmb-entry-text', 'true');
-        textWrap.style.minWidth = '0';
-        while (info.firstChild) textWrap.appendChild(info.firstChild);
-      }
-
-      const avatar = document.createElement('img');
-      avatar.src = AVATAR;
-      avatar.alt = 'MMB';
-      avatar.setAttribute('data-mmb-entry-logo', 'true');
-      avatar.decoding = 'async';
-      avatar.style.width = '40px';
-      avatar.style.height = '40px';
-      avatar.style.flex = '0 0 40px';
-      avatar.style.objectFit = 'contain';
-      avatar.style.borderRadius = '0';
-      avatar.style.background = 'transparent';
-      avatar.style.border = '0';
-      avatar.style.padding = '0';
-      avatar.style.boxShadow = 'none';
-      avatar.style.filter = 'drop-shadow(0 5px 12px rgba(0,0,0,.18))';
-
+    if (entryTitle && info) {
       info.dataset.mmbEntryBlock = 'true';
       styleEntryCard(info);
-      info.style.display = 'flex';
-      info.style.alignItems = 'center';
-      info.style.gap = '10px';
-      info.style.minWidth = '0';
-      info.textContent = '';
-      info.appendChild(avatar);
-      info.appendChild(textWrap);
+      info.querySelectorAll('[data-mmb-entry-logo], img[src*="logo-embedded-chat-avatar"]').forEach((el) => el.remove());
     }
   };
 
