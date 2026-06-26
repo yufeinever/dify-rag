@@ -131,7 +131,6 @@ _ONLYOFFICE_DOCUMENT_TYPES = {
     "pptm": "slide",
     "pptx": "slide",
     "sxi": "slide",
-    "pdf": "pdf",
 }
 
 
