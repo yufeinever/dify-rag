@@ -347,7 +347,7 @@ export default function RbacPreviewConsole() {
         <aside className="bg-background-default px-5 py-5 max-2xl:col-span-2 max-xl:col-span-1">
           {activeTab === 'groups' && <GroupEditor form={groupForm} members={members} saving={saving} onChange={setGroupForm} onSave={saveGroup} onReset={() => setGroupForm(emptyGroup)} />}
           {activeTab === 'templates' && <TemplateEditor form={templateForm} groups={groups} apps={apps} exploreApps={exploreApps} datasets={datasets} effectiveMemberCount={templateEffectiveMembers} saving={saving} onChange={setTemplateForm} onSave={saveTemplate} onReset={() => setTemplateForm(emptyTemplate)} />}
-          {activeTab === 'resources' && <ResourceEditor selectedResource={selectedResource} members={members} memberIds={resourceMemberIds} saving={saving} onToggleMember={id => setResourceMemberIds(current => toggle(current, id))} onSave={saveResourceMembers} />}
+          {activeTab === 'resources' && <ResourceEditor selectedResource={selectedResource} members={members} memberIds={resourceMemberIds} saving={saving} onToggleMember={id => setResourceMemberIds(current => toggle(current, id))} onChangeMembers={setResourceMemberIds} onSave={saveResourceMembers} />}
           {activeTab !== 'groups' && activeTab !== 'templates' && activeTab !== 'resources' && <ContextPanel activeTab={activeTab} groups={groups.length} templates={templates.length} workspaces={workspaces.length} />}
         </aside>
       </div>
@@ -614,7 +614,7 @@ function GroupEditor({ form, members, saving, onChange, onSave, onReset }: { for
       <div className="space-y-4">
         <LabeledInput label="名称" value={form.name} placeholder="例如：A 部门" onChange={v => onChange({ ...form, name: v })} />
         <LabeledTextarea label="说明" value={form.description ?? ''} placeholder="记录部门、岗位或审批口径" onChange={v => onChange({ ...form, description: v })} />
-        <MemberPicker members={members} selectedIds={form.member_ids} onToggle={id => onChange({ ...form, member_ids: toggle(form.member_ids, id) })} />
+        <MemberPicker members={members} selectedIds={form.member_ids} onToggle={id => onChange({ ...form, member_ids: toggle(form.member_ids, id) })} onChange={memberIds => onChange({ ...form, member_ids: memberIds })} />
         <EditorActions saving={saving} saveText="保存用户组" onSave={onSave} onReset={onReset} />
       </div>
     </div>
@@ -633,22 +633,22 @@ function TemplateEditor({ form, groups, apps, exploreApps, datasets, effectiveMe
       <div className="space-y-4">
         <LabeledInput label="名称" value={form.name} placeholder="例如：A 部门通用权限" onChange={v => onChange({ ...form, name: v })} />
         <LabeledTextarea label="说明" value={form.description ?? ''} placeholder="记录模板适用范围" onChange={v => onChange({ ...form, description: v })} />
-        <PickerBlock title="适用用户组" items={groups.map(g => ({ id: g.id, title: g.name, subtitle: `${g.member_count} 个成员` }))} selectedIds={form.group_ids} onToggle={id => onChange({ ...form, group_ids: toggle(form.group_ids, id) })} />
-        <PickerBlock title="探索应用" items={exploreApps.map(item => ({ id: item.app.id, title: item.app.name, subtitle: appModeLabelMap[item.app.mode] || item.app.mode }))} selectedIds={form.explore_app_ids} onToggle={id => onChange({ ...form, explore_app_ids: toggle(form.explore_app_ids, id) })} />
-        <PickerBlock title="工作室应用" items={apps.map(app => ({ id: app.id, title: app.name, subtitle: appModeLabelMap[app.mode] || app.mode }))} selectedIds={form.app_ids} onToggle={id => onChange({ ...form, app_ids: toggle(form.app_ids, id) })} />
-        <PickerBlock title="知识库" items={datasets.map(dataset => ({ id: dataset.id, title: dataset.name, subtitle: datasetPermissionLabelMap[dataset.permission] || dataset.permission }))} selectedIds={form.dataset_ids} onToggle={id => onChange({ ...form, dataset_ids: toggle(form.dataset_ids, id) })} />
+        <PickerBlock title="适用用户组" items={groups.map(g => ({ id: g.id, title: g.name, subtitle: `${g.member_count} 个成员` }))} selectedIds={form.group_ids} onToggle={id => onChange({ ...form, group_ids: toggle(form.group_ids, id) })} onChange={groupIds => onChange({ ...form, group_ids: groupIds })} />
+        <PickerBlock title="探索应用" items={exploreApps.map(item => ({ id: item.app.id, title: item.app.name, subtitle: appModeLabelMap[item.app.mode] || item.app.mode }))} selectedIds={form.explore_app_ids} onToggle={id => onChange({ ...form, explore_app_ids: toggle(form.explore_app_ids, id) })} onChange={exploreAppIds => onChange({ ...form, explore_app_ids: exploreAppIds })} />
+        <PickerBlock title="工作室应用" items={apps.map(app => ({ id: app.id, title: app.name, subtitle: appModeLabelMap[app.mode] || app.mode }))} selectedIds={form.app_ids} onToggle={id => onChange({ ...form, app_ids: toggle(form.app_ids, id) })} onChange={appIds => onChange({ ...form, app_ids: appIds })} />
+        <PickerBlock title="知识库" items={datasets.map(dataset => ({ id: dataset.id, title: dataset.name, subtitle: datasetPermissionLabelMap[dataset.permission] || dataset.permission }))} selectedIds={form.dataset_ids} onToggle={id => onChange({ ...form, dataset_ids: toggle(form.dataset_ids, id) })} onChange={datasetIds => onChange({ ...form, dataset_ids: datasetIds })} />
         <EditorActions saving={saving} saveText="保存模板" onSave={onSave} onReset={onReset} />
       </div>
     </div>
   )
 }
-function ResourceEditor({ selectedResource, members, memberIds, saving, onToggleMember, onSave }: { selectedResource: { kind: 'app' | 'explore' | 'dataset', id: string } | null, members: Member[], memberIds: string[], saving: boolean, onToggleMember: (id: string) => void, onSave: () => void }) {
+function ResourceEditor({ selectedResource, members, memberIds, saving, onToggleMember, onChangeMembers, onSave }: { selectedResource: { kind: 'app' | 'explore' | 'dataset', id: string } | null, members: Member[], memberIds: string[], saving: boolean, onToggleMember: (id: string) => void, onChangeMembers: (ids: string[]) => void, onSave: () => void }) {
   if (!selectedResource)
     return <ContextPanel activeTab="resources" groups={0} templates={0} workspaces={0} />
   return (
     <div>
       <PanelHeader title="资源直授权" action="用于排查和临时授权" />
-      <MemberPicker members={members} selectedIds={memberIds} onToggle={onToggleMember} />
+      <MemberPicker members={members} selectedIds={memberIds} onToggle={onToggleMember} onChange={onChangeMembers} />
       <button disabled={saving} onClick={() => void onSave()} className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-md bg-components-button-primary-bg text-sm font-medium text-components-button-primary-text disabled:opacity-60">保存直授权</button>
     </div>
   )
@@ -699,17 +699,21 @@ function LabeledTextarea({ label, value, placeholder, onChange }: { label: strin
     </label>
   )
 }
-function MemberPicker({ members, selectedIds, onToggle }: { members: Member[], selectedIds: string[], onToggle: (id: string) => void }) {
+function MemberPicker({ members, selectedIds, onToggle, onChange }: { members: Member[], selectedIds: string[], onToggle: (id: string) => void, onChange: (ids: string[]) => void }) {
   return (
     <PickerBlock
       title="成员"
       items={members.map(m => ({ id: m.id, title: m.name || m.email, subtitle: `${m.email} · ${roleLabelMap[m.role]}` }))}
       selectedIds={selectedIds}
       onToggle={onToggle}
+      onChange={onChange}
     />
   )
 }
-function PickerBlock({ title, items, selectedIds, onToggle }: { title: string, items: Array<{ id: string, title: string, subtitle: string }>, selectedIds: string[], onToggle: (id: string) => void }) {
+function PickerBlock({ title, items, selectedIds, onToggle, onChange }: { title: string, items: Array<{ id: string, title: string, subtitle: string }>, selectedIds: string[], onToggle: (id: string) => void, onChange: (ids: string[]) => void }) {
+  const itemIds = items.map(item => item.id)
+  const selectedSet = new Set(selectedIds)
+
   return (
     <details className="group rounded-md border border-divider-subtle bg-background-body">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden">
@@ -719,17 +723,35 @@ function PickerBlock({ title, items, selectedIds, onToggle }: { title: string, i
         </span>
         <span className="i-ri-arrow-down-s-line size-4 text-text-tertiary transition-transform group-open:rotate-180" />
       </summary>
-      <div className="max-h-64 overflow-y-auto border-t border-divider-subtle p-2">
-        {items.map(item => (
-          <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 hover:bg-background-default-hover">
-            <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => onToggle(item.id)} />
-            <span className="min-w-0">
-              <span className="block truncate text-sm">{item.title}</span>
-              <span className="block truncate text-xs text-text-tertiary">{item.subtitle}</span>
-            </span>
-          </label>
-        ))}
-        {items.length === 0 && <div className="px-2 py-8 text-center text-sm text-text-tertiary">暂无数据</div>}
+      <div className="border-t border-divider-subtle">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-divider-subtle px-3 py-2">
+          <span className="text-xs text-text-tertiary">
+            已选
+            {' '}
+            {selectedIds.length}
+            {' '}
+            /
+            {' '}
+            {items.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button type="button" disabled={items.length === 0} onClick={() => onChange(itemIds)} className="h-7 rounded-md border border-divider-deep px-2 text-xs font-medium text-text-secondary disabled:cursor-not-allowed disabled:opacity-50">全选</button>
+            <button type="button" disabled={items.length === 0} onClick={() => onChange(itemIds.filter(id => !selectedSet.has(id)))} className="h-7 rounded-md border border-divider-deep px-2 text-xs font-medium text-text-secondary disabled:cursor-not-allowed disabled:opacity-50">反选</button>
+            <button type="button" disabled={selectedIds.length === 0} onClick={() => onChange([])} className="h-7 rounded-md border border-divider-deep px-2 text-xs font-medium text-text-secondary disabled:cursor-not-allowed disabled:opacity-50">清空</button>
+          </div>
+        </div>
+        <div className="max-h-64 overflow-y-auto p-2">
+          {items.map(item => (
+            <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 hover:bg-background-default-hover">
+              <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => onToggle(item.id)} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm">{item.title}</span>
+                <span className="block truncate text-xs text-text-tertiary">{item.subtitle}</span>
+              </span>
+            </label>
+          ))}
+          {items.length === 0 && <div className="px-2 py-8 text-center text-sm text-text-tertiary">暂无数据</div>}
+        </div>
       </div>
     </details>
   )
