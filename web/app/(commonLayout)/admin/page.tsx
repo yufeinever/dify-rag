@@ -1,7 +1,5 @@
-import EnterpriseAdminConsole from './enterprise-admin-console'
+import RbacPreviewConsole from './rbac-preview/rbac-preview-console'
 
-const AdminPage = () => {
-  return <EnterpriseAdminConsole />
-}
+const AdminPage = () => <RbacPreviewConsole />
 
 export default AdminPage
