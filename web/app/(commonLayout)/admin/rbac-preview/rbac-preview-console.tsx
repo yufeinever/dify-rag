@@ -66,7 +66,8 @@ export default function RbacPreviewConsole() {
   const [resourceMemberIds, setResourceMemberIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [updatingUiPolicy, setUpdatingUiPolicy] = useState(false)
-  const [editorPanel, setEditorPanel] = useState<'group' | 'template' | null>(null)
+  const [editorPanel, setEditorPanel] = useState<'group' | 'template' | 'resource' | 'effective' | 'audit' | null>(null)
+  const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLogItem | null>(null)
   const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
   const hasAnyPermission = canAny ?? (() => false)
   const canEnterAdmin = hasAnyPermission(['workspace.member.view', 'workspace.member.manage']) || isCurrentWorkspaceManager
@@ -82,7 +83,7 @@ export default function RbacPreviewConsole() {
   const auditQuery = useQuery({ queryKey: ['rbac-preview', 'audit'], queryFn: fetchAdminAuditLogs, enabled: canEnterAdmin })
   const uiPolicyQuery = useQuery({ queryKey: ['rbac-preview', 'ui-policy'], queryFn: fetchWorkspaceUiPolicy, enabled: canEnterAdmin })
   const activeEffectiveMemberId = effectiveMemberId || members[0]?.id || ''
-  const effectiveQuery = useQuery({ queryKey: ['rbac-preview', 'effective', activeEffectiveMemberId], queryFn: () => fetchEffectivePermissions(activeEffectiveMemberId), enabled: canEnterAdmin && activeTab === 'effective' && !!activeEffectiveMemberId })
+  const effectiveQuery = useQuery({ queryKey: ['rbac-preview', 'effective', activeEffectiveMemberId], queryFn: () => fetchEffectivePermissions(activeEffectiveMemberId), enabled: canEnterAdmin && (activeTab === 'effective' || editorPanel === 'effective') && !!activeEffectiveMemberId })
   const apps = useMemo(() => appsQuery.data?.data ?? [], [appsQuery.data?.data])
   const exploreApps = useMemo(() => exploreQuery.data?.installed_apps ?? [], [exploreQuery.data?.installed_apps])
   const datasets = useMemo(() => datasetsQuery.data?.data ?? [], [datasetsQuery.data?.data])
@@ -317,10 +318,15 @@ export default function RbacPreviewConsole() {
         await datasetsQuery.refetch()
       }
       await Promise.all([effectiveQuery.refetch(), auditQuery.refetch()])
+      setEditorPanel(null)
       toast.success('资源直授权已保存')
     }
     finally { setSaving(false) }
   }
+
+  const selectedResourceMeta = selectedResource
+    ? resources.find(resource => resource.kind === selectedResource.kind && resource.id === selectedResource.id)
+    : null
 
   const sectionAction = activeTab === 'groups'
     ? (
@@ -439,7 +445,7 @@ export default function RbacPreviewConsole() {
               onBatchUpdate={batchUpdateGroup}
               onOpenEffective={(id) => {
                 setEffectiveMemberId(id)
-                setActiveTab('effective')
+                setEditorPanel('effective')
               }}
             />
           )}
@@ -458,13 +464,28 @@ export default function RbacPreviewConsole() {
           )}
           {activeTab === 'templates' && <TemplatesPanel templates={filteredTemplates} saving={saving} onEdit={editTemplate} onCopy={copyTemplate} onRemove={removeTemplate} onApply={syncTemplate} />}
           {activeTab === 'effective' && <EffectivePanel members={members} selectedMemberId={activeEffectiveMemberId} onSelectMember={setEffectiveMemberId} isLoading={effectiveQuery.isLoading} data={effectiveQuery.data?.data} />}
-          {activeTab === 'resources' && <ResourcesPanel resources={resources} selectedResource={selectedResource} onOpenResource={openResource} />}
-          {activeTab === 'audit' && <AuditPanel logs={filteredAuditLogs} />}
+          {activeTab === 'resources' && (
+            <ResourcesPanel
+              resources={resources}
+              selectedResource={selectedResource}
+              onOpenResource={(resource) => {
+                void openResource(resource).then(() => setEditorPanel('resource'))
+              }}
+            />
+          )}
+          {activeTab === 'audit' && (
+            <AuditPanel
+              logs={filteredAuditLogs}
+              onOpenLog={(log) => {
+                setSelectedAuditLog(log)
+                setEditorPanel('audit')
+              }}
+            />
+          )}
           {activeTab === 'general' && <GeneralSettingsPanel showUnauthorizedResourceCards={showUnauthorizedResourceCards} loading={uiPolicyQuery.isLoading || updatingUiPolicy} onToggle={() => void handleToggleUnauthorizedCards()} />}
         </main>
         <aside className="rounded-xl border border-divider-subtle bg-background-section p-4 shadow-xs max-2xl:col-span-2 max-xl:order-3 max-xl:col-span-1">
-          {activeTab === 'resources' && <ResourceEditor selectedResource={selectedResource} members={members} memberIds={resourceMemberIds} saving={saving} onToggleMember={id => setResourceMemberIds(current => toggle(current, id))} onChangeMembers={setResourceMemberIds} onSave={saveResourceMembers} />}
-          {activeTab !== 'resources' && <ContextPanel activeTab={activeTab} groups={groups.length} templates={templates.length} workspaces={workspaces.length} />}
+          <ContextPanel activeTab={activeTab} groups={groups.length} templates={templates.length} workspaces={workspaces.length} />
         </aside>
       </div>
       {editorPanel === 'group' && (
@@ -475,6 +496,21 @@ export default function RbacPreviewConsole() {
       {editorPanel === 'template' && (
         <EditorDrawer title={templateForm.id ? '编辑权限模板' : '新建权限模板'} description="模板绑定用户组和资源，保存后可同步授权。" onClose={() => setEditorPanel(null)}>
           <TemplateEditor form={templateForm} groups={groups} apps={apps} exploreApps={exploreApps} datasets={datasets} effectiveMemberCount={templateEffectiveMembers} saving={saving} onChange={setTemplateForm} onSave={saveTemplate} onReset={() => setTemplateForm(emptyTemplate)} />
+        </EditorDrawer>
+      )}
+      {editorPanel === 'resource' && selectedResource && (
+        <EditorDrawer title="资源直授权" description={selectedResourceMeta ? `${selectedResourceMeta.name} · ${selectedResourceMeta.subtitle}` : '维护指定资源的可访问成员。'} onClose={() => setEditorPanel(null)}>
+          <ResourceEditor selectedResource={selectedResource} members={members} memberIds={resourceMemberIds} saving={saving} onToggleMember={id => setResourceMemberIds(current => toggle(current, id))} onChangeMembers={setResourceMemberIds} onSave={saveResourceMembers} />
+        </EditorDrawer>
+      )}
+      {editorPanel === 'effective' && (
+        <EditorDrawer title="有效权限" description="只读查看该成员最终可见的资源和来源。" onClose={() => setEditorPanel(null)}>
+          <EffectivePermissionDetail isLoading={effectiveQuery.isLoading} data={effectiveQuery.data?.data} />
+        </EditorDrawer>
+      )}
+      {editorPanel === 'audit' && selectedAuditLog && (
+        <EditorDrawer title="审计详情" description={fmt(selectedAuditLog.created_at)} onClose={() => setEditorPanel(null)}>
+          <AuditLogDetail log={selectedAuditLog} />
         </EditorDrawer>
       )}
     </div>
@@ -676,6 +712,31 @@ function TemplatesPanel({ templates, saving, onEdit, onCopy, onRemove, onApply }
     </div>
   )
 }
+function EffectivePermissionDetail({ isLoading, data }: { isLoading: boolean, data?: { apps: EffectivePermissionResource[], explore_apps: EffectivePermissionResource[], datasets: EffectivePermissionResource[], account: { email: string, name?: string | null, role: string } } }) {
+  if (isLoading)
+    return <EmptyState text="正在加载有效权限" />
+
+  if (!data)
+    return <EmptyState text="暂无有效权限数据" />
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-divider-subtle bg-background-default/50 p-4">
+        <div className="text-sm font-semibold text-text-primary">{data.account.name || data.account.email}</div>
+        <div className="mt-1 text-xs text-text-tertiary">
+          {data.account.email}
+          {' '}
+          ·
+          {' '}
+          {data.account.role}
+        </div>
+      </div>
+      <EffectiveResourceSection title="探索应用" resources={data.explore_apps} />
+      <EffectiveResourceSection title="工作室应用" resources={data.apps} />
+      <EffectiveResourceSection title="知识库" resources={data.datasets} />
+    </div>
+  )
+}
 function EffectivePanel({ members, selectedMemberId, onSelectMember, isLoading, data }: { members: Member[], selectedMemberId: string, onSelectMember: (id: string) => void, isLoading: boolean, data?: { apps: EffectivePermissionResource[], explore_apps: EffectivePermissionResource[], datasets: EffectivePermissionResource[], account: { email: string, name?: string | null, role: string } } }) {
   return (
     <div>
@@ -763,19 +824,46 @@ function ResourcesPanel({ resources, selectedResource, onOpenResource }: { resou
     </div>
   )
 }
-function AuditPanel({ logs }: { logs: AuditLogItem[] }) {
+function AuditPanel({ logs, onOpenLog }: { logs: AuditLogItem[], onOpenLog: (log: AuditLogItem) => void }) {
   return (
     <div className="divide-y divide-divider-subtle">
       {logs.map(log => (
-        <div key={log.id} className="px-6 py-4">
-          <div className="flex justify-between gap-3">
-            <div className="font-medium">{log.action}</div>
-            <div className="text-xs text-text-tertiary">{fmt(log.created_at)}</div>
-          </div>
-          <pre className="mt-2 max-h-24 overflow-auto rounded bg-background-default p-2 text-xs text-text-tertiary">{JSON.stringify(log.content ?? {}, null, 2)}</pre>
-        </div>
+        <button key={log.id} type="button" className="grid w-full grid-cols-[1fr_150px] gap-4 px-6 py-4 text-left hover:bg-background-default-hover max-lg:grid-cols-1" onClick={() => onOpenLog(log)}>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-text-primary">{log.action}</span>
+            <span className="mt-1 block truncate text-xs text-text-tertiary">{log.account_id}</span>
+          </span>
+          <span className="text-xs text-text-tertiary">{fmt(log.created_at)}</span>
+        </button>
       ))}
       {logs.length === 0 && <EmptyState text="暂无 RBAC 相关审计日志" />}
+    </div>
+  )
+}
+function AuditLogDetail({ log }: { log: AuditLogItem }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-divider-subtle bg-background-default/50 p-4">
+        <div className="text-sm font-semibold text-text-primary">{log.action}</div>
+        <div className="mt-2 grid grid-cols-2 gap-3 text-xs text-text-tertiary">
+          <div>
+            <div className="font-medium text-text-secondary">操作人</div>
+            <div className="mt-1 break-all">{log.account_id}</div>
+          </div>
+          <div>
+            <div className="font-medium text-text-secondary">时间</div>
+            <div className="mt-1">{fmt(log.created_at)}</div>
+          </div>
+          <div>
+            <div className="font-medium text-text-secondary">IP</div>
+            <div className="mt-1">{log.created_ip || '暂无'}</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div className="mb-2 text-xs font-medium text-text-tertiary">内容</div>
+        <pre className="max-h-[520px] overflow-auto rounded-xl border border-divider-subtle bg-background-default/50 p-3 text-xs leading-5 text-text-secondary">{JSON.stringify(log.content ?? {}, null, 2)}</pre>
+      </div>
     </div>
   )
 }
