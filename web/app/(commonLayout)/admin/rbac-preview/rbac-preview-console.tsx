@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import type { AuditLogItem, EffectivePermissionResource, PermissionGroup, PermissionGroupPayload, PermissionTemplate, PermissionTemplatePayload, RbacPreviewTab } from '@/models/app'
 import type { Member } from '@/models/common'
 import type { DataSet } from '@/models/datasets'
@@ -65,6 +66,7 @@ export default function RbacPreviewConsole() {
   const [resourceMemberIds, setResourceMemberIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [updatingUiPolicy, setUpdatingUiPolicy] = useState(false)
+  const [editorPanel, setEditorPanel] = useState<'group' | 'template' | null>(null)
   const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
   const hasAnyPermission = canAny ?? (() => false)
   const canEnterAdmin = hasAnyPermission(['workspace.member.view', 'workspace.member.manage']) || isCurrentWorkspaceManager
@@ -185,6 +187,7 @@ export default function RbacPreviewConsole() {
       else await createPermissionGroup(body)
       await Promise.all([groupsQuery.refetch(), templatesQuery.refetch(), effectiveQuery.refetch(), auditQuery.refetch()])
       setGroupForm(emptyGroup)
+      setEditorPanel(null)
       toast.success('用户组已保存')
     }
     finally { setSaving(false) }
@@ -203,8 +206,10 @@ export default function RbacPreviewConsole() {
     try {
       await deletePermissionGroup(group.id)
       await Promise.all([groupsQuery.refetch(), templatesQuery.refetch(), effectiveQuery.refetch(), auditQuery.refetch()])
-      if (groupForm.id === group.id)
+      if (groupForm.id === group.id) {
         setGroupForm(emptyGroup)
+        setEditorPanel(null)
+      }
       toast.success('用户组已删除')
     }
     finally { setSaving(false) }
@@ -228,6 +233,7 @@ export default function RbacPreviewConsole() {
   const editTemplate = (template: PermissionTemplate) => {
     setTemplateForm({ id: template.id, name: template.name, description: template.description ?? '', member_ids: template.member_ids ?? [], group_ids: template.group_ids ?? [], app_ids: template.app_ids, dataset_ids: template.dataset_ids, explore_app_ids: template.explore_app_ids ?? [] })
     setActiveTab('templates')
+    setEditorPanel('template')
   }
   const saveTemplate = async () => {
     if (!templateForm.name.trim()) {
@@ -242,6 +248,7 @@ export default function RbacPreviewConsole() {
       else await createPermissionTemplate(body)
       await Promise.all([templatesQuery.refetch(), appsQuery.refetch(), exploreQuery.refetch(), datasetsQuery.refetch(), effectiveQuery.refetch(), auditQuery.refetch()])
       setTemplateForm(emptyTemplate)
+      setEditorPanel(null)
       toast.success('权限模板已保存')
     }
     finally { setSaving(false) }
@@ -260,8 +267,10 @@ export default function RbacPreviewConsole() {
     try {
       await deletePermissionTemplate(template.id)
       await Promise.all([templatesQuery.refetch(), appsQuery.refetch(), exploreQuery.refetch(), datasetsQuery.refetch(), effectiveQuery.refetch(), auditQuery.refetch()])
-      if (templateForm.id === template.id)
+      if (templateForm.id === template.id) {
         setTemplateForm(emptyTemplate)
+        setEditorPanel(null)
+      }
       toast.success('模板已删除')
     }
     finally { setSaving(false) }
@@ -312,6 +321,36 @@ export default function RbacPreviewConsole() {
     }
     finally { setSaving(false) }
   }
+
+  const sectionAction = activeTab === 'groups'
+    ? (
+        <button
+          type="button"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-components-button-primary-bg px-3 text-xs font-medium text-components-button-primary-text shadow-xs hover:bg-components-button-primary-bg-hover"
+          onClick={() => {
+            setGroupForm(emptyGroup)
+            setEditorPanel('group')
+          }}
+        >
+          <span className="i-ri-add-line size-4" aria-hidden />
+          新建用户组
+        </button>
+      )
+    : activeTab === 'templates'
+      ? (
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-components-button-primary-bg px-3 text-xs font-medium text-components-button-primary-text shadow-xs hover:bg-components-button-primary-bg-hover"
+            onClick={() => {
+              setTemplateForm(emptyTemplate)
+              setEditorPanel('template')
+            }}
+          >
+            <span className="i-ri-add-line size-4" aria-hidden />
+            新建模板
+          </button>
+        )
+      : null
 
   if (!canEnterAdmin)
     return <div className="flex h-full items-center justify-center bg-background-body text-sm text-text-tertiary">当前账号没有进入企业权限后台的权限。</div>
@@ -371,7 +410,7 @@ export default function RbacPreviewConsole() {
           </nav>
         </aside>
         <main className="min-w-0 overflow-hidden rounded-xl border border-divider-subtle bg-background-section shadow-xs max-xl:order-2">
-          <SectionTitle title={currentTab.label} description={currentTab.desc} />
+          <SectionTitle title={currentTab.label} description={currentTab.desc} action={sectionAction} />
           {activeTab === 'members' && (
             <MembersPanel
               members={sortedMembers}
@@ -404,7 +443,19 @@ export default function RbacPreviewConsole() {
               }}
             />
           )}
-          {activeTab === 'groups' && <GroupsPanel groups={filteredGroups} templateCountByGroup={templateCountByGroup} saving={saving} onEdit={group => setGroupForm({ id: group.id, name: group.name, description: group.description ?? '', member_ids: group.member_ids })} onCopy={copyGroup} onRemove={removeGroup} />}
+          {activeTab === 'groups' && (
+            <GroupsPanel
+              groups={filteredGroups}
+              templateCountByGroup={templateCountByGroup}
+              saving={saving}
+              onEdit={(group) => {
+                setGroupForm({ id: group.id, name: group.name, description: group.description ?? '', member_ids: group.member_ids })
+                setEditorPanel('group')
+              }}
+              onCopy={copyGroup}
+              onRemove={removeGroup}
+            />
+          )}
           {activeTab === 'templates' && <TemplatesPanel templates={filteredTemplates} saving={saving} onEdit={editTemplate} onCopy={copyTemplate} onRemove={removeTemplate} onApply={syncTemplate} />}
           {activeTab === 'effective' && <EffectivePanel members={members} selectedMemberId={activeEffectiveMemberId} onSelectMember={setEffectiveMemberId} isLoading={effectiveQuery.isLoading} data={effectiveQuery.data?.data} />}
           {activeTab === 'resources' && <ResourcesPanel resources={resources} selectedResource={selectedResource} onOpenResource={openResource} />}
@@ -412,11 +463,41 @@ export default function RbacPreviewConsole() {
           {activeTab === 'general' && <GeneralSettingsPanel showUnauthorizedResourceCards={showUnauthorizedResourceCards} loading={uiPolicyQuery.isLoading || updatingUiPolicy} onToggle={() => void handleToggleUnauthorizedCards()} />}
         </main>
         <aside className="rounded-xl border border-divider-subtle bg-background-section p-4 shadow-xs max-2xl:col-span-2 max-xl:order-3 max-xl:col-span-1">
-          {activeTab === 'groups' && <GroupEditor form={groupForm} members={members} saving={saving} onChange={setGroupForm} onSave={saveGroup} onReset={() => setGroupForm(emptyGroup)} />}
-          {activeTab === 'templates' && <TemplateEditor form={templateForm} groups={groups} apps={apps} exploreApps={exploreApps} datasets={datasets} effectiveMemberCount={templateEffectiveMembers} saving={saving} onChange={setTemplateForm} onSave={saveTemplate} onReset={() => setTemplateForm(emptyTemplate)} />}
           {activeTab === 'resources' && <ResourceEditor selectedResource={selectedResource} members={members} memberIds={resourceMemberIds} saving={saving} onToggleMember={id => setResourceMemberIds(current => toggle(current, id))} onChangeMembers={setResourceMemberIds} onSave={saveResourceMembers} />}
-          {activeTab !== 'groups' && activeTab !== 'templates' && activeTab !== 'resources' && <ContextPanel activeTab={activeTab} groups={groups.length} templates={templates.length} workspaces={workspaces.length} />}
+          {activeTab !== 'resources' && <ContextPanel activeTab={activeTab} groups={groups.length} templates={templates.length} workspaces={workspaces.length} />}
         </aside>
+      </div>
+      {editorPanel === 'group' && (
+        <EditorDrawer title={groupForm.id ? '编辑用户组' : '新建用户组'} description="账号归属、部门和项目组在这里维护。" onClose={() => setEditorPanel(null)}>
+          <GroupEditor form={groupForm} members={members} saving={saving} onChange={setGroupForm} onSave={saveGroup} onReset={() => setGroupForm(emptyGroup)} />
+        </EditorDrawer>
+      )}
+      {editorPanel === 'template' && (
+        <EditorDrawer title={templateForm.id ? '编辑权限模板' : '新建权限模板'} description="模板绑定用户组和资源，保存后可同步授权。" onClose={() => setEditorPanel(null)}>
+          <TemplateEditor form={templateForm} groups={groups} apps={apps} exploreApps={exploreApps} datasets={datasets} effectiveMemberCount={templateEffectiveMembers} saving={saving} onChange={setTemplateForm} onSave={saveTemplate} onReset={() => setTemplateForm(emptyTemplate)} />
+        </EditorDrawer>
+      )}
+    </div>
+  )
+}
+
+function EditorDrawer({ title, description, onClose, children }: { title: string, description: string, onClose: () => void, children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" role="dialog" aria-modal="true" aria-label={title}>
+      <button type="button" className="absolute inset-0 cursor-default" aria-label="关闭编辑抽屉" onClick={onClose} />
+      <div className="relative flex h-full w-full max-w-[560px] flex-col bg-background-section shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-divider-subtle px-6 py-5">
+          <div className="min-w-0">
+            <div className="text-base font-semibold text-text-primary">{title}</div>
+            <div className="mt-1 text-sm text-text-tertiary">{description}</div>
+          </div>
+          <button type="button" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary hover:bg-background-default-hover hover:text-text-secondary" aria-label="关闭" onClick={onClose}>
+            <span className="i-ri-close-line size-4" aria-hidden />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          {children}
+        </div>
       </div>
     </div>
   )
@@ -431,11 +512,14 @@ function Metric({ label, value, hint }: { label: string, value: string | number,
     </div>
   )
 }
-function SectionTitle({ title, description }: { title: string, description: string }) {
+function SectionTitle({ title, description, action }: { title: string, description: string, action?: ReactNode }) {
   return (
-    <div className="border-b border-divider-subtle px-5 py-4">
-      <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
-      <p className="mt-1 text-sm text-text-tertiary">{description}</p>
+    <div className="flex items-start justify-between gap-4 border-b border-divider-subtle px-5 py-4">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+        <p className="mt-1 text-sm text-text-tertiary">{description}</p>
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
