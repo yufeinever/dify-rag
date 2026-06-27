@@ -48,6 +48,10 @@ const statusLabel: Record<string, string> = {
   disabled: '已停用',
   archived: '已归档',
   indexing: '索引中',
+  waiting: '等待中',
+  splitting: '分段中',
+  parsing: '解析中',
+  cleaning: '清洗中',
   queuing: '排队中',
   paused: '已暂停',
   error: '异常',
@@ -57,12 +61,24 @@ const statusLabel: Record<string, string> = {
 const statusClassName = (status: string) => {
   if (['available', 'enabled', 'completed'].includes(status))
     return 'bg-state-success-bg text-text-success'
-  if (['indexing', 'queuing', 'paused'].includes(status))
+  if (['indexing', 'waiting', 'splitting', 'parsing', 'cleaning', 'queuing', 'paused'].includes(status))
     return 'bg-state-warning-bg text-text-warning'
   if (status === 'error')
     return 'bg-state-destructive-bg text-text-destructive'
   return 'bg-background-section text-text-tertiary'
 }
+
+const getDocumentStatusItems = (doc: ManagedDocument) => {
+  const statuses = [doc.display_status, doc.indexing_status].filter(Boolean)
+  return Array.from(new Set(statuses))
+}
+
+const DocumentStatusBadge = ({ status }: { status: string }) => (
+  <span title={statusLabel[status] || status} className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium whitespace-nowrap ${statusClassName(status)}`}>
+    <span className="size-1.5 shrink-0 rounded-full bg-current opacity-70" />
+    <span>{statusLabel[status] || status}</span>
+  </span>
+)
 
 const isDownloadable = (doc: ManagedDocument) => {
   if (![DataSourceType.FILE, DataSourceType.LOCAL_FILE].includes(doc.data_source_type as DataSourceType))
@@ -197,7 +213,7 @@ const DocumentManagement = () => {
 
   const totalDocuments = data?.documents.length ?? 0
   const downloadableDocuments = data?.documents.filter(isDownloadable).length ?? 0
-  const availableDocuments = data?.documents.filter(doc => ['available', 'enabled', 'completed'].includes(doc.display_status || doc.indexing_status)).length ?? 0
+  const availableDocuments = data?.documents.filter(doc => getDocumentStatusItems(doc).some(status => ['available', 'enabled', 'completed'].includes(status))).length ?? 0
 
   if (isLoading && !data)
     return <Loading type="app" />
@@ -318,20 +334,20 @@ const DocumentManagement = () => {
                   </div>
                 )
               : (
-                  <table className="w-full min-w-[1120px] border-collapse text-sm">
+                  <table className="w-full min-w-[1240px] table-fixed border-collapse text-sm">
                     <thead className="sticky top-0 z-10 border-b border-divider-subtle bg-background-default-subtle text-xs font-medium text-text-tertiary">
                       <tr>
-                        <th className="w-[34%] px-3 py-2.5 text-left">文档</th>
-                        <th className="w-[24%] px-3 py-2.5 text-left">知识库</th>
-                        <th className="w-[9%] px-3 py-2.5 text-right">字符数</th>
-                        <th className="w-[7%] px-3 py-2.5 text-right">召回</th>
-                        <th className="w-[8%] px-3 py-2.5 text-left">状态</th>
-                        <th className="w-[220px] min-w-[220px] px-3 py-2.5 text-left">操作</th>
+                        <th className="w-[360px] px-3 py-2.5 text-left">文档</th>
+                        <th className="w-[280px] px-3 py-2.5 text-left">知识库</th>
+                        <th className="w-[92px] px-3 py-2.5 text-right whitespace-nowrap">字符数</th>
+                        <th className="w-[72px] px-3 py-2.5 text-right whitespace-nowrap">召回</th>
+                        <th className="w-[176px] px-3 py-2.5 text-left whitespace-nowrap">状态</th>
+                        <th className="w-[220px] px-3 py-2.5 text-left whitespace-nowrap">操作</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDocuments.map((doc) => {
-                        const status = doc.display_status || doc.indexing_status
+                        const statuses = getDocumentStatusItems(doc)
                         return (
                           <tr key={`${doc.dataset.id}-${doc.id}`} className="group border-b border-divider-subtle last:border-b-0 hover:bg-state-base-hover">
                             <td className="px-3 py-2.5 align-middle">
@@ -353,13 +369,12 @@ const DocumentManagement = () => {
                             </td>
                             <td className="px-3 py-2.5 text-right align-middle text-text-secondary tabular-nums">{doc.word_count?.toLocaleString() || 0}</td>
                             <td className="px-3 py-2.5 text-right align-middle text-text-secondary tabular-nums">{doc.hit_count?.toLocaleString() || 0}</td>
-                            <td className="px-3 py-2.5 align-middle">
-                              <span className={`inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium ${statusClassName(status)}`}>
-                                <span className="size-1.5 rounded-full bg-current opacity-70" />
-                                {statusLabel[status] || status}
-                              </span>
+                            <td className="w-[176px] px-3 py-2.5 align-middle whitespace-nowrap">
+                              <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                                {statuses.map(status => <DocumentStatusBadge key={status} status={status} />)}
+                              </div>
                             </td>
-                            <td className="w-[220px] min-w-[220px] px-3 py-2.5 align-middle">
+                            <td className="w-[220px] px-3 py-2.5 align-middle whitespace-nowrap">
                               <div className="flex items-center gap-1.5 whitespace-nowrap">
                                 <Link
                                   href={`/datasets/${doc.dataset.id}/documents/${doc.id}`}
