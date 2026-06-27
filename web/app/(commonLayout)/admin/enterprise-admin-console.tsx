@@ -230,7 +230,7 @@ export default function EnterpriseAdminConsole() {
   const [openAdminGroups, setOpenAdminGroups] = useState<Record<AdminSectionGroupKey, boolean>>({
     primary: true,
     resources: false,
-    reference: false,
+    reference: true,
   })
   const [operatingMemberId, setOperatingMemberId] = useState<string | null>(null)
   const [inviteModalVisible, setInviteModalVisible] = useState(false)
@@ -775,7 +775,7 @@ export default function EnterpriseAdminConsole() {
       </div>
 
       <div className="mx-auto grid max-w-[1440px] grid-cols-[260px_1fr] gap-0 px-8 py-6 max-lg:grid-cols-1 max-lg:px-4">
-        <aside className="border border-divider-subtle bg-background-section max-lg:mb-4">
+        <aside className="border border-divider-subtle bg-background-section max-lg:mb-4 lg:sticky lg:top-20 lg:self-start">
           <div className="border-b border-divider-subtle px-4 py-4">
             <div className="text-sm font-semibold text-text-primary">{currentWorkspace?.name ?? '当前工作区'}</div>
             <div className="mt-1 text-xs text-text-tertiary">
