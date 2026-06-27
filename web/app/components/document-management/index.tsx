@@ -3,7 +3,6 @@
 import type { DataSet, SimpleDocumentDetail } from '@/models/datasets'
 import { toast } from '@langgenius/dify-ui/toast'
 import {
-  RiArrowRightLine,
   RiDatabase2Line,
   RiDownload2Line,
   RiFileList3Line,
@@ -204,113 +203,105 @@ const DocumentManagement = () => {
     return <Loading type="app" />
 
   return (
-    <div className="flex h-full flex-col bg-background-body">
-      <div className="border-b border-divider-subtle px-8 py-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-medium text-text-tertiary">
-              <RiFolderOpenLine className="size-4" />
-              知识库文档中心
+    <div className="flex h-full flex-col bg-background-default-subtle">
+      <div className="shrink-0 border-b border-divider-subtle bg-background-default px-6 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-text-tertiary">
+              <RiFolderOpenLine className="size-3.5" />
+              <span>知识库</span>
+              <span>/</span>
+              <span className="text-text-secondary">文档管理</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold text-text-primary">文档管理</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-text-tertiary">
-              统一管理知识库中的入库文档，集中查看索引状态、来源知识库、召回次数，并下载 Dify 保存的原始上传文件。
-            </p>
+            <div className="mt-1 flex items-center gap-3">
+              <h1 className="text-xl font-semibold text-text-primary">文档管理</h1>
+              <div className="hidden items-center gap-2 text-xs text-text-tertiary sm:flex">
+                <span>
+                  {data?.datasets.length ?? 0}
+                  {' '}
+                  个知识库
+                </span>
+                <span className="size-1 rounded-full bg-divider-regular" />
+                <span>
+                  {totalDocuments}
+                  {' '}
+                  份文档
+                </span>
+                <span className="size-1 rounded-full bg-divider-regular" />
+                <span>
+                  {downloadableDocuments}
+                  {' '}
+                  份可下载
+                </span>
+              </div>
+            </div>
           </div>
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-sm font-medium text-components-button-secondary-text shadow-xs hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-xs font-medium text-components-button-secondary-text shadow-xs hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isFetching}
             onClick={() => refetch()}
           >
-            <RiRefreshLine className="size-4" />
+            <RiRefreshLine className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             刷新
           </button>
         </div>
-
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-divider-subtle bg-background-default px-4 py-3">
-            <div className="text-xs text-text-tertiary">知识库</div>
-            <div className="mt-1 flex items-end gap-2">
-              <span className="text-2xl font-semibold text-text-primary">{data?.datasets.length ?? 0}</span>
-              <span className="pb-1 text-xs text-text-tertiary">个可管理知识库</span>
-            </div>
-          </div>
-          <div className="rounded-lg border border-divider-subtle bg-background-default px-4 py-3">
-            <div className="text-xs text-text-tertiary">文档</div>
-            <div className="mt-1 flex items-end gap-2">
-              <span className="text-2xl font-semibold text-text-primary">{totalDocuments}</span>
-              <span className="pb-1 text-xs text-text-tertiary">份入库文档</span>
-            </div>
-          </div>
-          <div className="rounded-lg border border-divider-subtle bg-background-default px-4 py-3">
-            <div className="text-xs text-text-tertiary">可下载原文</div>
-            <div className="mt-1 flex items-end gap-2">
-              <span className="text-2xl font-semibold text-text-primary">{downloadableDocuments}</span>
-              <span className="pb-1 text-xs text-text-tertiary">份上传文件副本</span>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-4 px-8 py-5">
-        <aside className="hidden w-72 shrink-0 flex-col rounded-lg border border-divider-subtle bg-background-default md:flex">
-          <div className="border-b border-divider-subtle px-4 py-3">
-            <div className="text-sm font-semibold text-text-primary">知识库筛选</div>
-            <div className="mt-1 text-xs text-text-tertiary">
-              当前：
-              {selectedDatasetName}
+      <div className="flex min-h-0 flex-1 gap-3 p-4">
+        <aside className="hidden w-[264px] shrink-0 flex-col overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg shadow-xs md:flex">
+          <div className="border-b border-divider-subtle px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-text-primary">知识库</div>
+              <span className="rounded-md bg-background-section px-1.5 py-0.5 text-xs text-text-tertiary">{data?.datasets.length ?? 0}</span>
             </div>
+            <div className="mt-1 truncate text-xs text-text-tertiary" title={selectedDatasetName}>{selectedDatasetName}</div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
             <button
               type="button"
-              className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${datasetId === 'all' ? 'bg-state-accent-hover text-text-accent' : 'text-text-secondary hover:bg-background-default-hover'}`}
+              className={`flex h-8 w-full items-center justify-between rounded-lg px-2.5 text-left text-sm ${datasetId === 'all' ? 'bg-state-accent-hover text-text-accent' : 'text-text-secondary hover:bg-state-base-hover'}`}
               onClick={() => setDatasetId('all')}
             >
               <span className="truncate">全部知识库</span>
-              <span className="ml-2 rounded bg-background-section px-1.5 py-0.5 text-xs text-text-tertiary">{totalDocuments}</span>
+              <span className="ml-2 rounded-md bg-background-section px-1.5 py-0.5 text-xs text-text-tertiary">{totalDocuments}</span>
             </button>
             {(data?.datasets ?? []).map(dataset => (
               <button
                 key={dataset.id}
                 type="button"
-                className={`mt-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${datasetId === dataset.id ? 'bg-state-accent-hover text-text-accent' : 'text-text-secondary hover:bg-background-default-hover'}`}
+                className={`mt-0.5 flex h-8 w-full items-center justify-between rounded-lg px-2.5 text-left text-sm ${datasetId === dataset.id ? 'bg-state-accent-hover text-text-accent' : 'text-text-secondary hover:bg-state-base-hover'}`}
                 onClick={() => setDatasetId(dataset.id)}
               >
-                <span className="truncate">{dataset.name}</span>
-                <span className="ml-2 rounded bg-background-section px-1.5 py-0.5 text-xs text-text-tertiary">{dataset.document_count}</span>
+                <span className="truncate" title={dataset.name}>{dataset.name}</span>
+                <span className="ml-2 rounded-md bg-background-section px-1.5 py-0.5 text-xs text-text-tertiary">{dataset.document_count}</span>
               </button>
             ))}
           </div>
         </aside>
 
-        <main className="flex min-w-0 flex-1 flex-col rounded-lg border border-divider-subtle bg-background-default">
-          <div className="flex flex-wrap items-center gap-3 border-b border-divider-subtle px-4 py-3">
-            <div className="relative min-w-64 flex-1">
-              <RiSearchLine className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-quaternary" />
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg shadow-xs">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-divider-subtle bg-background-default px-3 py-2.5">
+            <div className="relative min-w-[240px] flex-1">
+              <RiSearchLine className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-quaternary" />
               <input
                 value={keyword}
                 onChange={event => setKeyword(event.target.value)}
                 placeholder="搜索文档名或知识库"
-                className="border-components-input-border h-9 w-full rounded-lg border bg-components-input-bg-normal pr-3 pl-9 text-sm text-text-primary outline-none placeholder:text-text-quaternary focus:border-components-input-border-active"
+                className="h-8 w-full rounded-lg border border-transparent bg-components-input-bg-normal pr-3 pl-8 text-sm text-text-primary outline-none placeholder:text-text-quaternary hover:border-components-input-border-hover focus:border-components-input-border-active"
               />
             </div>
             <select
               value={datasetId}
               onChange={event => setDatasetId(event.target.value)}
-              className="border-components-input-border h-9 rounded-lg border bg-components-input-bg-normal px-3 text-sm text-text-secondary outline-none md:hidden"
+              className="border-components-input-border h-8 max-w-[220px] rounded-lg border bg-components-input-bg-normal px-2.5 text-sm text-text-secondary outline-none md:hidden"
             >
               <option value="all">全部知识库</option>
               {(data?.datasets ?? []).map(dataset => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
             </select>
-            <div className="text-sm text-text-tertiary">
-              显示
-              {' '}
+            <div className="flex h-8 items-center rounded-lg bg-background-section px-2.5 text-xs font-medium text-text-tertiary">
               {filteredDocuments.length}
-              {' '}
-              /
-              {' '}
+              <span className="mx-1 text-text-quaternary">/</span>
               {totalDocuments}
             </div>
           </div>
@@ -319,75 +310,75 @@ const DocumentManagement = () => {
             {filteredDocuments.length === 0
               ? (
                   <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-                    <RiFileList3Line className="size-10 text-text-quaternary" />
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-background-section text-text-quaternary">
+                      <RiFileList3Line className="size-5" />
+                    </div>
                     <div className="mt-3 text-sm font-medium text-text-secondary">没有匹配的文档</div>
                     <div className="mt-1 text-xs text-text-tertiary">换一个关键词或选择全部知识库。</div>
                   </div>
                 )
               : (
-                  <table className="w-full min-w-[1180px] border-collapse text-sm">
-                    <thead className="sticky top-0 z-10 border-b border-divider-subtle bg-background-default text-xs font-medium text-text-tertiary">
+                  <table className="w-full min-w-[1120px] border-collapse text-sm">
+                    <thead className="sticky top-0 z-10 border-b border-divider-subtle bg-background-default-subtle text-xs font-medium text-text-tertiary">
                       <tr>
-                        <th className="w-[30%] px-4 py-3 text-left">文档</th>
-                        <th className="w-[24%] px-4 py-3 text-left">知识库</th>
-                        <th className="w-[9%] px-4 py-3 text-left">字符数</th>
-                        <th className="w-[7%] px-4 py-3 text-left">召回</th>
-                        <th className="w-[8%] px-4 py-3 text-left">状态</th>
-                        <th className="w-[260px] min-w-[260px] px-4 py-3 text-left">操作</th>
+                        <th className="w-[34%] px-3 py-2.5 text-left">文档</th>
+                        <th className="w-[24%] px-3 py-2.5 text-left">知识库</th>
+                        <th className="w-[9%] px-3 py-2.5 text-right">字符数</th>
+                        <th className="w-[7%] px-3 py-2.5 text-right">召回</th>
+                        <th className="w-[8%] px-3 py-2.5 text-left">状态</th>
+                        <th className="w-[220px] min-w-[220px] px-3 py-2.5 text-left">操作</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDocuments.map((doc) => {
                         const status = doc.display_status || doc.indexing_status
                         return (
-                          <tr key={`${doc.dataset.id}-${doc.id}`} className="border-b border-divider-subtle hover:bg-background-default-hover">
-                            <td className="px-4 py-3 align-top">
-                              <div className="flex items-start gap-2">
-                                <RiFileList3Line className="mt-0.5 size-4 shrink-0 text-text-tertiary" />
+                          <tr key={`${doc.dataset.id}-${doc.id}`} className="group border-b border-divider-subtle last:border-b-0 hover:bg-state-base-hover">
+                            <td className="px-3 py-2.5 align-middle">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-section text-text-tertiary">
+                                  <RiFileList3Line className="size-4" />
+                                </div>
                                 <div className="min-w-0">
-                                  <div className="truncate font-medium text-text-primary" title={doc.name}>{doc.name}</div>
-                                  <div className="mt-1 text-xs text-text-tertiary">
-                                    上传时间：
-                                    {formatTime(doc.created_at)}
-                                  </div>
+                                  <div className="truncate text-sm font-medium text-text-primary" title={doc.name}>{doc.name}</div>
+                                  <div className="mt-0.5 text-xs text-text-tertiary">{formatTime(doc.created_at)}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-3 align-top">
-                              <div className="flex min-w-0 items-center gap-2 text-text-secondary">
-                                <RiDatabase2Line className="size-4 shrink-0 text-text-tertiary" />
+                            <td className="px-3 py-2.5 align-middle">
+                              <div className="flex min-w-0 items-center gap-1.5 text-text-secondary">
+                                <RiDatabase2Line className="size-3.5 shrink-0 text-text-quaternary" />
                                 <span className="truncate" title={doc.dataset.name}>{doc.dataset.name}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 align-top text-text-secondary">{doc.word_count?.toLocaleString() || 0}</td>
-                            <td className="px-4 py-3 align-top text-text-secondary">{doc.hit_count?.toLocaleString() || 0}</td>
-                            <td className="px-4 py-3 align-top">
-                              <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${statusClassName(status)}`}>
+                            <td className="px-3 py-2.5 text-right align-middle text-text-secondary tabular-nums">{doc.word_count?.toLocaleString() || 0}</td>
+                            <td className="px-3 py-2.5 text-right align-middle text-text-secondary tabular-nums">{doc.hit_count?.toLocaleString() || 0}</td>
+                            <td className="px-3 py-2.5 align-middle">
+                              <span className={`inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium ${statusClassName(status)}`}>
+                                <span className="size-1.5 rounded-full bg-current opacity-70" />
                                 {statusLabel[status] || status}
                               </span>
                             </td>
-                            <td className="w-[260px] min-w-[260px] px-4 py-3 align-top">
-                              <div className="flex items-center gap-2 whitespace-nowrap">
+                            <td className="w-[220px] min-w-[220px] px-3 py-2.5 align-middle">
+                              <div className="flex items-center gap-1.5 whitespace-nowrap">
                                 <Link
                                   href={`/datasets/${doc.dataset.id}/documents/${doc.id}`}
-                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover"
+                                  className="inline-flex h-7 shrink-0 items-center rounded-lg px-2 text-xs font-medium text-text-secondary hover:bg-state-base-hover hover:text-text-primary"
                                 >
                                   分段
-                                  <RiArrowRightLine className="size-3.5" />
                                 </Link>
                                 <button
                                   type="button"
                                   disabled={!isDownloadable(doc)}
-                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-7 shrink-0 items-center rounded-lg px-2 text-xs font-medium text-text-secondary hover:bg-state-base-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
                                   onClick={() => handlePreview(doc)}
                                 >
-                                  预览原文
-                                  <RiArrowRightLine className="size-3.5" />
+                                  预览
                                 </button>
                                 <button
                                   type="button"
                                   disabled={!isDownloadable(doc) || downloadingId === doc.id}
-                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium text-text-secondary hover:bg-state-base-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
                                   onClick={() => handleDownload(doc)}
                                 >
                                   <RiDownload2Line className="size-3.5" />
@@ -403,14 +394,13 @@ const DocumentManagement = () => {
                 )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-divider-subtle px-4 py-3 text-xs text-text-tertiary">
+          <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-t border-divider-subtle bg-background-default px-3 text-xs text-text-tertiary">
             <span>
-              可用文档
               {availableDocuments}
               {' '}
-              份
+              份可用
             </span>
-            <span>“分段”查看入库后的 Chunk；“预览原文”使用浏览器原生预览或 PDF 转换预览打开原始上传文件。</span>
+            <span className="hidden min-w-0 truncate sm:inline" title={selectedDatasetName}>{selectedDatasetName}</span>
           </div>
         </main>
       </div>
