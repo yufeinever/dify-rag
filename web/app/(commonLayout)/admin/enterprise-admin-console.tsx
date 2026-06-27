@@ -16,7 +16,7 @@ import { useAppContext } from '@/context/app-context'
 import { useProviderContext } from '@/context/provider-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
-import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
+import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, fetchWorkspaceUiPolicy, updateAdminUiPolicy, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
 import { deleteMemberOrCancelInvitation, updateMemberRole } from '@/service/common'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { fetchInstalledAppList } from '@/service/explore'
@@ -251,6 +251,7 @@ export default function EnterpriseAdminConsole() {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null)
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null)
+  const [updatingUiPolicy, setUpdatingUiPolicy] = useState(false)
   const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
   const { datasetOperatorEnabled } = useProviderContext()
   const hasAnyPermission = canAny ?? (() => false)
@@ -299,6 +300,11 @@ export default function EnterpriseAdminConsole() {
     queryFn: fetchPermissionTemplates,
     enabled: canEnterAdmin,
   })
+  const uiPolicyQuery = useQuery({
+    queryKey: ['enterprise-admin', 'ui-policy'],
+    queryFn: fetchWorkspaceUiPolicy,
+    enabled: canEnterAdmin,
+  })
 
   const members = membersData?.accounts ?? []
   const workspaces = workspacesData?.workspaces ?? []
@@ -308,6 +314,7 @@ export default function EnterpriseAdminConsole() {
   const auditLogs = auditQuery.data?.data ?? []
   const permissionGroups = groupsQuery.data?.data ?? []
   const permissionTemplates = templatesQuery.data?.data ?? []
+  const showUnauthorizedResourceCards = uiPolicyQuery.data?.show_unauthorized_resource_cards ?? false
 
   const filteredMembers = useMemo(() => {
     const nextKeyword = keyword.trim().toLowerCase()
@@ -466,6 +473,26 @@ export default function EnterpriseAdminConsole() {
 
   const resetGroupForm = () => {
     setGroupForm(emptyGroupForm)
+  }
+
+  const handleToggleUnauthorizedCards = async () => {
+    if (updatingUiPolicy)
+      return
+
+    setUpdatingUiPolicy(true)
+    try {
+      await updateAdminUiPolicy({
+        show_unauthorized_resource_cards: !showUnauthorizedResourceCards,
+      })
+      await uiPolicyQuery.refetch()
+      toast.success('界面权限策略已更新')
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '界面权限策略更新失败')
+    }
+    finally {
+      setUpdatingUiPolicy(false)
+    }
   }
 
   const handleSaveGroup = async () => {
@@ -1088,6 +1115,24 @@ export default function EnterpriseAdminConsole() {
                     )
                   : null}
               />
+              <div className="mb-4 rounded-lg border border-divider-subtle bg-background-section p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-text-primary">不可用卡片可见</div>
+                    <div className="mt-1 text-xs text-text-tertiary">开启后，工作室和知识库中无权限资源会以灰态展示，点击提示联系管理员授权。探索页不受影响。</div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={showUnauthorizedResourceCards}
+                    disabled={uiPolicyQuery.isLoading || updatingUiPolicy}
+                    onClick={() => void handleToggleUnauthorizedCards()}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${showUnauthorizedResourceCards ? 'bg-blue-600' : 'bg-background-default-dimmed'}`}
+                  >
+                    <span className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${showUnauthorizedResourceCards ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-[360px_1fr] gap-0 max-xl:grid-cols-1">
                 <div className="border-r border-divider-subtle p-5 max-xl:border-r-0 max-xl:border-b">
                   <div className="text-sm font-semibold text-text-primary">{templateForm.id ? '编辑模板' : '新建模板'}</div>

@@ -6,6 +6,7 @@ import { useAppContext } from '@/context/app-context'
 import { ExternalApiPanelProvider } from '@/context/external-api-panel-context'
 import { ExternalKnowledgeApiProvider } from '@/context/external-knowledge-api-context'
 import { useHasAccessibleDatasets } from '@/hooks/use-has-accessible-datasets'
+import { useUiPolicy } from '@/hooks/use-ui-policy'
 import { useWorkspacePermission } from '@/hooks/use-workspace-permission'
 import { useRouter } from '@/next/navigation'
 
@@ -14,8 +15,10 @@ export default function DatasetsLayout({ children }: { children: React.ReactNode
   const canWorkspace = useWorkspacePermission()
   const hasRoleDatasetView = canWorkspace('dataset.view', isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator)
   const { data: hasAccessibleDatasets = false, isLoading: isLoadingAccessibleDatasets } = useHasAccessibleDatasets()
-  const canViewDataset = hasRoleDatasetView || hasAccessibleDatasets
-  const shouldWaitForDatasetAccess = !hasRoleDatasetView && isLoadingAccessibleDatasets
+  const { data: uiPolicy, isLoading: isLoadingUiPolicy } = useUiPolicy()
+  const showUnauthorizedResourceCards = uiPolicy?.show_unauthorized_resource_cards ?? false
+  const canViewDataset = hasRoleDatasetView || hasAccessibleDatasets || showUnauthorizedResourceCards
+  const shouldWaitForDatasetAccess = (!hasRoleDatasetView && isLoadingAccessibleDatasets) || isLoadingUiPolicy
   const router = useRouter()
   const shouldRedirect = !isLoadingCurrentWorkspace
     && !shouldWaitForDatasetAccess

@@ -96,6 +96,7 @@ export type DataSet = {
   runtime_mode: 'rag_pipeline' | 'general'
   enable_api: boolean // Indicates if the service API is enabled
   is_multimodal: boolean // Indicates if the dataset supports multimodal
+  has_permission?: boolean
   summary_index_setting?: SummaryIndexSetting
 }
 
@@ -197,6 +198,7 @@ export type FetchDatasetsParams = {
     limit?: number
     include_all?: boolean
     keyword?: string
+    include_inaccessible?: boolean
   }
 }
 
@@ -206,6 +208,7 @@ export type DatasetListRequest = {
   limit: number
   include_all?: boolean
   keyword?: string
+  include_inaccessible?: boolean
 }
 
 export type DataSetListResponse = {

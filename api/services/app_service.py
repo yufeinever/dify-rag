@@ -51,6 +51,7 @@ class AppListParams(BaseModel):
     name: str | None = None
     tag_ids: list[str] | None = None
     is_created_by_me: bool | None = None
+    include_inaccessible: bool = False
 
 
 class CreateAppParams(BaseModel):
@@ -459,8 +460,15 @@ class AppService:
             else:
                 return None
 
+        role = self._get_account_role(user_id, tenant_id)
+        has_workspace_app_view = role in {
+            TenantAccountRole.OWNER,
+            TenantAccountRole.ADMIN,
+            TenantAccountRole.EDITOR,
+            TenantAccountRole.NORMAL,
+        }
         permitted_app_ids = self._get_limited_app_ids(user_id, tenant_id)
-        if permitted_app_ids is not None:
+        if permitted_app_ids is not None and not params.include_inaccessible:
             filters.append(App.id.in_(permitted_app_ids))
 
         app_models = db.paginate(
@@ -469,6 +477,12 @@ class AppService:
             per_page=params.limit,
             error_out=False,
         )
+
+        permitted_app_id_set = set(permitted_app_ids or [])
+        for app in app_models.items:
+            app.has_permission = bool(
+                has_workspace_app_view and (permitted_app_ids is None or str(app.id) in permitted_app_id_set)
+            )
 
         return app_models
 

@@ -253,6 +253,7 @@ class DatasetDetailResponse(ResponseModel):
     total_available_documents: int
     enable_api: bool
     is_multimodal: bool
+    has_permission: bool = True
 
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod

@@ -44,6 +44,7 @@ from models.enums import ApiTokenType, SegmentStatus
 from models.provider_ids import ModelProviderID
 from services.api_token_service import ApiTokenCache
 from services.dataset_service import DatasetPermissionService, DatasetService, DocumentService
+from services.ui_policy_service import UiPolicyService
 
 register_response_schema_models(console_ns, ApiBaseUrlResponse, SimpleResultResponse, UsageCheckResponse)
 
@@ -140,6 +141,7 @@ class ConsoleDatasetListQuery(BaseModel):
     include_all: bool = Field(default=False, description="Include all datasets")
     ids: list[str] = Field(default_factory=list, description="Filter by dataset IDs")
     tag_ids: list[str] = Field(default_factory=list, description="Filter by tag IDs")
+    include_inaccessible: bool = Field(default=False, description="Include resources the current user cannot access")
 
 
 class DatasetListItemResponse(DatasetDetailResponse):
@@ -411,6 +413,10 @@ class DatasetListApi(Resource):
                 query.keyword,
                 query.tag_ids,
                 query.include_all,
+                include_inaccessible=(
+                    query.include_inaccessible
+                    and UiPolicyService.should_show_unauthorized_resource_cards(current_tenant_id)
+                ),
             )
 
         # check embedding setting

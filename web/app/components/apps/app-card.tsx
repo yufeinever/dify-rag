@@ -395,6 +395,8 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
     setShowAccessControl(false)
   }, [onRefresh, setShowAccessControl])
 
+  const isUnauthorized = app.has_permission === false
+  const notifyUnauthorized = () => toast.warning('无权限，请联系管理员授权')
   const shouldShowSwitchOption = app.mode === AppModeEnum.COMPLETION || app.mode === AppModeEnum.CHAT
   const shouldShowAccessControlOption = systemFeatures.webapp_auth.enabled && canManageAppAccessControl
   const operationsMenuWidthClassName = shouldShowSwitchOption ? 'w-[256px]' : 'w-[216px]'
@@ -426,10 +428,20 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
       <div
         onClick={(e) => {
           e.preventDefault()
+          if (isUnauthorized) {
+            notifyUnauthorized()
+            return
+          }
           getRedirection(canEditApp, app, push)
         }}
-        className="group relative col-span-1 inline-flex h-[160px] cursor-pointer flex-col rounded-xl border border-solid border-components-card-border bg-components-card-bg shadow-sm transition-shadow duration-200 ease-in-out hover:shadow-lg"
+        className={cn(
+          'group relative col-span-1 inline-flex h-[160px] cursor-pointer flex-col rounded-xl border border-solid border-components-card-border bg-components-card-bg shadow-sm transition-shadow duration-200 ease-in-out hover:shadow-lg',
+          isUnauthorized && 'opacity-50 grayscale hover:shadow-sm',
+        )}
       >
+        {isUnauthorized && (
+          <div className="absolute top-3 right-3 z-10 rounded-md border border-divider-subtle bg-background-section px-2 py-0.5 text-xs font-medium text-text-tertiary">无权限</div>
+        )}
         <div className="flex h-[66px] shrink-0 grow-0 items-center gap-3 px-[14px] pt-[14px] pb-3">
           <div className="relative shrink-0">
             <AppIcon
@@ -504,7 +516,7 @@ const AppCard = ({ app, onlineUsers = [], onRefresh, onOpenTagManagement = () =>
           </div>
         </div>
         <div className="absolute right-0 bottom-1 left-0 flex h-[42px] shrink-0 items-center pt-1 pr-[6px] pb-[6px] pl-[14px]">
-          {canEditApp && (
+          {canEditApp && !isUnauthorized && (
             <>
               <div
                 className={cn('flex w-0 grow items-center gap-1')}

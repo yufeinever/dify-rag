@@ -26,6 +26,12 @@ export enum DSLImportStatus {
   FAILED = 'failed',
 }
 
+export type WorkspaceUiPolicy = {
+  show_unauthorized_resource_cards: boolean
+}
+
+export type WorkspaceUiPolicyPayload = WorkspaceUiPolicy
+
 export type AppListResponse = {
   data: App[]
   has_more: boolean

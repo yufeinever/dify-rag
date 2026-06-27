@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Loading from '@/app/components/base/loading'
 import { useSelector as useAppContextWithSelector } from '@/context/app-context'
+import { useUiPolicy } from '@/hooks/use-ui-policy'
+import { useWorkspacePermission } from '@/hooks/use-workspace-permission'
 import { useDatasetList, useInvalidDatasetList } from '@/service/knowledge/use-dataset'
 import DatasetCard from './dataset-card'
 import NewDatasetCard from './new-dataset-card'
@@ -23,6 +25,11 @@ const Datasets = ({
 }: Props) => {
   const { t } = useTranslation()
   const isCurrentWorkspaceEditor = useAppContextWithSelector(state => state.isCurrentWorkspaceEditor)
+  const isCurrentWorkspaceDatasetOperator = useAppContextWithSelector(state => state.isCurrentWorkspaceDatasetOperator)
+  const canWorkspace = useWorkspacePermission()
+  const canCreateDataset = canWorkspace('dataset.create', isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator)
+  const { data: uiPolicy } = useUiPolicy()
+  const showUnauthorizedResourceCards = uiPolicy?.show_unauthorized_resource_cards ?? false
   const {
     data: datasetList,
     fetchNextPage,
@@ -35,6 +42,7 @@ const Datasets = ({
     limit: 30,
     include_all: includeAll,
     keyword: keywords,
+    include_inaccessible: showUnauthorizedResourceCards,
   })
   const invalidDatasetList = useInvalidDatasetList()
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -60,7 +68,7 @@ const Datasets = ({
   return (
     <>
       <nav className="grid grow grid-cols-1 content-start gap-3 px-12 pt-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {isCurrentWorkspaceEditor && <NewDatasetCard />}
+        {(canCreateDataset || showUnauthorizedResourceCards) && <NewDatasetCard disabled={!canCreateDataset} />}
         {datasetList?.pages.map(({ data: datasets }) => datasets.map(dataset => (
           <DatasetCard key={dataset.id} dataset={dataset} onSuccess={invalidDatasetList} onOpenTagManagement={onOpenTagManagement} />),
         ))}

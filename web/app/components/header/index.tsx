@@ -10,6 +10,7 @@ import { useProviderContext } from '@/context/provider-context'
 import { WorkspaceProvider } from '@/context/workspace-context-provider'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import { useHasAccessibleDatasets } from '@/hooks/use-has-accessible-datasets'
+import { useUiPolicy } from '@/hooks/use-ui-policy'
 import Link from '@/next/link'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { Plan } from '../billing/type'
@@ -38,7 +39,11 @@ const Header = () => {
   const { setShowPricingModal, setShowAccountSettingModal } = useModalContext()
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
   const { data: hasAccessibleDatasets = false } = useHasAccessibleDatasets()
-  const canShowDatasetNav = isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator || hasAccessibleDatasets
+  const { data: uiPolicy } = useUiPolicy()
+  const showUnauthorizedResourceCards = uiPolicy?.show_unauthorized_resource_cards ?? false
+  const canShowDatasetResourceNav = isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator || hasAccessibleDatasets
+  const canShowDatasetNav = canShowDatasetResourceNav || showUnauthorizedResourceCards
+  const canShowAppNav = !isCurrentWorkspaceDatasetOperator || showUnauthorizedResourceCards
   const isFreePlan = plan.type === Plan.sandbox
   const isBrandingEnabled = systemFeatures.branding.enabled
   const brandingTitle = systemFeatures.branding.application_title?.trim()
@@ -90,10 +95,10 @@ const Header = () => {
         </div>
         <div className="my-1 flex items-center justify-center space-x-1">
           {!isCurrentWorkspaceDatasetOperator && <ExploreNav className={navClassName} />}
-          {!isCurrentWorkspaceDatasetOperator && <AppNav />}
+          {canShowAppNav && <AppNav />}
           {canShowDatasetNav && <DatasetNav />}
           {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
-          {canShowDatasetNav && <DocumentManagementNav className={navClassName} />}
+          {canShowDatasetResourceNav && <DocumentManagementNav className={navClassName} />}
         </div>
       </div>
     )
@@ -111,10 +116,10 @@ const Header = () => {
       </div>
       <div className="flex items-center space-x-2">
         {!isCurrentWorkspaceDatasetOperator && <ExploreNav className={navClassName} />}
-        {!isCurrentWorkspaceDatasetOperator && <AppNav />}
+        {canShowAppNav && <AppNav />}
         {canShowDatasetNav && <DatasetNav />}
         {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
-        {canShowDatasetNav && <DocumentManagementNav className={navClassName} />}
+        {canShowDatasetResourceNav && <DocumentManagementNav className={navClassName} />}
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-end pr-3 pl-2 min-[1280px]:pl-3">
         <EnvNav />

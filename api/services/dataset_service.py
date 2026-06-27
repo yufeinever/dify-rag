@@ -272,47 +272,58 @@ class DatasetService:
         return permitted_dataset_ids
 
     @staticmethod
-    def get_datasets(page, per_page, tenant_id=None, user=None, search=None, tag_ids=None, include_all=False):
+    def get_datasets(
+        page,
+        per_page,
+        tenant_id=None,
+        user=None,
+        search=None,
+        tag_ids=None,
+        include_all=False,
+        include_inaccessible=False,
+    ):
         query = select(Dataset).where(Dataset.tenant_id == tenant_id).order_by(Dataset.created_at.desc(), Dataset.id)
 
+        permitted_dataset_ids: set[str] = set()
         if user:
             permitted_dataset_ids = DatasetService._get_permitted_dataset_ids(user.id, tenant_id)
 
-            if user.current_role == TenantAccountRole.DATASET_OPERATOR:
-                # only show datasets that the user has permission to access
-                # Check if permitted_dataset_ids is not empty to avoid WHERE false condition
-                if permitted_dataset_ids and len(permitted_dataset_ids) > 0:
-                    query = query.where(Dataset.id.in_(permitted_dataset_ids))
-                else:
-                    return [], 0
-            else:
-                if user.current_role != TenantAccountRole.OWNER or not include_all:
-                    if user.current_role == TenantAccountRole.NORMAL and permitted_dataset_ids:
-                        query = query.where(
-                            sa.or_(Dataset.id.in_(permitted_dataset_ids), Dataset.created_by == user.id)
-                        )
-                    elif permitted_dataset_ids and len(permitted_dataset_ids) > 0:
-                        query = query.where(
-                            sa.or_(
-                                Dataset.permission == DatasetPermissionEnum.ALL_TEAM,
-                                sa.and_(
-                                    Dataset.permission == DatasetPermissionEnum.ONLY_ME, Dataset.created_by == user.id
-                                ),
-                                sa.and_(
-                                    Dataset.permission == DatasetPermissionEnum.PARTIAL_TEAM,
-                                    Dataset.id.in_(permitted_dataset_ids),
-                                ),
-                            )
-                        )
+            if not include_inaccessible:
+                if user.current_role == TenantAccountRole.DATASET_OPERATOR:
+                    # only show datasets that the user has permission to access
+                    # Check if permitted_dataset_ids is not empty to avoid WHERE false condition
+                    if permitted_dataset_ids and len(permitted_dataset_ids) > 0:
+                        query = query.where(Dataset.id.in_(permitted_dataset_ids))
                     else:
-                        query = query.where(
-                            sa.or_(
-                                Dataset.permission == DatasetPermissionEnum.ALL_TEAM,
-                                sa.and_(
-                                    Dataset.permission == DatasetPermissionEnum.ONLY_ME, Dataset.created_by == user.id
-                                ),
+                        return [], 0
+                else:
+                    if user.current_role != TenantAccountRole.OWNER or not include_all:
+                        if user.current_role == TenantAccountRole.NORMAL and permitted_dataset_ids:
+                            query = query.where(
+                                sa.or_(Dataset.id.in_(permitted_dataset_ids), Dataset.created_by == user.id)
                             )
-                        )
+                        elif permitted_dataset_ids and len(permitted_dataset_ids) > 0:
+                            query = query.where(
+                                sa.or_(
+                                    Dataset.permission == DatasetPermissionEnum.ALL_TEAM,
+                                    sa.and_(
+                                        Dataset.permission == DatasetPermissionEnum.ONLY_ME, Dataset.created_by == user.id
+                                    ),
+                                    sa.and_(
+                                        Dataset.permission == DatasetPermissionEnum.PARTIAL_TEAM,
+                                        Dataset.id.in_(permitted_dataset_ids),
+                                    ),
+                                )
+                            )
+                        else:
+                            query = query.where(
+                                sa.or_(
+                                    Dataset.permission == DatasetPermissionEnum.ALL_TEAM,
+                                    sa.and_(
+                                        Dataset.permission == DatasetPermissionEnum.ONLY_ME, Dataset.created_by == user.id
+                                    ),
+                                )
+                            )
         else:
             # if no user, only show datasets that are shared with all team members
             query = query.where(Dataset.permission == DatasetPermissionEnum.ALL_TEAM)
@@ -337,6 +348,14 @@ class DatasetService:
                 return [], 0
 
         datasets = db.paginate(select=query, page=page, per_page=per_page, max_per_page=100, error_out=False)
+
+        if user:
+            for dataset in datasets.items:
+                dataset.has_permission = DatasetService.has_dataset_permission(
+                    dataset,
+                    user,
+                    permitted_dataset_ids,
+                )
 
         return datasets.items, datasets.total
 
@@ -1287,6 +1306,34 @@ class DatasetService:
     def dataset_use_check(dataset_id) -> bool:
         stmt = select(exists().where(AppDatasetJoin.dataset_id == dataset_id))
         return db.session.execute(stmt).scalar_one()
+
+    @staticmethod
+    def has_dataset_permission(dataset, user, permitted_dataset_ids: set[str] | None = None) -> bool:
+        if dataset.tenant_id != user.current_tenant_id:
+            return False
+        if user.current_role == TenantAccountRole.OWNER:
+            return True
+
+        if permitted_dataset_ids is None:
+            permitted_dataset_ids = DatasetService._get_permitted_dataset_ids(user.id, dataset.tenant_id)
+
+        is_personal_resource_role = user.current_role in {
+            TenantAccountRole.NORMAL,
+            TenantAccountRole.DATASET_OPERATOR,
+        }
+        if (
+            is_personal_resource_role
+            and permitted_dataset_ids
+            and dataset.created_by != user.id
+            and dataset.id not in permitted_dataset_ids
+        ):
+            return False
+
+        if dataset.permission == DatasetPermissionEnum.ONLY_ME and dataset.created_by != user.id:
+            return False
+        if dataset.permission == DatasetPermissionEnum.PARTIAL_TEAM:
+            return dataset.created_by == user.id or dataset.id in permitted_dataset_ids
+        return True
 
     @staticmethod
     def check_dataset_permission(dataset, user):

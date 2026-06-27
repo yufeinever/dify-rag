@@ -14,6 +14,7 @@ import { NEED_REFRESH_APP_LIST_KEY } from '@/config'
 import { useAppContext } from '@/context/app-context'
 import { TagFilter } from '@/features/tag-management/components/tag-filter'
 import { CheckModal } from '@/hooks/use-pay'
+import { useUiPolicy } from '@/hooks/use-ui-policy'
 import { useWorkspacePermission } from '@/hooks/use-workspace-permission'
 import dynamic from '@/next/dynamic'
 import { consoleQuery } from '@/service/client'
@@ -48,6 +49,9 @@ const List: FC<Props> = ({
   const canWorkspace = useWorkspacePermission()
   const canCreateApp = canWorkspace('app.create', isCurrentWorkspaceEditor)
   const canViewApp = canWorkspace('app.view', !isCurrentWorkspaceDatasetOperator)
+  const { data: uiPolicy } = useUiPolicy()
+  const showUnauthorizedResourceCards = uiPolicy?.show_unauthorized_resource_cards ?? false
+  const canListApps = canViewApp || showUnauthorizedResourceCards
 
   // eslint-disable-next-line react/use-state -- custom URL query hook, not React.useState
   const {
@@ -82,7 +86,8 @@ const List: FC<Props> = ({
     ...(tagIDs.length ? { tag_ids: tagIDs } : {}),
     ...(isCreatedByMe ? { is_created_by_me: isCreatedByMe } : {}),
     ...(category !== 'all' ? { mode: category } : {}),
-  }), [category, debouncedKeywords, isCreatedByMe, tagIDs])
+    ...(showUnauthorizedResourceCards ? { include_inaccessible: true } : {}),
+  }), [category, debouncedKeywords, isCreatedByMe, showUnauthorizedResourceCards, tagIDs])
 
   const {
     data,
@@ -105,7 +110,7 @@ const List: FC<Props> = ({
       initialPageParam: 1,
       placeholderData: keepPreviousData,
     }),
-    enabled: canViewApp,
+    enabled: canListApps,
     refetchInterval: systemFeatures.enable_collaboration_mode ? 10000 : false,
   })
 
@@ -133,7 +138,7 @@ const List: FC<Props> = ({
   }, [refetch])
 
   useEffect(() => {
-    if (!canViewApp)
+    if (!canListApps)
       return
     const hasMore = hasNextPage ?? true
     let observer: IntersectionObserver | undefined
@@ -160,7 +165,7 @@ const List: FC<Props> = ({
       observer.observe(anchorRef.current)
     }
     return () => observer?.disconnect()
-  }, [isLoading, isFetchingNextPage, fetchNextPage, error, hasNextPage, canViewApp])
+  }, [isLoading, isFetchingNextPage, fetchNextPage, error, hasNextPage, canListApps])
 
   const handleCreatedByMeChange = useCallback((checked: boolean) => {
     setIsCreatedByMe(checked)
@@ -229,10 +234,11 @@ const List: FC<Props> = ({
           !hasAnyApp && 'overflow-hidden',
         )}
         >
-          {(canCreateApp || isLoadingCurrentWorkspace) && (
+          {(canCreateApp || isLoadingCurrentWorkspace || showUnauthorizedResourceCards) && (
             <NewAppCard
               ref={newAppCardRef}
               isLoading={isLoadingCurrentWorkspace}
+              disabled={!canCreateApp}
               onSuccess={refetch}
               selectedAppType={category}
               className={cn(!hasAnyApp && 'z-10')}

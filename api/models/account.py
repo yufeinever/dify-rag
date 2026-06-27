@@ -235,6 +235,7 @@ class TenantStatus(enum.StrEnum):
 class TenantCustomConfigDict(TypedDict, total=False):
     remove_webapp_brand: bool
     replace_webapp_logo: str | None
+    mmb_ui_policy: dict[str, bool]
 
 
 class Tenant(TypeBase):

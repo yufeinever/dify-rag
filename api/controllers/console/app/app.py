@@ -56,6 +56,7 @@ from services.entities.knowledge_entities.knowledge_entities import (
     WeightVectorSetting,
 )
 from services.feature_service import FeatureService
+from services.ui_policy_service import UiPolicyService
 
 ALLOW_CREATE_APP_MODES = ["chat", "agent-chat", "advanced-chat", "workflow", "completion"]
 
@@ -74,6 +75,7 @@ class AppListQuery(BaseModel):
     name: str | None = Field(default=None, description="Filter by app name")
     tag_ids: list[str] | None = Field(default=None, description="Filter by tag IDs")
     is_created_by_me: bool | None = Field(default=None, description="Filter by creator")
+    include_inaccessible: bool = Field(default=False, description="Include resources the current user cannot access")
 
     @field_validator("tag_ids", mode="before")
     @classmethod
@@ -174,6 +176,14 @@ class AppTracePayload(BaseModel):
         if info.data.get("enabled") and not value:
             raise ValueError("tracing_provider is required when enabled is True")
         return value
+
+
+class AdminUiPolicyPayload(BaseModel):
+    show_unauthorized_resource_cards: bool = Field(default=False)
+
+
+class WorkspaceUiPolicyResponse(ResponseModel):
+    show_unauthorized_resource_cards: bool
 
 
 class AppPermissionMemberPayload(BaseModel):
@@ -499,6 +509,7 @@ class AppPartial(ResponseModel):
     create_user_name: str | None = None
     author_name: str | None = None
     has_draft_trigger: bool | None = None
+    has_permission: bool = True
 
     @computed_field(return_type=str | None)  # type: ignore
     @property
@@ -581,6 +592,8 @@ register_schema_models(
     AppSiteStatusPayload,
     AppApiStatusPayload,
     AppTracePayload,
+    AdminUiPolicyPayload,
+    WorkspaceUiPolicyResponse,
     AppPermissionMemberPayload,
     AppPermissionUpdatePayload,
     Tag,
@@ -653,6 +666,10 @@ class AppListApi(Resource):
             name=args.name,
             tag_ids=args.tag_ids,
             is_created_by_me=args.is_created_by_me,
+            include_inaccessible=(
+                args.include_inaccessible
+                and UiPolicyService.should_show_unauthorized_resource_cards(current_tenant_id)
+            ),
         )
 
         # get app list
@@ -1119,6 +1136,28 @@ class ExploreAppPermissionApi(Resource):
             current_user,
         )
         return PartialMemberListResponse(data=result).model_dump(mode="json"), 200
+
+
+@console_ns.route("/admin/ui-policy")
+class AdminUiPolicyApi(Resource):
+    @console_ns.doc("update_workspace_ui_policy")
+    @console_ns.doc(description="Update current workspace UI policy")
+    @console_ns.expect(console_ns.models[AdminUiPolicyPayload.__name__])
+    @console_ns.response(200, "Success", console_ns.models[WorkspaceUiPolicyResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def put(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        payload = AdminUiPolicyPayload.model_validate(console_ns.payload or {})
+        return UiPolicyService.update_policy(
+            tenant_id,
+            payload.show_unauthorized_resource_cards,
+        ), 200
 
 
 @console_ns.route("/admin/permission-groups")

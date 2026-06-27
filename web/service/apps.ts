@@ -1,5 +1,5 @@
 import type { TracingProvider } from '@/app/(commonLayout)/app/(appDetailLayout)/[appId]/overview/tracing/type'
-import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, EffectivePermissionResponse, PartialMemberListResponse, PermissionGroupListResponse, PermissionGroupPayload, PermissionGroupResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse } from '@/models/app'
+import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, EffectivePermissionResponse, PartialMemberListResponse, PermissionGroupListResponse, PermissionGroupPayload, PermissionGroupResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse, WorkspaceUiPolicy, WorkspaceUiPolicyPayload } from '@/models/app'
 import type { CommonResponse } from '@/models/common'
 import type { AppIconType, AppModeEnum, ModelConfig } from '@/types/app'
 import { del, get, patch, post, put } from './base'
@@ -232,4 +232,12 @@ export const deletePermissionTemplate = (templateID: string): Promise<CommonResp
 
 export const applyPermissionTemplate = (templateID: string): Promise<PermissionTemplateApplyResponse> => {
   return post<PermissionTemplateApplyResponse>(`admin/permission-templates/${templateID}/apply`, { body: {} })
+}
+
+export const fetchWorkspaceUiPolicy = (): Promise<WorkspaceUiPolicy> => {
+  return get<WorkspaceUiPolicy>('workspaces/current/ui-policy')
+}
+
+export const updateAdminUiPolicy = (body: WorkspaceUiPolicyPayload): Promise<WorkspaceUiPolicy> => {
+  return put<WorkspaceUiPolicy>('admin/ui-policy', { body })
 }

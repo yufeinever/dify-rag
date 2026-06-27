@@ -23,6 +23,7 @@ from controllers.console.error import AccountNotLinkTenantError
 from controllers.console.wraps import (
     account_initialization_required,
     cloud_edition_billing_resource_check,
+    enterprise_license_required,
     is_admin_or_owner_required,
     is_owner_required,
     only_edition_enterprise,
@@ -39,6 +40,7 @@ from services.billing_service import BillingService, SubscriptionPlan
 from services.enterprise.enterprise_service import EnterpriseService
 from services.feature_service import FeatureService
 from services.file_service import FileService
+from services.ui_policy_service import UiPolicyService
 from services.workspace_service import WorkspaceService
 
 logger = logging.getLogger(__name__)
@@ -97,6 +99,10 @@ class WorkspacePermissionResponse(ResponseModel):
     allow_owner_transfer: bool
 
 
+class WorkspaceUiPolicyResponse(ResponseModel):
+    show_unauthorized_resource_cards: bool
+
+
 register_schema_models(
     console_ns,
     WorkspaceListQuery,
@@ -105,7 +111,7 @@ register_schema_models(
     WorkspaceInfoPayload,
     TenantInfoResponse,
 )
-register_response_schema_models(console_ns, WorkspacePermissionResponse)
+register_response_schema_models(console_ns, WorkspacePermissionResponse, WorkspaceUiPolicyResponse)
 
 provider_fields = {
     "provider_name": fields.String,
@@ -392,3 +398,20 @@ class WorkspacePermissionApi(Resource):
             "allow_member_invite": permission.allow_member_invite,
             "allow_owner_transfer": permission.allow_owner_transfer,
         }, 200
+
+
+@console_ns.route("/workspaces/current/ui-policy")
+class WorkspaceUiPolicyApi(Resource):
+    """Get current workspace UI policy."""
+
+    @console_ns.response(200, "Success", console_ns.models[WorkspaceUiPolicyResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @enterprise_license_required
+    def get(self):
+        _, current_tenant_id = current_account_with_tenant()
+        if not current_tenant_id:
+            raise ValueError("No current tenant")
+
+        return UiPolicyService.get_policy(current_tenant_id), 200

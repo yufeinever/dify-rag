@@ -361,6 +361,7 @@ export type App = {
   max_active_requests?: number | null
   /** whether workflow trigger has un-published draft */
   has_draft_trigger?: boolean
+  has_permission?: boolean
 }
 
 export type AppSSO = {
