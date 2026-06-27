@@ -325,15 +325,15 @@ const DocumentManagement = () => {
                   </div>
                 )
               : (
-                  <table className="w-full min-w-[980px] border-collapse text-sm">
+                  <table className="w-full min-w-[1180px] border-collapse text-sm">
                     <thead className="sticky top-0 z-10 border-b border-divider-subtle bg-background-default text-xs font-medium text-text-tertiary">
                       <tr>
-                        <th className="w-[34%] px-4 py-3 text-left">文档</th>
-                        <th className="w-[22%] px-4 py-3 text-left">知识库</th>
-                        <th className="w-[10%] px-4 py-3 text-left">字符数</th>
-                        <th className="w-[10%] px-4 py-3 text-left">召回</th>
-                        <th className="w-[12%] px-4 py-3 text-left">状态</th>
-                        <th className="w-[12%] px-4 py-3 text-left">操作</th>
+                        <th className="w-[30%] px-4 py-3 text-left">文档</th>
+                        <th className="w-[24%] px-4 py-3 text-left">知识库</th>
+                        <th className="w-[9%] px-4 py-3 text-left">字符数</th>
+                        <th className="w-[7%] px-4 py-3 text-left">召回</th>
+                        <th className="w-[8%] px-4 py-3 text-left">状态</th>
+                        <th className="w-[260px] min-w-[260px] px-4 py-3 text-left">操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -366,11 +366,11 @@ const DocumentManagement = () => {
                                 {statusLabel[status] || status}
                               </span>
                             </td>
-                            <td className="px-4 py-3 align-top">
-                              <div className="flex items-center gap-2">
+                            <td className="w-[260px] min-w-[260px] px-4 py-3 align-top">
+                              <div className="flex items-center gap-2 whitespace-nowrap">
                                 <Link
                                   href={`/datasets/${doc.dataset.id}/documents/${doc.id}`}
-                                  className="inline-flex h-8 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover"
+                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover"
                                 >
                                   分段
                                   <RiArrowRightLine className="size-3.5" />
@@ -378,7 +378,7 @@ const DocumentManagement = () => {
                                 <button
                                   type="button"
                                   disabled={!isDownloadable(doc)}
-                                  className="inline-flex h-8 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
                                   onClick={() => handlePreview(doc)}
                                 >
                                   预览原文
@@ -387,7 +387,7 @@ const DocumentManagement = () => {
                                 <button
                                   type="button"
                                   disabled={!isDownloadable(doc) || downloadingId === doc.id}
-                                  className="inline-flex h-8 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-components-button-secondary-border bg-components-button-secondary-bg px-2.5 text-xs font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
                                   onClick={() => handleDownload(doc)}
                                 >
                                   <RiDownload2Line className="size-3.5" />
@@ -410,7 +410,7 @@ const DocumentManagement = () => {
               {' '}
               份
             </span>
-            <span>“分段”查看入库后的 Chunk；“预览原文”使用 OnlyOffice/PDF 原生能力打开原始上传文件。</span>
+            <span>“分段”查看入库后的 Chunk；“预览原文”使用浏览器原生预览或 PDF 转换预览打开原始上传文件。</span>
           </div>
         </main>
       </div>
