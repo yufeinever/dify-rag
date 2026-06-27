@@ -87,6 +87,11 @@ const Header = () => {
             {enableBilling ? <PlanBadge allowHover sandboxAsUpgrade plan={plan.type} onClick={handlePlanClick} /> : <LicenseNav />}
           </div>
           <div className="flex items-center">
+            {!isCurrentWorkspaceDatasetOperator && (
+              <div className="mr-2">
+                <ToolsNav />
+              </div>
+            )}
             <div className="mr-2">
               <PluginsNav />
             </div>
@@ -97,7 +102,6 @@ const Header = () => {
           {!isCurrentWorkspaceDatasetOperator && <ExploreNav className={navClassName} />}
           {canShowAppNav && <AppNav />}
           {canShowDatasetNav && <DatasetNav />}
-          {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
           {canShowDatasetResourceNav && <DocumentManagementNav className={navClassName} />}
         </div>
       </div>
@@ -118,11 +122,15 @@ const Header = () => {
         {!isCurrentWorkspaceDatasetOperator && <ExploreNav className={navClassName} />}
         {canShowAppNav && <AppNav />}
         {canShowDatasetNav && <DatasetNav />}
-        {!isCurrentWorkspaceDatasetOperator && <ToolsNav className={navClassName} />}
         {canShowDatasetResourceNav && <DocumentManagementNav className={navClassName} />}
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-end pr-3 pl-2 min-[1280px]:pl-3">
         <EnvNav />
+        {!isCurrentWorkspaceDatasetOperator && (
+          <div className="mr-2">
+            <ToolsNav />
+          </div>
+        )}
         <div className="mr-2">
           <PluginsNav />
         </div>

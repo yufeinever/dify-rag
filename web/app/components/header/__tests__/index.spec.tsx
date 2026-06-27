@@ -66,6 +66,8 @@ let mockPlanType = 'sandbox'
 let mockBrandingEnabled = false
 let mockBrandingTitle: string | null = null
 let mockBrandingLogo: string | null = null
+let mockHasAccessibleDatasets = false
+let mockShowUnauthorizedResourceCards = false
 const mockSetShowPricingModal = vi.fn()
 const mockSetShowAccountSettingModal = vi.fn()
 
@@ -79,6 +81,16 @@ vi.mock('@/context/app-context', () => ({
 vi.mock('@/hooks/use-breakpoints', () => ({
   default: () => mockMedia,
   MediaType: { mobile: 'mobile', tablet: 'tablet', desktop: 'desktop' },
+}))
+
+vi.mock('@/hooks/use-has-accessible-datasets', () => ({
+  useHasAccessibleDatasets: () => ({ data: mockHasAccessibleDatasets }),
+}))
+
+vi.mock('@/hooks/use-ui-policy', () => ({
+  useUiPolicy: () => ({
+    data: { show_unauthorized_resource_cards: mockShowUnauthorizedResourceCards },
+  }),
 }))
 
 vi.mock('@/context/provider-context', () => ({
@@ -117,6 +129,8 @@ describe('Header', () => {
     mockBrandingEnabled = false
     mockBrandingTitle = null
     mockBrandingLogo = null
+    mockHasAccessibleDatasets = false
+    mockShowUnauthorizedResourceCards = false
   })
 
   it('should render header with main nav components', () => {
@@ -126,6 +140,15 @@ describe('Header', () => {
     expect(screen.getByTestId('workplace-selector')).toBeInTheDocument()
     expect(screen.getByTestId('app-nav')).toBeInTheDocument()
     expect(screen.getByTestId('account-dropdown')).toBeInTheDocument()
+  })
+
+  it('should render tools nav in the right action group before plugins nav', () => {
+    renderHeader()
+
+    const toolsNav = screen.getByTestId('tools-nav')
+    const pluginsNav = screen.getByTestId('plugins-nav')
+
+    expect(toolsNav.compareDocumentPosition(pluginsNav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('should show license nav when billing disabled, plan badge when enabled', () => {

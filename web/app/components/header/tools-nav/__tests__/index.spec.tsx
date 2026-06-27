@@ -7,15 +7,6 @@ vi.mock('@/next/navigation', () => ({
   useSelectedLayoutSegment: () => mockUseSelectedLayoutSegment(),
 }))
 
-vi.mock('@remixicon/react', () => ({
-  RiHammerFill: (props: React.ComponentProps<'svg'>) => (
-    <svg data-testid="icon-hammer-fill" {...props} />
-  ),
-  RiHammerLine: (props: React.ComponentProps<'svg'>) => (
-    <svg data-testid="icon-hammer-line" {...props} />
-  ),
-}))
-
 describe('ToolsNav', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -34,10 +25,11 @@ describe('ToolsNav', () => {
       expect(screen.getByTestId('icon-hammer-line')).toBeInTheDocument()
       expect(screen.queryByTestId('icon-hammer-fill')).not.toBeInTheDocument()
 
-      expect(link).toHaveClass('text-components-main-nav-nav-button-text')
-      expect(link).toHaveClass(
-        'hover:bg-components-main-nav-nav-button-bg-hover',
-      )
+      expect(link).toHaveClass('group')
+
+      const button = screen.getByText('common.menus.tools').closest('div')
+      expect(button).toHaveClass('text-text-tertiary')
+      expect(button).toHaveClass('hover:bg-state-base-hover')
     })
 
     it('should render active state correctly', () => {
@@ -47,12 +39,13 @@ describe('ToolsNav', () => {
 
       const link = screen.getByRole('link')
 
-      expect(link).toHaveClass('bg-components-main-nav-nav-button-bg-active')
-      expect(link).toHaveClass(
-        'text-components-main-nav-nav-button-text-active',
-      )
-      expect(link).toHaveClass('font-semibold')
-      expect(link).toHaveClass('shadow-md')
+      expect(link).toHaveClass('group')
+
+      const button = screen.getByText('common.menus.tools').closest('div')
+      expect(button).toHaveClass('border-components-main-nav-nav-button-border')
+      expect(button).toHaveClass('bg-components-main-nav-nav-button-bg-active')
+      expect(button).toHaveClass('text-components-main-nav-nav-button-text')
+      expect(button).toHaveClass('shadow-md')
 
       expect(screen.getByTestId('icon-hammer-fill')).toBeInTheDocument()
       expect(screen.queryByTestId('icon-hammer-line')).not.toBeInTheDocument()
