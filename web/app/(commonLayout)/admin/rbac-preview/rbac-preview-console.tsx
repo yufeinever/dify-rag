@@ -15,7 +15,7 @@ import Link from '@/next/link'
 import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchEffectivePermissions, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, fetchWorkspaceUiPolicy, updateAdminUiPolicy, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { fetchInstalledAppList } from '@/service/explore'
-import { useMembers, useWorkspaces } from '@/service/use-common'
+import { useMembers } from '@/service/use-common'
 
 const roleLabelMap: Record<Member['role'], string> = { owner: '所有者', admin: '管理员', editor: '编辑者', dataset_operator: '知识库管理员', normal: '普通成员' }
 const statusLabelMap: Record<Member['status'], string> = { pending: '待加入', active: '正常', banned: '禁用', closed: '关闭' }
@@ -72,9 +72,7 @@ export default function RbacPreviewConsole() {
   const hasAnyPermission = canAny ?? (() => false)
   const canEnterAdmin = hasAnyPermission(['workspace.member.view', 'workspace.member.manage']) || isCurrentWorkspaceManager
   const { data: membersData, isLoading: membersLoading, refetch: refetchMembers } = useMembers()
-  const { data: workspacesData } = useWorkspaces()
   const members = useMemo(() => membersData?.accounts ?? [], [membersData?.accounts])
-  const workspaces = useMemo(() => workspacesData?.workspaces ?? [], [workspacesData?.workspaces])
   const appsQuery = useQuery({ queryKey: ['rbac-preview', 'apps'], queryFn: () => fetchAppList({ url: '/apps', params: { page: 1, limit: 100 } }), enabled: canEnterAdmin })
   const exploreQuery = useQuery({ queryKey: ['rbac-preview', 'explore-apps'], queryFn: () => fetchInstalledAppList(), enabled: canEnterAdmin })
   const datasetsQuery = useQuery({ queryKey: ['rbac-preview', 'datasets'], queryFn: () => fetchDatasets({ url: '/datasets', params: { page: 1, limit: 100 } }), enabled: canEnterAdmin })
@@ -366,10 +364,7 @@ export default function RbacPreviewConsole() {
       <div className="border-b border-divider-subtle bg-background-section">
         <div className="mx-auto flex max-w-[1520px] items-center justify-between gap-4 px-6 py-4 max-lg:flex-col max-lg:items-start">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-semibold text-text-tertiary uppercase">
-              <span>MMB Enterprise RBAC</span>
-              <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-700">预览版</span>
-            </div>
+            <div className="text-xs font-semibold text-text-tertiary uppercase">MMB Enterprise RBAC</div>
             <h1 className="mt-1 text-2xl font-semibold tracking-normal text-text-primary">企业权限控制台</h1>
             <p className="mt-1 text-sm text-text-tertiary">
               当前工作区：
@@ -395,7 +390,7 @@ export default function RbacPreviewConsole() {
           <Metric label="知识库" value={datasets.length} hint="可管理知识库" />
         </div>
       </div>
-      <div className="mx-auto grid max-w-[1520px] grid-cols-[236px_minmax(0,1fr)_320px] gap-4 px-6 py-5 max-2xl:grid-cols-[232px_minmax(0,1fr)] max-xl:grid-cols-1 max-lg:px-4">
+      <div className="mx-auto grid max-w-[1520px] grid-cols-[236px_minmax(0,1fr)] gap-4 px-6 py-5 max-xl:grid-cols-1 max-lg:px-4">
         <aside className="rounded-xl border border-divider-subtle bg-background-section p-3 shadow-xs max-xl:order-1">
           <div className="relative mb-3">
             <span className="absolute top-1/2 left-3 i-ri-search-line size-4 -translate-y-1/2 text-text-quaternary" aria-hidden />
@@ -484,9 +479,6 @@ export default function RbacPreviewConsole() {
           )}
           {activeTab === 'general' && <GeneralSettingsPanel showUnauthorizedResourceCards={showUnauthorizedResourceCards} loading={uiPolicyQuery.isLoading || updatingUiPolicy} onToggle={() => void handleToggleUnauthorizedCards()} />}
         </main>
-        <aside className="rounded-xl border border-divider-subtle bg-background-section p-4 shadow-xs max-2xl:col-span-2 max-xl:order-3 max-xl:col-span-1">
-          <ContextPanel activeTab={activeTab} groups={groups.length} templates={templates.length} workspaces={workspaces.length} />
-        </aside>
       </div>
       {editorPanel === 'group' && (
         <EditorDrawer title={groupForm.id ? '编辑用户组' : '新建用户组'} description="账号归属、部门和项目组在这里维护。" onClose={() => setEditorPanel(null)}>
@@ -596,16 +588,16 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] text-left text-sm">
+        <table className="w-full min-w-[1120px] table-fixed text-left text-sm">
           <thead className="bg-background-default/70 text-xs text-text-tertiary">
             <tr>
-              <th className="px-5 py-3"><input type="checkbox" checked={members.length > 0 && members.every(member => selectedMemberIds.includes(member.id))} onChange={onToggleAll} /></th>
-              <SortableHeader label="账号" sortKey="account" activeSort={sort} onSort={onSortChange} />
-              <SortableHeader label="角色" sortKey="role" activeSort={sort} onSort={onSortChange} />
-              <SortableHeader label="状态" sortKey="status" activeSort={sort} onSort={onSortChange} />
-              <SortableHeader label="用户组" sortKey="group" activeSort={sort} onSort={onSortChange} />
-              <SortableHeader label="加入日期" sortKey="created_at" activeSort={sort} onSort={onSortChange} />
-              <th className="px-4 py-3 text-right">操作</th>
+              <th className="w-12 px-5 py-3"><input type="checkbox" checked={members.length > 0 && members.every(member => selectedMemberIds.includes(member.id))} onChange={onToggleAll} /></th>
+              <SortableHeader label="账号" sortKey="account" activeSort={sort} onSort={onSortChange} className="w-[300px]" />
+              <SortableHeader label="角色" sortKey="role" activeSort={sort} onSort={onSortChange} className="w-[112px]" />
+              <SortableHeader label="状态" sortKey="status" activeSort={sort} onSort={onSortChange} className="w-[88px]" />
+              <SortableHeader label="用户组" sortKey="group" activeSort={sort} onSort={onSortChange} className="w-[280px]" />
+              <SortableHeader label="加入日期" sortKey="created_at" activeSort={sort} onSort={onSortChange} className="w-[132px]" />
+              <th className="w-20 px-4 py-3 text-right whitespace-nowrap">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-divider-subtle">
@@ -617,10 +609,10 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
                   <div className="mt-1 text-xs text-text-tertiary">{member.email}</div>
                 </td>
                 <td className="px-4 py-3 text-text-secondary">{roleLabelMap[member.role]}</td>
-                <td className="px-4 py-3 text-text-secondary">{statusLabelMap[member.status]}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-text-secondary">{statusLabelMap[member.status]}</td>
                 <td className="px-4 py-3 text-text-secondary">{(groupsByMember.get(member.id) ?? []).map(group => group.name).join('、') || '未入组'}</td>
-                <td className="px-4 py-3 text-text-secondary">{fmt(member.created_at)}</td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 whitespace-nowrap text-text-secondary">{fmt(member.created_at)}</td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
                   <button className="inline-flex h-7 items-center rounded-md px-2 text-xs font-medium text-text-tertiary hover:bg-blue-50 hover:text-blue-700" onClick={() => onOpenEffective(member.id)}>权限</button>
                 </td>
               </tr>
@@ -633,12 +625,12 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
   )
 }
 
-function SortableHeader({ label, sortKey, activeSort, onSort }: { label: string, sortKey: MemberSortKey, activeSort: MemberSortState, onSort: (key: MemberSortKey) => void }) {
+function SortableHeader({ label, sortKey, activeSort, onSort, className = '' }: { label: string, sortKey: MemberSortKey, activeSort: MemberSortState, onSort: (key: MemberSortKey) => void, className?: string }) {
   const active = activeSort.key === sortKey
 
   return (
-    <th className="px-4 py-3">
-      <button type="button" onClick={() => onSort(sortKey)} className={`inline-flex items-center gap-1 font-medium ${active ? 'text-blue-700' : 'text-text-tertiary hover:text-text-secondary'}`}>
+    <th className={`px-4 py-3 whitespace-nowrap ${className}`}>
+      <button type="button" onClick={() => onSort(sortKey)} className={`inline-flex min-w-max items-center gap-1 font-medium whitespace-nowrap ${active ? 'text-blue-700' : 'text-text-tertiary hover:text-text-secondary'}`}>
         {label}
         <span className={`size-3 ${active ? (activeSort.direction === 'asc' ? 'i-ri-arrow-up-s-line' : 'i-ri-arrow-down-s-line') : 'i-ri-expand-up-down-line'}`} />
       </button>
@@ -905,7 +897,7 @@ function TemplateEditor({ form, groups, apps, exploreApps, datasets, effectiveMe
 }
 function ResourceEditor({ selectedResource, members, memberIds, saving, onToggleMember, onChangeMembers, onSave }: { selectedResource: { kind: 'app' | 'explore' | 'dataset', id: string } | null, members: Member[], memberIds: string[], saving: boolean, onToggleMember: (id: string) => void, onChangeMembers: (ids: string[]) => void, onSave: () => void }) {
   if (!selectedResource)
-    return <ContextPanel activeTab="resources" groups={0} templates={0} workspaces={0} />
+    return <EmptyState text="请选择资源" />
   return (
     <div>
       <PanelHeader title="资源直授权" action="用于排查和临时授权" />
@@ -942,20 +934,6 @@ function GeneralSettingsPanel({ showUnauthorizedResourceCards, loading, onToggle
             <span className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${showUnauthorizedResourceCards ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </button>
         </div>
-      </div>
-    </div>
-  )
-}
-function ContextPanel({ activeTab, groups, templates, workspaces }: { activeTab: RbacPreviewTab, groups: number, templates: number, workspaces: number }) {
-  const copy: Record<RbacPreviewTab, string> = { members: '管理账号归属和批量入组。', groups: '在右侧维护部门、岗位或项目组。', templates: '在右侧绑定用户组和资源。', effective: '解释账号最终能看到哪些资源。', resources: '维护低频的资源直授权。', audit: '回溯权限相关配置变更。', general: '管理工作区级界面策略。' }
-  return (
-    <div>
-      <PanelHeader title="上下文" action="当前模块" />
-      <div className="rounded-xl border border-divider-subtle bg-background-default/50 p-4 text-sm leading-6 text-text-secondary">{copy[activeTab]}</div>
-      <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-        <SummaryBadge label="用户组" value={groups} />
-        <SummaryBadge label="模板" value={templates} />
-        <SummaryBadge label="工作区" value={workspaces} />
       </div>
     </div>
   )
