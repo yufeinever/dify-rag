@@ -173,15 +173,20 @@ const List: FC<Props> = ({
 
   const pages = useMemo(() => data?.pages ?? [], [data?.pages])
   const apps = useMemo(() => pages.flatMap(({ data: pageApps }) => pageApps), [pages])
+  const orderedApps = useMemo(() => {
+    const accessibleApps = apps.filter(app => app.has_permission !== false)
+    const inaccessibleApps = apps.filter(app => app.has_permission === false)
+    return [...accessibleApps, ...inaccessibleApps]
+  }, [apps])
 
   const workflowOnlineUserAppIds = useMemo(() => {
     const appIds = new Set<string>()
-    apps.forEach((app) => {
+    orderedApps.forEach((app) => {
       if (app.mode === AppModeEnum.WORKFLOW || app.mode === AppModeEnum.ADVANCED_CHAT)
         appIds.add(app.id)
     })
     return Array.from(appIds)
-  }, [apps])
+  }, [orderedApps])
 
   const {
     onlineUsersMap: workflowOnlineUsersMap,
@@ -247,7 +252,7 @@ const List: FC<Props> = ({
           {showSkeleton
             ? <AppCardSkeleton count={6} />
             : hasAnyApp
-              ? apps.map(app => (
+              ? orderedApps.map(app => (
                   <AppCard
                     key={app.id}
                     app={app}

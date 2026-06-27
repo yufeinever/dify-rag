@@ -93,36 +93,38 @@ const mockServiceState = {
   isFetchingNextPage: false,
 }
 
+const createDefaultApps = () => [
+  {
+    id: 'app-1',
+    name: 'Test App 1',
+    description: 'Description 1',
+    mode: AppModeEnum.CHAT,
+    icon: '🤖',
+    icon_type: 'emoji',
+    icon_background: '#FFEAD5',
+    tags: [],
+    author_name: 'Author 1',
+    created_at: 1704067200,
+    updated_at: 1704153600,
+  },
+  {
+    id: 'app-2',
+    name: 'Test App 2',
+    description: 'Description 2',
+    mode: AppModeEnum.WORKFLOW,
+    icon: '⚙️',
+    icon_type: 'emoji',
+    icon_background: '#E4FBCC',
+    tags: [],
+    author_name: 'Author 2',
+    created_at: 1704067200,
+    updated_at: 1704153600,
+  },
+]
+
 const defaultAppData = {
   pages: [{
-    data: [
-      {
-        id: 'app-1',
-        name: 'Test App 1',
-        description: 'Description 1',
-        mode: AppModeEnum.CHAT,
-        icon: '🤖',
-        icon_type: 'emoji',
-        icon_background: '#FFEAD5',
-        tags: [],
-        author_name: 'Author 1',
-        created_at: 1704067200,
-        updated_at: 1704153600,
-      },
-      {
-        id: 'app-2',
-        name: 'Test App 2',
-        description: 'Description 2',
-        mode: AppModeEnum.WORKFLOW,
-        icon: '⚙️',
-        icon_type: 'emoji',
-        icon_background: '#E4FBCC',
-        tags: [],
-        author_name: 'Author 2',
-        created_at: 1704067200,
-        updated_at: 1704153600,
-      },
-    ],
+    data: createDefaultApps(),
     total: 2,
   }],
 }
@@ -257,6 +259,8 @@ describe('List', () => {
     mockQueryState.keywords = ''
     mockQueryState.isCreatedByMe = false
     mockUseWorkflowOnlineUsers.mockClear()
+    defaultAppData.pages[0]!.data = createDefaultApps()
+    defaultAppData.pages[0]!.total = 2
     intersectionCallback = null
     localStorage.clear()
   })
@@ -537,6 +541,28 @@ describe('List', () => {
 
       expect(screen.getByTestId('app-card-app-1'))!.toBeInTheDocument()
       expect(screen.getByTestId('app-card-app-2'))!.toBeInTheDocument()
+    })
+
+    it('should display create card first, accessible apps next, and inaccessible apps last', () => {
+      const [chatApp, workflowApp] = createDefaultApps()
+      defaultAppData.pages[0]!.data = [
+        { ...chatApp!, id: 'no-access-1', name: 'No Access 1', has_permission: false },
+        { ...workflowApp!, id: 'accessible-1', name: 'Accessible 1', has_permission: true },
+        { ...chatApp!, id: 'implicit-access', name: 'Implicit Access' },
+        { ...workflowApp!, id: 'no-access-2', name: 'No Access 2', has_permission: false },
+      ]
+      defaultAppData.pages[0]!.total = 4
+
+      renderList()
+
+      const renderedCards = Array.from(screen.getByTestId('new-app-card').parentElement!.children).map(card => card.textContent)
+      expect(renderedCards.slice(0, 5)).toEqual([
+        'New App Card',
+        'Accessible 1',
+        'Implicit Access',
+        'No Access 1',
+        'No Access 2',
+      ])
     })
 
     it('should display app names correctly', () => {
