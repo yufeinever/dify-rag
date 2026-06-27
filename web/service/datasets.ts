@@ -42,13 +42,13 @@ export type DocumentDownloadZipRequest = {
 }
 
 export type DocumentOfficePreviewConfigResponse = {
-  mode: 'onlyoffice' | 'native'
-  document_server_url?: string
+  mode: 'native'
   file_type: string
+  original_file_type?: string
+  preview_kind?: 'native' | 'converted_pdf' | 'unsupported'
   name: string
   preview_url: string
   download_url: string
-  config?: Record<string, unknown>
 }
 
 type BatchReq = {
@@ -179,6 +179,15 @@ export const fetchDocumentPreviewUrl = ({ datasetId, documentId }: CommonDocReq)
 
 export const fetchDocumentOfficePreviewConfig = ({ datasetId, documentId }: CommonDocReq): Promise<DocumentOfficePreviewConfigResponse> => {
   return get<DocumentOfficePreviewConfigResponse>(`/datasets/${datasetId}/documents/${documentId}/office-preview`, {})
+}
+
+export const fetchDocumentConvertedPreviewBlob = async (previewUrl: string): Promise<Blob> => {
+  const response = await get<Response>(previewUrl, {}, {
+    deleteContentType: true,
+    needAllResponseContent: true,
+    silent: true,
+  })
+  return response.blob()
 }
 
 export const downloadDocumentsZip = ({ datasetId, documentIds }: DocumentDownloadZipRequest): Promise<Blob> => {

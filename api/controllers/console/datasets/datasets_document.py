@@ -2,23 +2,26 @@ import hashlib
 import json
 import logging
 import os
+import shutil
+import subprocess
+import tempfile
 from argparse import ArgumentTypeError
 from collections.abc import Sequence
 from contextlib import ExitStack
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal, cast
+from urllib.parse import quote
 from uuid import UUID
 
-import jwt
 import sqlalchemy as sa
-from flask import request, send_file
+from flask import Response, request, send_file
 from flask_restx import Resource, marshal
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import asc, desc, func, select
 from werkzeug.exceptions import Forbidden, NotFound
 
 import services
-from configs import dify_config
 from controllers.common.controller_schemas import DocumentBatchDownloadZipPayload
 from controllers.common.fields import SimpleResultMessageResponse, SimpleResultResponse, UrlResponse
 from controllers.common.schema import register_response_schema_models, register_schema_models
@@ -36,6 +39,7 @@ from core.rag.extractor.entity.datasource_type import DatasourceType
 from core.rag.extractor.entity.extract_setting import ExtractSetting, NotionInfo, WebsiteInfo
 from core.rag.index_processor.constant.index_type import IndexTechniqueType
 from extensions.ext_database import db
+from extensions.ext_storage import storage
 from fields.base import ResponseModel
 from fields.document_fields import (
     document_fields,
@@ -77,77 +81,6 @@ from ..wraps import (
 
 logger = logging.getLogger(__name__)
 
-
-_ONLYOFFICE_DOCUMENT_TYPES = {
-    "doc": "word",
-    "docm": "word",
-    "docx": "word",
-    "dot": "word",
-    "dotm": "word",
-    "dotx": "word",
-    "fodt": "word",
-    "odt": "word",
-    "ott": "word",
-    "pages": "word",
-    "rtf": "word",
-    "stw": "word",
-    "sxw": "word",
-    "wps": "word",
-    "wpt": "word",
-    "et": "cell",
-    "ett": "cell",
-    "fods": "cell",
-    "numbers": "cell",
-    "ods": "cell",
-    "ots": "cell",
-    "sxc": "cell",
-    "xls": "cell",
-    "xlsb": "cell",
-    "xlsm": "cell",
-    "xlsx": "cell",
-    "xlt": "cell",
-    "xltm": "cell",
-    "xltx": "cell",
-    "fodp": "slide",
-    "key": "slide",
-    "odp": "slide",
-    "otp": "slide",
-    "pot": "slide",
-    "potm": "slide",
-    "potx": "slide",
-    "pps": "slide",
-    "ppsm": "slide",
-    "ppsx": "slide",
-    "ppt": "slide",
-    "pptm": "slide",
-    "pptx": "slide",
-    "sxi": "slide",
-}
-
-
-_NATIVE_PREVIEW_TYPES = {
-    "bmp",
-    "csv",
-    "gif",
-    "jpeg",
-    "jpg",
-    "json",
-    "log",
-    "md",
-    "pdf",
-    "png",
-    "svg",
-    "txt",
-    "webp",
-    "xml",
-}
-
-
-def _onlyoffice_document_type(file_type: str) -> str | None:
-    normalized_file_type = file_type.lower().lstrip(".")
-    if normalized_file_type in _NATIVE_PREVIEW_TYPES:
-        return None
-    return _ONLYOFFICE_DOCUMENT_TYPES.get(normalized_file_type)
 
 
 def _normalize_enum(value: Any) -> Any:
@@ -1078,85 +1011,164 @@ class DocumentPreviewApi(DocumentResource):
         return {"url": DocumentService.get_document_preview_url(document)}
 
 
+DOCUMENT_PREVIEW_CONVERTIBLE_EXTENSIONS = {"doc", "docx", "ppt", "pptx", "xls", "xlsx"}
+DOCUMENT_PREVIEW_TEXT_EXTENSIONS = {"csv", "json", "log", "md", "txt", "xml", "yaml", "yml"}
+DOCUMENT_PREVIEW_NATIVE_EXTENSIONS = {
+    "bmp",
+    "gif",
+    "jpeg",
+    "jpg",
+    "pdf",
+    "png",
+    "svg",
+    "webp",
+    *DOCUMENT_PREVIEW_TEXT_EXTENSIONS,
+}
+DOCUMENT_PREVIEW_CACHE_DIR = Path(os.getenv("DOCUMENT_PREVIEW_CACHE_DIR", "/tmp/dify-document-previews"))
+
+
+def _document_preview_file_type(upload_file: UploadFile) -> str:
+    return (upload_file.extension or upload_file.name.rsplit(".", 1)[-1]).lower().lstrip(".")
+
+
+def _document_preview_pdf_cache_path(document: Document, upload_file: UploadFile) -> Path:
+    cache_key = hashlib.sha256(
+        f"document-preview-pdf-v1:{document.id}:{upload_file.id}:{upload_file.created_at.isoformat()}:{upload_file.size}".encode()
+    ).hexdigest()
+    return DOCUMENT_PREVIEW_CACHE_DIR / f"{cache_key}.pdf"
+
+
+def _convert_upload_file_to_pdf(document: Document, upload_file: UploadFile) -> Path:
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        raise InvalidActionError("Document preview converter is not installed.")
+
+    output_path = _document_preview_pdf_cache_path(document, upload_file)
+    if output_path.exists() and output_path.stat().st_size > 0:
+        return output_path
+
+    DOCUMENT_PREVIEW_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    source_suffix = f".{_document_preview_file_type(upload_file) or 'bin'}"
+
+    with tempfile.TemporaryDirectory(prefix="dify-document-preview-") as temp_dir:
+        temp_path = Path(temp_dir)
+        source_path = temp_path / f"source{source_suffix}"
+        source_path.write_bytes(storage.load_once(upload_file.key))
+        profile_dir = temp_path / "libreoffice-profile"
+        output_dir = temp_path / "out"
+        output_dir.mkdir()
+
+        result = subprocess.run(
+            [
+                soffice,
+                "--headless",
+                "--nologo",
+                "--nofirststartwizard",
+                f"-env:UserInstallation=file://{profile_dir}",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(output_dir),
+                str(source_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        converted_files = list(output_dir.glob("*.pdf"))
+        if result.returncode != 0 or not converted_files:
+            logger.warning(
+                "Document PDF preview conversion failed: document_id=%s upload_file_id=%s returncode=%s stdout=%s stderr=%s",
+                document.id,
+                upload_file.id,
+                result.returncode,
+                result.stdout[-1000:],
+                result.stderr[-1000:],
+            )
+            raise InvalidActionError("Document preview conversion failed.")
+
+        temp_output = converted_files[0]
+        temp_cache_path = output_path.with_suffix(".tmp")
+        shutil.copyfile(temp_output, temp_cache_path)
+        os.replace(temp_cache_path, output_path)
+
+    return output_path
+
+
 @console_ns.route("/datasets/<uuid:dataset_id>/documents/<uuid:document_id>/office-preview")
 class DocumentOfficePreviewApi(DocumentResource):
-    """Return a signed ONLYOFFICE viewer config for a dataset document's original uploaded file."""
+    """Return lightweight original-file preview metadata for document management."""
 
-    @console_ns.doc("get_dataset_document_office_preview_config")
-    @console_ns.doc(description="Get a signed ONLYOFFICE viewer config for a dataset document's original uploaded file")
+    @console_ns.doc("get_dataset_document_download_preview_config")
+    @console_ns.doc(description="Get original-file preview metadata for a dataset document")
     @setup_required
     @login_required
     @account_initialization_required
     @cloud_edition_billing_rate_limit_check("knowledge")
     def get(self, dataset_id: str, document_id: str) -> dict[str, Any]:
-        current_user, _ = current_account_with_tenant()
         document = self.get_document(str(dataset_id), str(document_id))
         upload_file = DocumentService._get_upload_file_for_upload_file_document(document)
-        file_type = (upload_file.extension or upload_file.name.rsplit(".", 1)[-1]).lower().lstrip(".")
-        preview_url = DocumentService.get_document_preview_url(document)
+        file_type = _document_preview_file_type(upload_file)
         download_url = DocumentService.get_document_download_url(document)
-        document_type = _onlyoffice_document_type(file_type)
 
-        if not document_type:
+        if file_type in DOCUMENT_PREVIEW_CONVERTIBLE_EXTENSIONS:
+            preview_url = f"/datasets/{document.dataset_id}/documents/{document.id}/converted-preview"
             return {
                 "mode": "native",
-                "file_type": file_type,
+                "file_type": "pdf",
+                "original_file_type": file_type,
+                "preview_kind": "converted_pdf",
                 "name": upload_file.name,
                 "preview_url": preview_url,
                 "download_url": download_url,
             }
 
-        config = {
-            "document": {
-                "fileType": file_type,
-                "key": hashlib.sha256(
-                    f"document-original-preview-v2:{document.id}:{upload_file.id}:{upload_file.created_at.isoformat()}".encode()
-                ).hexdigest(),
-                "permissions": {
-                    "comment": False,
-                    "copy": True,
-                    "download": True,
-                    "edit": False,
-                    "print": True,
-                },
-                "title": upload_file.name,
-                "url": preview_url,
-            },
-            "documentType": document_type,
-            "editorConfig": {
-                "callbackUrl": "",
-                "customization": {
-                    "autosave": False,
-                    "compactHeader": True,
-                    "compactToolbar": True,
-                    "forcesave": False,
-                    "help": False,
-                    "hideRightMenu": True,
-                },
-                "lang": "zh-CN",
-                "mode": "view",
-                "user": {
-                    "id": current_user.id,
-                    "name": current_user.name or current_user.email or "Dify User",
-                },
-            },
-            "height": "100%",
-            "type": "desktop",
-            "width": "100%",
-        }
-        jwt_secret = os.getenv("ONLYOFFICE_JWT_SECRET") or dify_config.SECRET_KEY
-        if jwt_secret:
-            config["token"] = jwt.encode(config, jwt_secret, algorithm="HS256")
+        if file_type in DOCUMENT_PREVIEW_NATIVE_EXTENSIONS:
+            return {
+                "mode": "native",
+                "file_type": file_type,
+                "preview_kind": "native",
+                "name": upload_file.name,
+                "preview_url": DocumentService.get_document_preview_url(document),
+                "download_url": download_url,
+            }
 
         return {
-            "mode": "onlyoffice",
-            "document_server_url": os.getenv("ONLYOFFICE_DOCUMENT_SERVER_PUBLIC_URL", ""),
+            "mode": "native",
             "file_type": file_type,
+            "preview_kind": "unsupported",
             "name": upload_file.name,
-            "preview_url": preview_url,
+            "preview_url": "",
             "download_url": download_url,
-            "config": config,
         }
+
+
+@console_ns.route("/datasets/<uuid:dataset_id>/documents/<uuid:document_id>/converted-preview")
+class DocumentConvertedPreviewApi(DocumentResource):
+    """Return a PDF preview generated from an Office document."""
+
+    @console_ns.doc("get_dataset_document_converted_preview")
+    @console_ns.doc(description="Preview an Office document as a generated PDF")
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @cloud_edition_billing_rate_limit_check("knowledge")
+    def get(self, dataset_id: str, document_id: str) -> Response:
+        document = self.get_document(str(dataset_id), str(document_id))
+        upload_file = DocumentService._get_upload_file_for_upload_file_document(document)
+        file_type = _document_preview_file_type(upload_file)
+        if file_type not in DOCUMENT_PREVIEW_CONVERTIBLE_EXTENSIONS:
+            raise InvalidActionError("Document type does not support converted preview.")
+
+        pdf_path = _convert_upload_file_to_pdf(document, upload_file)
+        pdf_bytes = pdf_path.read_bytes()
+        response = Response(pdf_bytes, mimetype="application/pdf", direct_passthrough=False)
+        response.headers["Accept-Ranges"] = "bytes"
+        response.headers["Content-Length"] = str(len(pdf_bytes))
+        preview_name = f"{Path(upload_file.name).stem or 'document'}.pdf"
+        response.headers["Content-Disposition"] = f"inline; filename*=UTF-8''{quote(preview_name)}"
+        return response
 
 
 @console_ns.route("/datasets/<uuid:dataset_id>/documents/download-zip")
