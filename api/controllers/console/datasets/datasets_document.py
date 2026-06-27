@@ -1110,12 +1110,12 @@ class DocumentOfficePreviewApi(DocumentResource):
             "document": {
                 "fileType": file_type,
                 "key": hashlib.sha256(
-                    f"{document.id}:{upload_file.id}:{upload_file.created_at.isoformat()}".encode()
+                    f"document-original-preview-v2:{document.id}:{upload_file.id}:{upload_file.created_at.isoformat()}".encode()
                 ).hexdigest(),
                 "permissions": {
                     "comment": False,
                     "copy": True,
-                    "download": False,
+                    "download": True,
                     "edit": False,
                     "print": True,
                 },
