@@ -1,5 +1,7 @@
 deploy
 deploy/**
+docker
+docker/**
 docker/volumes
 docker/volumes/**
 **/.mongodb
