@@ -50,7 +50,17 @@ vi.mock('@/service/knowledge/use-dataset', () => ({
 
 // Mock app context - will be overridden in tests
 vi.mock('@/context/app-context', () => ({
+  useAppContext: () => ({
+    can: undefined,
+    workspacePermissions: undefined,
+  }),
   useSelector: vi.fn(() => true),
+}))
+
+vi.mock('@/hooks/use-ui-policy', () => ({
+  useUiPolicy: () => ({
+    data: { show_unauthorized_resource_cards: false },
+  }),
 }))
 
 // Mock useDatasetCardState hook
@@ -148,8 +158,10 @@ describe('Datasets', () => {
     includeAll: false,
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    const { useSelector } = await import('@/context/app-context')
+    vi.mocked(useSelector).mockReturnValue(true)
     intersectionObserverCallback = null
     document.title = ''
 
@@ -187,6 +199,35 @@ describe('Datasets', () => {
       render(<Datasets {...defaultProps} />)
       expect(screen.getByText('Dataset 1')).toBeInTheDocument()
       expect(screen.getByText('Dataset 2')).toBeInTheDocument()
+    })
+
+    it('should display create card first, accessible datasets next, and inaccessible datasets last', async () => {
+      const { useDatasetList } = await import('@/service/knowledge/use-dataset')
+      vi.mocked(useDatasetList).mockReturnValue({
+        data: {
+          pages: [{
+            data: [
+              createMockDataset({ id: 'no-access-1', name: 'No Access Dataset', has_permission: false }),
+              createMockDataset({ id: 'accessible-1', name: 'Accessible Dataset', has_permission: true }),
+              createMockDataset({ id: 'implicit-access', name: 'Implicit Access Dataset' }),
+              createMockDataset({ id: 'no-access-2', name: 'No Access Dataset 2', has_permission: false }),
+            ],
+          }],
+        },
+        fetchNextPage: mockFetchNextPage,
+        hasNextPage: false,
+        isFetching: false,
+        isFetchingNextPage: false,
+      } as unknown as ReturnType<typeof useDatasetList>)
+
+      render(<Datasets {...defaultProps} />)
+
+      const cards = Array.from(screen.getByRole('navigation').children)
+      expect(cards[0]).toHaveTextContent(/createDataset/)
+      expect(cards[1]).toHaveTextContent('Accessible Dataset')
+      expect(cards[2]).toHaveTextContent('Implicit Access Dataset')
+      expect(cards[3]).toHaveTextContent('No Access Dataset')
+      expect(cards[4]).toHaveTextContent('No Access Dataset 2')
     })
 
     it('should render anchor div for infinite scroll', () => {

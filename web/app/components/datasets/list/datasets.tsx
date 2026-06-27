@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Loading from '@/app/components/base/loading'
 import { useSelector as useAppContextWithSelector } from '@/context/app-context'
@@ -45,6 +45,12 @@ const Datasets = ({
     include_inaccessible: showUnauthorizedResourceCards,
   })
   const invalidDatasetList = useInvalidDatasetList()
+  const orderedDatasets = useMemo(() => {
+    const datasets = datasetList?.pages.flatMap(page => page.data) ?? []
+    const accessibleDatasets = datasets.filter(dataset => dataset.has_permission !== false)
+    const inaccessibleDatasets = datasets.filter(dataset => dataset.has_permission === false)
+    return [...accessibleDatasets, ...inaccessibleDatasets]
+  }, [datasetList?.pages])
   const anchorRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<IntersectionObserver>(null)
 
@@ -69,8 +75,8 @@ const Datasets = ({
     <>
       <nav className="grid grow grid-cols-1 content-start gap-3 px-12 pt-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {(canCreateDataset || showUnauthorizedResourceCards) && <NewDatasetCard disabled={!canCreateDataset} />}
-        {datasetList?.pages.map(({ data: datasets }) => datasets.map(dataset => (
-          <DatasetCard key={dataset.id} dataset={dataset} onSuccess={invalidDatasetList} onOpenTagManagement={onOpenTagManagement} />),
+        {orderedDatasets.map(dataset => (
+          <DatasetCard key={dataset.id} dataset={dataset} onSuccess={invalidDatasetList} onOpenTagManagement={onOpenTagManagement} />
         ))}
         {isFetchingNextPage && <Loading />}
         <div ref={anchorRef} className="h-0" />
