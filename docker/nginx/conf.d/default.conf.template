@@ -46,56 +46,6 @@ server {
       include proxy.conf;
     }
 
-    location ~ ^/[0-9]+\.[0-9]+\.[0-9]+-[^/]+/ {
-      proxy_pass http://onlyoffice;
-      include proxy.conf;
-      proxy_set_header X-Forwarded-Host $host;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
-      proxy_cache_bypass $http_upgrade;
-    }
-
-    location /web-apps/ {
-      proxy_pass http://onlyoffice;
-      include proxy.conf;
-      proxy_set_header X-Forwarded-Host $host;
-    }
-
-    location /sdkjs/ {
-      proxy_pass http://onlyoffice;
-      include proxy.conf;
-      proxy_set_header X-Forwarded-Host $host;
-    }
-
-    location /cache/ {
-      proxy_pass http://onlyoffice;
-      include proxy.conf;
-      proxy_set_header X-Forwarded-Host $host;
-    }
-
-    location /doc/ {
-      proxy_pass http://onlyoffice;
-      include proxy.conf;
-      proxy_set_header X-Forwarded-Host $host;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
-      proxy_cache_bypass $http_upgrade;
-    }
-
-    location /coauthoring/ {
-      proxy_pass http://onlyoffice;
-      include proxy.conf;
-      proxy_set_header X-Forwarded-Host $host;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
-    }
-
-    location /spellchecker/ {
-      proxy_pass http://onlyoffice;
-      include proxy.conf;
-      proxy_set_header X-Forwarded-Host $host;
-    }
-
     location /explore {
       proxy_pass http://web:3000;
       include proxy.conf;
