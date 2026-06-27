@@ -318,32 +318,31 @@ export default function RbacPreviewConsole() {
 
   return (
     <div className="min-h-screen bg-background-body text-text-primary">
-      <div className="sticky top-0 z-10 border-b border-divider-subtle bg-background-body/95 backdrop-blur">
-        <div className="flex items-center justify-between gap-4 px-6 py-4">
-          <div>
-            <div className="text-xs font-semibold text-text-tertiary uppercase">
-              MMB Enterprise RBAC Preview
-              <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">预览版</span>
+      <div className="border-b border-divider-subtle bg-background-section">
+        <div className="mx-auto flex max-w-[1520px] items-center justify-between gap-4 px-6 py-4 max-lg:flex-col max-lg:items-start">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-semibold text-text-tertiary uppercase">
+              <span>MMB Enterprise RBAC</span>
+              <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-700">预览版</span>
             </div>
-            <h1 className="mt-1 text-2xl font-semibold">企业权限控制台</h1>
+            <h1 className="mt-1 text-2xl font-semibold tracking-normal text-text-primary">企业权限控制台</h1>
             <p className="mt-1 text-sm text-text-tertiary">
               当前工作区：
               {currentWorkspace?.name || '暂无'}
-              。布局借鉴企业 IAM 后台，视觉保持 Dify 风格。
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={() => void refreshAll()} className="inline-flex h-9 items-center gap-2 rounded-md border border-divider-deep bg-background-default px-3 text-sm font-medium text-text-secondary hover:bg-background-default-hover">
-              <span className="i-ri-refresh-line size-4" />
+            <button type="button" onClick={() => void refreshAll()} className="inline-flex h-9 items-center gap-2 rounded-lg border border-divider-subtle bg-background-section px-3 text-sm font-medium text-text-secondary shadow-xs hover:bg-background-default-hover">
+              <span className="i-ri-refresh-line size-4" aria-hidden />
               刷新
             </button>
-            <Link href="/apps" className="inline-flex h-9 items-center gap-2 rounded-md bg-components-button-primary-bg px-3 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover">
-              <span className="i-ri-apps-2-line size-4" />
+            <Link href="/apps" className="inline-flex h-9 items-center gap-2 rounded-lg bg-components-button-primary-bg px-3 text-sm font-medium text-components-button-primary-text shadow-xs hover:bg-components-button-primary-bg-hover">
+              <span className="i-ri-apps-2-line size-4" aria-hidden />
               返回 AI 中台
             </Link>
           </div>
         </div>
-        <div className="grid grid-cols-5 border-t border-divider-subtle max-lg:grid-cols-2">
+        <div className="mx-auto grid max-w-[1520px] grid-cols-5 border-t border-divider-subtle px-6 max-lg:grid-cols-2 max-sm:grid-cols-1">
           <Metric label="成员" value={members.length} hint="当前工作区账号" />
           <Metric label="用户组" value={groups.length} hint="部门/岗位/项目组" />
           <Metric label="模板" value={templates.length} hint="批量授权策略" />
@@ -351,25 +350,27 @@ export default function RbacPreviewConsole() {
           <Metric label="知识库" value={datasets.length} hint="可管理知识库" />
         </div>
       </div>
-      <div className="grid grid-cols-[260px_1fr_360px] max-2xl:grid-cols-[240px_1fr] max-xl:grid-cols-1">
-        <aside className="border-r border-divider-subtle bg-background-default px-4 py-5 max-xl:border-r-0 max-xl:border-b">
-          <div className="relative mb-4">
-            <span className="absolute top-1/2 left-3 i-ri-search-line size-4 -translate-y-1/2 text-text-quaternary" />
-            <input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="搜索成员、用户组、模板或资源" className="h-9 w-full rounded-md border border-divider-deep bg-background-body pr-3 pl-9 text-sm outline-none focus:border-blue-400" />
+      <div className="mx-auto grid max-w-[1520px] grid-cols-[236px_minmax(0,1fr)_320px] gap-4 px-6 py-5 max-2xl:grid-cols-[232px_minmax(0,1fr)] max-xl:grid-cols-1 max-lg:px-4">
+        <aside className="rounded-xl border border-divider-subtle bg-background-section p-3 shadow-xs max-xl:order-1">
+          <div className="relative mb-3">
+            <span className="absolute top-1/2 left-3 i-ri-search-line size-4 -translate-y-1/2 text-text-quaternary" aria-hidden />
+            <input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder="搜索成员、用户组、模板或资源" className="h-9 w-full rounded-lg border border-divider-subtle bg-background-default pr-3 pl-9 text-sm text-text-primary transition-colors outline-none placeholder:text-text-quaternary focus:border-blue-400 focus:bg-background-section" />
           </div>
-          <nav className="space-y-1">
+          <nav className="space-y-0.5">
             {tabs.map(tab => (
-              <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={`flex w-full items-start gap-3 rounded-md px-3 py-3 text-left transition-colors ${activeTab === tab.key ? 'bg-blue-50 text-blue-700' : 'text-text-secondary hover:bg-background-default-hover'}`}>
-                <span className={`${tab.icon} mt-0.5 size-4 shrink-0`} />
-                <span>
-                  <span className="block text-sm font-medium">{tab.label}</span>
-                  <span className="mt-0.5 block text-xs text-text-tertiary">{tab.desc}</span>
+              <button key={tab.key} type="button" onClick={() => setActiveTab(tab.key)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${activeTab === tab.key ? 'bg-blue-50 text-blue-700' : 'text-text-secondary hover:bg-background-default-hover'}`}>
+                <span className={`flex size-7 shrink-0 items-center justify-center rounded-md ${activeTab === tab.key ? 'bg-white/70' : 'bg-background-default text-text-tertiary'}`}>
+                  <span className={`${tab.icon} size-4`} aria-hidden />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{tab.label}</span>
+                  {activeTab === tab.key && <span className="mt-0.5 block truncate text-xs text-blue-700/70">{tab.desc}</span>}
                 </span>
               </button>
             ))}
           </nav>
         </aside>
-        <main className="min-w-0 border-r border-divider-subtle bg-background-body max-2xl:border-r-0">
+        <main className="min-w-0 overflow-hidden rounded-xl border border-divider-subtle bg-background-section shadow-xs max-xl:order-2">
           <SectionTitle title={currentTab.label} description={currentTab.desc} />
           {activeTab === 'members' && (
             <MembersPanel
@@ -410,7 +411,7 @@ export default function RbacPreviewConsole() {
           {activeTab === 'audit' && <AuditPanel logs={filteredAuditLogs} />}
           {activeTab === 'general' && <GeneralSettingsPanel showUnauthorizedResourceCards={showUnauthorizedResourceCards} loading={uiPolicyQuery.isLoading || updatingUiPolicy} onToggle={() => void handleToggleUnauthorizedCards()} />}
         </main>
-        <aside className="bg-background-default px-5 py-5 max-2xl:col-span-2 max-xl:col-span-1">
+        <aside className="rounded-xl border border-divider-subtle bg-background-section p-4 shadow-xs max-2xl:col-span-2 max-xl:order-3 max-xl:col-span-1">
           {activeTab === 'groups' && <GroupEditor form={groupForm} members={members} saving={saving} onChange={setGroupForm} onSave={saveGroup} onReset={() => setGroupForm(emptyGroup)} />}
           {activeTab === 'templates' && <TemplateEditor form={templateForm} groups={groups} apps={apps} exploreApps={exploreApps} datasets={datasets} effectiveMemberCount={templateEffectiveMembers} saving={saving} onChange={setTemplateForm} onSave={saveTemplate} onReset={() => setTemplateForm(emptyTemplate)} />}
           {activeTab === 'resources' && <ResourceEditor selectedResource={selectedResource} members={members} memberIds={resourceMemberIds} saving={saving} onToggleMember={id => setResourceMemberIds(current => toggle(current, id))} onChangeMembers={setResourceMemberIds} onSave={saveResourceMembers} />}
@@ -423,17 +424,17 @@ export default function RbacPreviewConsole() {
 
 function Metric({ label, value, hint }: { label: string, value: string | number, hint: string }) {
   return (
-    <div className="border-r border-divider-subtle px-5 py-3 last:border-r-0">
-      <div className="text-xl font-semibold">{value}</div>
-      <div className="mt-0.5 text-xs font-medium text-text-secondary">{label}</div>
-      <div className="mt-0.5 text-xs text-text-tertiary">{hint}</div>
+    <div className="border-r border-divider-subtle px-4 py-3 last:border-r-0 max-sm:border-r-0 max-sm:border-b">
+      <div className="text-xl leading-6 font-semibold text-text-primary">{value}</div>
+      <div className="mt-1 text-xs font-medium text-text-secondary">{label}</div>
+      <div className="mt-0.5 truncate text-xs text-text-tertiary">{hint}</div>
     </div>
   )
 }
 function SectionTitle({ title, description }: { title: string, description: string }) {
   return (
-    <div className="border-b border-divider-subtle px-6 py-5">
-      <h2 className="text-lg font-semibold">{title}</h2>
+    <div className="border-b border-divider-subtle px-5 py-4">
+      <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
       <p className="mt-1 text-sm text-text-tertiary">{description}</p>
     </div>
   )
@@ -445,16 +446,16 @@ function EmptyState({ text }: { text: string }) {
 function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, statusFilter, groupFilter, batchGroupId, sort, groups, isLoading, saving, onRoleFilterChange, onStatusFilterChange, onGroupFilterChange, onBatchGroupChange, onSortChange, onToggleMember, onToggleAll, onBatchUpdate, onOpenEffective }: { members: Member[], groupsByMember: Map<string, PermissionGroup[]>, selectedMemberIds: string[], roleFilter: string, statusFilter: string, groupFilter: string, batchGroupId: string, sort: MemberSortState, groups: PermissionGroup[], isLoading: boolean, saving: boolean, onRoleFilterChange: (v: string) => void, onStatusFilterChange: (v: string) => void, onGroupFilterChange: (v: string) => void, onBatchGroupChange: (v: string) => void, onSortChange: (key: MemberSortKey) => void, onToggleMember: (id: string) => void, onToggleAll: () => void, onBatchUpdate: (mode: 'add' | 'remove') => void, onOpenEffective: (id: string) => void }) {
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 border-b border-divider-subtle px-6 py-3">
-        <select value={roleFilter} onChange={e => onRoleFilterChange(e.target.value)} className="h-8 rounded-md border border-divider-deep bg-background-default px-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2 border-b border-divider-subtle bg-background-default/40 px-5 py-3">
+        <select value={roleFilter} onChange={e => onRoleFilterChange(e.target.value)} className="h-8 rounded-lg border border-divider-subtle bg-background-section px-2 text-xs text-text-secondary outline-none hover:bg-background-default-hover focus:border-blue-400">
           <option value="all">全部角色</option>
           {Object.entries(roleLabelMap).map(([role, label]) => <option key={role} value={role}>{label}</option>)}
         </select>
-        <select value={statusFilter} onChange={e => onStatusFilterChange(e.target.value)} className="h-8 rounded-md border border-divider-deep bg-background-default px-2 text-xs">
+        <select value={statusFilter} onChange={e => onStatusFilterChange(e.target.value)} className="h-8 rounded-lg border border-divider-subtle bg-background-section px-2 text-xs text-text-secondary outline-none hover:bg-background-default-hover focus:border-blue-400">
           <option value="all">全部状态</option>
           {Object.entries(statusLabelMap).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
         </select>
-        <select value={groupFilter} onChange={e => onGroupFilterChange(e.target.value)} className="h-8 rounded-md border border-divider-deep bg-background-default px-2 text-xs">
+        <select value={groupFilter} onChange={e => onGroupFilterChange(e.target.value)} className="h-8 rounded-lg border border-divider-subtle bg-background-section px-2 text-xs text-text-secondary outline-none hover:bg-background-default-hover focus:border-blue-400">
           <option value="all">全部用户组</option>
           <option value="none">未入组</option>
           {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
@@ -466,19 +467,19 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
             {' '}
             人
           </span>
-          <select value={batchGroupId} onChange={e => onBatchGroupChange(e.target.value)} className="h-8 rounded-md border border-divider-deep bg-background-default px-2 text-xs">
+          <select value={batchGroupId} onChange={e => onBatchGroupChange(e.target.value)} className="h-8 rounded-lg border border-divider-subtle bg-background-section px-2 text-xs text-text-secondary outline-none hover:bg-background-default-hover focus:border-blue-400">
             <option value="">选择用户组</option>
             {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
-          <button disabled={saving} onClick={() => onBatchUpdate('add')} className="h-8 rounded-md bg-components-button-primary-bg px-2 text-xs font-medium text-components-button-primary-text disabled:opacity-60">加入组</button>
-          <button disabled={saving} onClick={() => onBatchUpdate('remove')} className="h-8 rounded-md border border-divider-deep px-2 text-xs disabled:opacity-60">移出组</button>
+          <button disabled={saving} onClick={() => onBatchUpdate('add')} className="h-8 rounded-lg bg-components-button-primary-bg px-3 text-xs font-medium text-components-button-primary-text shadow-xs disabled:opacity-60">加入组</button>
+          <button disabled={saving} onClick={() => onBatchUpdate('remove')} className="h-8 rounded-lg border border-divider-subtle bg-background-section px-3 text-xs font-medium text-text-secondary disabled:opacity-60">移出组</button>
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] text-left text-sm">
-          <thead className="bg-background-default text-xs text-text-tertiary">
+        <table className="w-full min-w-[980px] text-left text-sm">
+          <thead className="bg-background-default/70 text-xs text-text-tertiary">
             <tr>
-              <th className="px-6 py-3"><input type="checkbox" checked={members.length > 0 && members.every(member => selectedMemberIds.includes(member.id))} onChange={onToggleAll} /></th>
+              <th className="px-5 py-3"><input type="checkbox" checked={members.length > 0 && members.every(member => selectedMemberIds.includes(member.id))} onChange={onToggleAll} /></th>
               <SortableHeader label="账号" sortKey="account" activeSort={sort} onSort={onSortChange} />
               <SortableHeader label="角色" sortKey="role" activeSort={sort} onSort={onSortChange} />
               <SortableHeader label="状态" sortKey="status" activeSort={sort} onSort={onSortChange} />
@@ -490,16 +491,18 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
           <tbody className="divide-y divide-divider-subtle">
             {members.map(member => (
               <tr key={member.id} className="hover:bg-background-default-hover">
-                <td className="px-6 py-4"><input type="checkbox" checked={selectedMemberIds.includes(member.id)} onChange={() => onToggleMember(member.id)} /></td>
-                <td className="px-4 py-4">
+                <td className="px-5 py-3"><input type="checkbox" checked={selectedMemberIds.includes(member.id)} onChange={() => onToggleMember(member.id)} /></td>
+                <td className="px-4 py-3">
                   <div className="font-medium">{member.name || '未命名账号'}</div>
                   <div className="mt-1 text-xs text-text-tertiary">{member.email}</div>
                 </td>
-                <td className="px-4 py-4">{roleLabelMap[member.role]}</td>
-                <td className="px-4 py-4">{statusLabelMap[member.status]}</td>
-                <td className="px-4 py-4">{(groupsByMember.get(member.id) ?? []).map(group => group.name).join('、') || '未入组'}</td>
-                <td className="px-4 py-4 text-text-secondary">{fmt(member.created_at)}</td>
-                <td className="px-4 py-4 text-right"><button className="text-xs font-medium text-blue-600" onClick={() => onOpenEffective(member.id)}>查看有效权限</button></td>
+                <td className="px-4 py-3 text-text-secondary">{roleLabelMap[member.role]}</td>
+                <td className="px-4 py-3 text-text-secondary">{statusLabelMap[member.status]}</td>
+                <td className="px-4 py-3 text-text-secondary">{(groupsByMember.get(member.id) ?? []).map(group => group.name).join('、') || '未入组'}</td>
+                <td className="px-4 py-3 text-text-secondary">{fmt(member.created_at)}</td>
+                <td className="px-4 py-3 text-right">
+                  <button className="inline-flex h-7 items-center rounded-md px-2 text-xs font-medium text-text-tertiary hover:bg-blue-50 hover:text-blue-700" onClick={() => onOpenEffective(member.id)}>权限</button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -741,16 +744,18 @@ function ResourceEditor({ selectedResource, members, memberIds, saving, onToggle
 }
 function GeneralSettingsPanel({ showUnauthorizedResourceCards, loading, onToggle }: { showUnauthorizedResourceCards: boolean, loading: boolean, onToggle: () => void }) {
   return (
-    <div className="p-6">
-      <div className="overflow-hidden rounded-xl border border-divider-subtle bg-background-default shadow-xs">
+    <div className="p-5">
+      <div className="overflow-hidden rounded-xl border border-divider-subtle bg-background-section shadow-xs">
         <div className="flex items-center justify-between gap-6 px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="i-ri-layout-grid-line size-4 text-text-tertiary" aria-hidden />
-              <div className="text-sm font-semibold text-text-primary">不可用卡片可见</div>
-            </div>
-            <div className="mt-1 text-xs leading-5 text-text-tertiary">
-              开启后，工作室和知识库中无权限资源会以灰态展示，并标注“无权限”；点击只提示联系管理员授权。探索页仍保持隐藏。
+              <span className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                <span className="i-ri-layout-grid-line size-4" aria-hidden />
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-text-primary">不可用卡片可见</div>
+                <div className="mt-0.5 text-xs text-text-tertiary">仅影响工作室和知识库列表，不放宽后端权限。</div>
+              </div>
             </div>
           </div>
           <button
@@ -770,11 +775,11 @@ function GeneralSettingsPanel({ showUnauthorizedResourceCards, loading, onToggle
   )
 }
 function ContextPanel({ activeTab, groups, templates, workspaces }: { activeTab: RbacPreviewTab, groups: number, templates: number, workspaces: number }) {
-  const copy: Record<RbacPreviewTab, string> = { members: '成员目录用于管理账号和用户组归属。批量操作会直接更新选中的用户组。', groups: '用户组编辑器会在本区域出现。', templates: '模板编辑器会在本区域出现。', effective: '有效权限用于解释账号最终能看到哪些资源，以及权限来源。', resources: '选择左侧资源后，可在这里维护直授权成员。', audit: '审计日志展示权限相关操作，便于回溯配置变化。', general: '通用设置用于管理当前工作区的全局界面策略。' }
+  const copy: Record<RbacPreviewTab, string> = { members: '管理账号归属和批量入组。', groups: '在右侧维护部门、岗位或项目组。', templates: '在右侧绑定用户组和资源。', effective: '解释账号最终能看到哪些资源。', resources: '维护低频的资源直授权。', audit: '回溯权限相关配置变更。', general: '管理工作区级界面策略。' }
   return (
     <div>
-      <PanelHeader title="上下文" action="操作说明" />
-      <div className="rounded-md border border-divider-subtle bg-background-body p-4 text-sm leading-6 text-text-secondary">{copy[activeTab]}</div>
+      <PanelHeader title="上下文" action="当前模块" />
+      <div className="rounded-xl border border-divider-subtle bg-background-default/50 p-4 text-sm leading-6 text-text-secondary">{copy[activeTab]}</div>
       <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
         <SummaryBadge label="用户组" value={groups} />
         <SummaryBadge label="模板" value={templates} />
@@ -785,17 +790,17 @@ function ContextPanel({ activeTab, groups, templates, workspaces }: { activeTab:
 }
 function PanelHeader({ title, action }: { title: string, action: string }) {
   return (
-    <div className="mb-4 border-b border-divider-subtle pb-4">
-      <div className="text-base font-semibold">{title}</div>
+    <div className="mb-4 border-b border-divider-subtle pb-3">
+      <div className="text-sm font-semibold text-text-primary">{title}</div>
       <div className="mt-1 text-xs text-text-tertiary">{action}</div>
     </div>
   )
 }
 function SummaryBadge({ label, value }: { label: string, value: string | number }) {
   return (
-    <div className="rounded-md border border-divider-subtle bg-background-body px-3 py-2">
-      <div className="text-base font-semibold">{value}</div>
-      <div className="mt-0.5 text-text-tertiary">{label}</div>
+    <div className="rounded-lg border border-divider-subtle bg-background-default/50 px-3 py-2">
+      <div className="text-base leading-5 font-semibold text-text-primary">{value}</div>
+      <div className="mt-1 text-text-tertiary">{label}</div>
     </div>
   )
 }
