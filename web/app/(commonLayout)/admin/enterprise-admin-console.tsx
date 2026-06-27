@@ -29,7 +29,7 @@ import {
   workspacePermissionRoles,
 } from '@/utils/workspace-permissions'
 
-type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'groups' | 'templates' | 'matrix' | 'explore' | 'apps' | 'datasets' | 'audit'
+type AdminSection = 'accounts' | 'workspaces' | 'roles' | 'groups' | 'templates' | 'matrix' | 'explore' | 'apps' | 'datasets' | 'audit' | 'general'
 
 type PermissionTemplateFormState = PermissionTemplatePayload & { id?: string | null }
 type PermissionGroupFormState = PermissionGroupPayload & { id?: string | null }
@@ -63,6 +63,7 @@ const adminSections: Array<{ key: AdminSection, label: string, icon: string, des
   { key: 'apps', label: '工作室应用权限', icon: 'i-ri-apps-2-line', description: '工作室应用访问权限' },
   { key: 'datasets', label: '知识库权限', icon: 'i-ri-database-2-line', description: '知识库访问和成员权限' },
   { key: 'audit', label: '审计日志', icon: 'i-ri-file-search-line', description: '管理操作记录' },
+  { key: 'general', label: '通用', icon: 'i-ri-settings-3-line', description: '全局界面策略' },
 ]
 
 const adminSectionMap = Object.fromEntries(adminSections.map(section => [section.key, section])) as Record<AdminSection, typeof adminSections[number]>
@@ -72,7 +73,7 @@ type AdminSectionGroupKey = 'primary' | 'resources' | 'reference'
 const adminSectionGroups: Array<{ key: AdminSectionGroupKey, label: string, description: string, sections: AdminSection[] }> = [
   { key: 'primary', label: '常用管理', description: '部门模板和账号', sections: ['groups', 'templates', 'accounts'] },
   { key: 'resources', label: '资源直授权', description: '需要排查时展开', sections: ['explore', 'apps', 'datasets'] },
-  { key: 'reference', label: '参考与审计', description: '展示信息默认收起', sections: ['roles', 'matrix', 'workspaces', 'audit'] },
+  { key: 'reference', label: '参考与审计', description: '展示信息默认收起', sections: ['roles', 'matrix', 'workspaces', 'audit', 'general'] },
 ]
 
 const orderedRoles: WorkspaceRole[] = ['owner', 'admin', 'editor', 'dataset_operator', 'normal']
@@ -364,6 +365,8 @@ export default function EnterpriseAdminConsole() {
       void templatesQuery.refetch()
     if (activeSection === 'audit')
       void auditQuery.refetch()
+    if (activeSection === 'general')
+      void uiPolicyQuery.refetch()
   }
 
   const canOperateMember = (member: Member) => {
@@ -1115,24 +1118,6 @@ export default function EnterpriseAdminConsole() {
                     )
                   : null}
               />
-              <div className="mb-4 rounded-lg border border-divider-subtle bg-background-section p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-semibold text-text-primary">不可用卡片可见</div>
-                    <div className="mt-1 text-xs text-text-tertiary">开启后，工作室和知识库中无权限资源会以灰态展示，点击提示联系管理员授权。探索页不受影响。</div>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={showUnauthorizedResourceCards}
-                    disabled={uiPolicyQuery.isLoading || updatingUiPolicy}
-                    onClick={() => void handleToggleUnauthorizedCards()}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${showUnauthorizedResourceCards ? 'bg-blue-600' : 'bg-background-default-dimmed'}`}
-                  >
-                    <span className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${showUnauthorizedResourceCards ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </button>
-                </div>
-              </div>
               <div className="grid grid-cols-[360px_1fr] gap-0 max-xl:grid-cols-1">
                 <div className="border-r border-divider-subtle p-5 max-xl:border-r-0 max-xl:border-b">
                   <div className="text-sm font-semibold text-text-primary">{templateForm.id ? '编辑模板' : '新建模板'}</div>
@@ -1481,6 +1466,44 @@ export default function EnterpriseAdminConsole() {
                 </table>
               </div>
               {!auditQuery.isLoading && auditLogs.length === 0 && <EmptyTable text="暂无审计记录" />}
+            </div>
+          )}
+
+          {activeSection === 'general' && (
+            <div>
+              <SectionHeader
+                title="通用"
+                description="管理当前工作区的通用界面策略。这里放不归属于单个资源或模板的后台开关。"
+              />
+              <div className="px-6 py-6">
+                <div className="max-w-3xl overflow-hidden rounded-xl border border-divider-subtle bg-background-section shadow-xs">
+                  <div className="border-b border-divider-subtle px-5 py-4">
+                    <div className="text-sm font-semibold text-text-primary">界面权限策略</div>
+                    <div className="mt-1 text-xs leading-5 text-text-tertiary">控制无权限资源在工作区中的展示方式，不改变任何后端访问权限。</div>
+                  </div>
+                  <div className="divide-y divide-divider-subtle">
+                    <div className="flex items-center justify-between gap-6 px-5 py-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="i-ri-layout-grid-line size-4 text-text-tertiary" aria-hidden />
+                          <div className="text-sm font-medium text-text-primary">不可用卡片可见</div>
+                        </div>
+                        <div className="mt-1 max-w-xl text-xs leading-5 text-text-tertiary">开启后，工作室和知识库中无权限资源会以灰态展示，并标注“无权限”；点击只提示联系管理员授权。探索页仍保持隐藏。</div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={showUnauthorizedResourceCards}
+                        disabled={uiPolicyQuery.isLoading || updatingUiPolicy}
+                        onClick={() => void handleToggleUnauthorizedCards()}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${showUnauthorizedResourceCards ? 'bg-blue-600' : 'bg-background-default-dimmed'}`}
+                      >
+                        <span className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${showUnauthorizedResourceCards ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </section>
