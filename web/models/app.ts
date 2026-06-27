@@ -168,7 +168,7 @@ export type EffectivePermissionResponse = {
   data: EffectivePermissionSummary
 }
 
-export type RbacPreviewTab = 'members' | 'groups' | 'templates' | 'effective' | 'resources' | 'audit'
+export type RbacPreviewTab = 'members' | 'groups' | 'templates' | 'effective' | 'resources' | 'audit' | 'general'
 
 export type DSLImportResponse = {
   id: string

@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react'
 import { useAppContext } from '@/context/app-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
-import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchEffectivePermissions, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
+import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchEffectivePermissions, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, fetchWorkspaceUiPolicy, updateAdminUiPolicy, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { fetchInstalledAppList } from '@/service/explore'
 import { useMembers, useWorkspaces } from '@/service/use-common'
@@ -30,6 +30,7 @@ const tabs: Array<{ key: RbacPreviewTab, label: string, icon: string, desc: stri
   { key: 'effective', label: '有效权限', icon: 'i-ri-focus-3-line', desc: '解释账号最终能看见什么' },
   { key: 'resources', label: '资源直授权', icon: 'i-ri-apps-2-line', desc: '低频排查入口' },
   { key: 'audit', label: '审计日志', icon: 'i-ri-file-search-line', desc: 'RBAC 相关操作记录' },
+  { key: 'general', label: '通用', icon: 'i-ri-settings-3-line', desc: '全局界面策略' },
 ]
 
 type MemberSortKey = 'account' | 'role' | 'status' | 'group' | 'created_at'
@@ -63,6 +64,7 @@ export default function RbacPreviewConsole() {
   const [selectedResource, setSelectedResource] = useState<{ kind: 'app' | 'explore' | 'dataset', id: string } | null>(null)
   const [resourceMemberIds, setResourceMemberIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [updatingUiPolicy, setUpdatingUiPolicy] = useState(false)
   const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
   const hasAnyPermission = canAny ?? (() => false)
   const canEnterAdmin = hasAnyPermission(['workspace.member.view', 'workspace.member.manage']) || isCurrentWorkspaceManager
@@ -76,6 +78,7 @@ export default function RbacPreviewConsole() {
   const groupsQuery = useQuery({ queryKey: ['rbac-preview', 'groups'], queryFn: fetchPermissionGroups, enabled: canEnterAdmin })
   const templatesQuery = useQuery({ queryKey: ['rbac-preview', 'templates'], queryFn: fetchPermissionTemplates, enabled: canEnterAdmin })
   const auditQuery = useQuery({ queryKey: ['rbac-preview', 'audit'], queryFn: fetchAdminAuditLogs, enabled: canEnterAdmin })
+  const uiPolicyQuery = useQuery({ queryKey: ['rbac-preview', 'ui-policy'], queryFn: fetchWorkspaceUiPolicy, enabled: canEnterAdmin })
   const activeEffectiveMemberId = effectiveMemberId || members[0]?.id || ''
   const effectiveQuery = useQuery({ queryKey: ['rbac-preview', 'effective', activeEffectiveMemberId], queryFn: () => fetchEffectivePermissions(activeEffectiveMemberId), enabled: canEnterAdmin && activeTab === 'effective' && !!activeEffectiveMemberId })
   const apps = useMemo(() => appsQuery.data?.data ?? [], [appsQuery.data?.data])
@@ -85,6 +88,7 @@ export default function RbacPreviewConsole() {
   const templates = useMemo(() => templatesQuery.data?.data ?? [], [templatesQuery.data?.data])
   const auditLogs = useMemo(() => auditQuery.data?.data ?? [], [auditQuery.data?.data])
   const currentTab = tabs.find(tab => tab.key === activeTab) ?? tabs[0]!
+  const showUnauthorizedResourceCards = uiPolicyQuery.data?.show_unauthorized_resource_cards ?? false
   const groupsByMember = useMemo(() => {
     const map = new Map<string, PermissionGroup[]>()
     groups.forEach(group => group.member_ids.forEach(memberId => map.set(memberId, [...(map.get(memberId) ?? []), group])))
@@ -150,6 +154,23 @@ export default function RbacPreviewConsole() {
     setMemberSort(current => current.key === key
       ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
       : { key, direction: key === 'created_at' ? 'desc' : 'asc' })
+  }
+  const handleToggleUnauthorizedCards = async () => {
+    if (updatingUiPolicy)
+      return
+
+    setUpdatingUiPolicy(true)
+    try {
+      await updateAdminUiPolicy({ show_unauthorized_resource_cards: !showUnauthorizedResourceCards })
+      await uiPolicyQuery.refetch()
+      toast.success('界面权限策略已更新')
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '界面权限策略更新失败')
+    }
+    finally {
+      setUpdatingUiPolicy(false)
+    }
   }
   const saveGroup = async () => {
     if (!groupForm.name.trim()) {
@@ -347,10 +368,6 @@ export default function RbacPreviewConsole() {
               </button>
             ))}
           </nav>
-          <div className="mt-6 rounded-md border border-divider-subtle bg-background-body p-3 text-xs leading-5 text-text-tertiary">
-            <div className="font-medium text-text-secondary">融合策略</div>
-            不引入 Keycloak/Casdoor 依赖，只借鉴信息架构。
-          </div>
         </aside>
         <main className="min-w-0 border-r border-divider-subtle bg-background-body max-2xl:border-r-0">
           <SectionTitle title={currentTab.label} description={currentTab.desc} />
@@ -391,6 +408,7 @@ export default function RbacPreviewConsole() {
           {activeTab === 'effective' && <EffectivePanel members={members} selectedMemberId={activeEffectiveMemberId} onSelectMember={setEffectiveMemberId} isLoading={effectiveQuery.isLoading} data={effectiveQuery.data?.data} />}
           {activeTab === 'resources' && <ResourcesPanel resources={resources} selectedResource={selectedResource} onOpenResource={openResource} />}
           {activeTab === 'audit' && <AuditPanel logs={filteredAuditLogs} />}
+          {activeTab === 'general' && <GeneralSettingsPanel showUnauthorizedResourceCards={showUnauthorizedResourceCards} loading={uiPolicyQuery.isLoading || updatingUiPolicy} onToggle={() => void handleToggleUnauthorizedCards()} />}
         </main>
         <aside className="bg-background-default px-5 py-5 max-2xl:col-span-2 max-xl:col-span-1">
           {activeTab === 'groups' && <GroupEditor form={groupForm} members={members} saving={saving} onChange={setGroupForm} onSave={saveGroup} onReset={() => setGroupForm(emptyGroup)} />}
@@ -721,8 +739,38 @@ function ResourceEditor({ selectedResource, members, memberIds, saving, onToggle
     </div>
   )
 }
+function GeneralSettingsPanel({ showUnauthorizedResourceCards, loading, onToggle }: { showUnauthorizedResourceCards: boolean, loading: boolean, onToggle: () => void }) {
+  return (
+    <div className="p-6">
+      <div className="overflow-hidden rounded-xl border border-divider-subtle bg-background-default shadow-xs">
+        <div className="flex items-center justify-between gap-6 px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="i-ri-layout-grid-line size-4 text-text-tertiary" aria-hidden />
+              <div className="text-sm font-semibold text-text-primary">不可用卡片可见</div>
+            </div>
+            <div className="mt-1 text-xs leading-5 text-text-tertiary">
+              开启后，工作室和知识库中无权限资源会以灰态展示，并标注“无权限”；点击只提示联系管理员授权。探索页仍保持隐藏。
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showUnauthorizedResourceCards}
+            aria-label="不可用卡片可见"
+            disabled={loading}
+            onClick={onToggle}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${showUnauthorizedResourceCards ? 'bg-blue-600' : 'bg-background-default-dimmed'}`}
+          >
+            <span className={`inline-block size-5 rounded-full bg-white shadow transition-transform ${showUnauthorizedResourceCards ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 function ContextPanel({ activeTab, groups, templates, workspaces }: { activeTab: RbacPreviewTab, groups: number, templates: number, workspaces: number }) {
-  const copy: Record<RbacPreviewTab, string> = { members: '成员目录用于管理账号和用户组归属。批量操作会直接更新选中的用户组。', groups: '用户组编辑器会在本区域出现。', templates: '模板编辑器会在本区域出现。', effective: '有效权限用于解释账号最终能看到哪些资源，以及权限来源。', resources: '选择左侧资源后，可在这里维护直授权成员。', audit: '审计日志展示权限相关操作，便于回溯配置变化。' }
+  const copy: Record<RbacPreviewTab, string> = { members: '成员目录用于管理账号和用户组归属。批量操作会直接更新选中的用户组。', groups: '用户组编辑器会在本区域出现。', templates: '模板编辑器会在本区域出现。', effective: '有效权限用于解释账号最终能看到哪些资源，以及权限来源。', resources: '选择左侧资源后，可在这里维护直授权成员。', audit: '审计日志展示权限相关操作，便于回溯配置变化。', general: '通用设置用于管理当前工作区的全局界面策略。' }
   return (
     <div>
       <PanelHeader title="上下文" action="操作说明" />
