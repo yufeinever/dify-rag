@@ -7,11 +7,11 @@ import { useInputVariables } from './hooks'
 
 type ProcessDocumentsProps = {
   dataSourceNodeId: string
-  ref: React.RefObject<any>
+  ref: React.RefObject<{ submit: () => void } | null>
   isRunning: boolean
   onProcess: () => void
   onPreview: () => void
-  onSubmit: (data: Record<string, any>) => void
+  onSubmit: (data: Record<string, unknown>) => void
   onBack: () => void
 }
 
@@ -26,12 +26,14 @@ const ProcessDocuments = ({
 }: ProcessDocumentsProps) => {
   const { isFetchingParams, paramsConfig } = useInputVariables(dataSourceNodeId)
   const initialData = useInitialData(paramsConfig?.variables || [])
+  const initialDataKey = JSON.stringify(initialData)
   const configurations = useConfigurations(paramsConfig?.variables || [])
   const schema = generateZodSchema(configurations)
 
   return (
     <div className="flex flex-col gap-y-4 pt-4">
       <Form
+        key={initialDataKey}
         ref={ref}
         initialData={initialData}
         configurations={configurations}
