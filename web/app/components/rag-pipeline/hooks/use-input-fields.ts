@@ -4,22 +4,37 @@ import { useMemo } from 'react'
 import { BaseFieldType } from '@/app/components/base/form/form-scenarios/base/types'
 import { VAR_TYPE_MAP } from '@/models/pipeline'
 
-export const useInitialData = (variables: RAGPipelineVariables, lastRunInputData?: Record<string, any>) => {
+const normalizeNumberDefaultValue = (value: unknown) => {
+  if (value === undefined || value === null || value === '')
+    return 0
+
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? value : 0
+
+  if (typeof value === 'string') {
+    const normalizedValue = Number(value.replace(/,/g, ''))
+    return Number.isFinite(normalizedValue) ? normalizedValue : 0
+  }
+
+  return 0
+}
+
+export const useInitialData = (variables: RAGPipelineVariables, lastRunInputData?: Record<string, unknown>) => {
   const initialData = useMemo(() => {
     return variables.reduce((acc, item) => {
       const type = VAR_TYPE_MAP[item.type]
       const variableName = item.variable
-      const defaultValue = lastRunInputData?.[variableName] || item.default_value
+      const defaultValue = lastRunInputData?.[variableName] ?? item.default_value
       if ([BaseFieldType.textInput, BaseFieldType.paragraph, BaseFieldType.select].includes(type))
         acc[variableName] = defaultValue ?? ''
       if (type === BaseFieldType.numberInput)
-        acc[variableName] = defaultValue ?? 0
+        acc[variableName] = normalizeNumberDefaultValue(defaultValue)
       if (type === BaseFieldType.checkbox)
         acc[variableName] = defaultValue ?? false
       if ([BaseFieldType.file, BaseFieldType.fileList].includes(type))
         acc[variableName] = defaultValue ?? []
       return acc
-    }, {} as Record<string, any>)
+    }, {} as Record<string, unknown>)
   }, [lastRunInputData, variables])
 
   return initialData

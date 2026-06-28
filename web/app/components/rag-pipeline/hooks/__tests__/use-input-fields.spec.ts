@@ -92,6 +92,26 @@ describe('useInitialData', () => {
     expect(result.current.test_var).toBe('hello')
   })
 
+  it('should coerce numeric string default_value to number', () => {
+    const variables = [
+      makeVariable({ type: 'number', variable: 'max_parent_length', default_value: '768' }),
+      makeVariable({ type: 'number', variable: 'max_child_length', default_value: '512' }),
+    ] as unknown as RAGPipelineVariables
+    const { result } = renderHook(() => useInitialData(variables))
+
+    expect(result.current.max_parent_length).toBe(768)
+    expect(result.current.max_child_length).toBe(512)
+  })
+
+  it('should preserve zero from lastRunInputData instead of falling back to default_value', () => {
+    const variables = [
+      makeVariable({ type: 'number', variable: 'count', default_value: '5' }),
+    ] as unknown as RAGPipelineVariables
+    const { result } = renderHook(() => useInitialData(variables, { count: 0 }))
+
+    expect(result.current.count).toBe(0)
+  })
+
   it('should prefer lastRunInputData over default_value', () => {
     const variables = [
       makeVariable({ type: 'text-input', default_value: 'default' }),
