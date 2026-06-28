@@ -25,6 +25,15 @@ describe('NumberInputField', () => {
     expect(screen.getByLabelText('Count')).toHaveValue('2')
   })
 
+  it('should render fallback value when field value is empty', () => {
+    mockField.state.value = undefined as unknown as number
+
+    render(<NumberInputField label="Count" fallbackValue={768} />)
+
+    expect(screen.getByLabelText('Count')).toHaveValue('768')
+    expect(mockField.handleChange).toHaveBeenCalledWith(768)
+  })
+
   it('should update value when users click increment', () => {
     render(<NumberInputField label="Count" />)
     fireEvent.click(screen.getByRole('button', { name: 'Increment value' }))

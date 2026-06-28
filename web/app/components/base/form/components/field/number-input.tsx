@@ -22,6 +22,7 @@ type NumberInputFieldProps = {
   inputClassName?: string
   unit?: ReactNode
   size?: NumberFieldSize
+  fallbackValue?: number
 } & Omit<NumberFieldRootProps, 'children' | 'className' | 'id' | 'value' | 'defaultValue' | 'onValueChange'> & Omit<NumberFieldInputProps, 'children' | 'size' | 'onBlur' | 'className' | 'onChange'>
 
 const NumberInputField = ({
@@ -31,6 +32,7 @@ const NumberInputField = ({
   inputClassName,
   unit,
   size = 'medium',
+  fallbackValue,
   ...props
 }: NumberInputFieldProps) => {
   const field = useFieldContext<number>()
@@ -47,6 +49,18 @@ const NumberInputField = ({
     ...inputProps
   } = props
   const emptyValue = min ?? 0
+  const fieldValue = field.state.value as number | string | null | undefined
+  const value = fieldValue === undefined || fieldValue === null || fieldValue === ''
+    ? fallbackValue
+    : fieldValue
+
+  React.useEffect(() => {
+    if (fallbackValue === undefined)
+      return
+
+    if (fieldValue === undefined || fieldValue === null || fieldValue === '')
+      field.handleChange(fallbackValue)
+  }, [fallbackValue, field, fieldValue])
 
   return (
     <div className={cn('flex flex-col gap-y-0.5', className)}>
@@ -57,7 +71,7 @@ const NumberInputField = ({
       />
       <NumberField
         name={field.name}
-        value={field.state.value}
+        value={value}
         min={min}
         max={max}
         step={step}

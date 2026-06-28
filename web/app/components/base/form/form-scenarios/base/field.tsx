@@ -5,7 +5,7 @@ import { withForm } from '../..'
 import { BaseFieldType } from './types'
 
 type BaseFieldProps = {
-  initialData?: Record<string, any>
+  initialData?: Record<string, unknown>
   config: BaseConfiguration
 }
 
@@ -105,6 +105,7 @@ const BaseField = ({
               max={max}
               min={min}
               unit={unit}
+              fallbackValue={typeof initialData?.[variable] === 'number' ? initialData[variable] : undefined}
             />
           )}
         />
