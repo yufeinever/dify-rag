@@ -30,6 +30,7 @@ x-dify-web-build: &dify-web-build
     COMMIT_SHA: ${COMMIT_SHA:-local}
     HTTP_PROXY: ${DIFY_HTTP_PROXY:-}
     HTTPS_PROXY: ${DIFY_HTTPS_PROXY:-}
+    NPM_REGISTRY: ${DIFY_NPM_REGISTRY:-https://registry.npmmirror.com}
 
 
 x-shared-api-worker-config: &shared-api-worker-config

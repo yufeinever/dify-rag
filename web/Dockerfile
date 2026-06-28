@@ -8,16 +8,17 @@ ARG http_proxy
 ARG https_proxy
 ARG NO_PROXY
 ARG no_proxy
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 # if you located in China, you can use aliyun mirror to speed up
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 # if you located in China, you can use taobao registry to speed up
-RUN npm config set registry https://registry.npmmirror.com
+RUN npm config set registry ${NPM_REGISTRY}
 
 RUN apk add --no-cache tzdata
 RUN corepack enable
-RUN pnpm config set registry https://registry.npmmirror.com
+RUN pnpm config set registry ${NPM_REGISTRY}
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ARG NEXT_PUBLIC_BASE_PATH=""
