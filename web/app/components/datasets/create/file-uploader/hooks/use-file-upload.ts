@@ -162,8 +162,11 @@ export const useFileUpload = ({
   }, [onFileUpdate, t])
 
   const uploadBatchFiles = useCallback((bFiles: FileItem[]) => {
-    bFiles.forEach(bf => (bf.progress = 0))
-    return Promise.all(bFiles.map(fileUpload))
+    const uploadingFiles = bFiles.map(file => ({
+      ...file,
+      progress: 0,
+    }))
+    return Promise.all(uploadingFiles.map(fileUpload))
   }, [fileUpload])
 
   const uploadMultipleFiles = useCallback(async (files: FileItem[]) => {
@@ -278,9 +281,8 @@ export const useFileUpload = ({
         }),
       )
       let files = nested.flat()
-      if (!supportBatchUpload)
-        files = files.slice(0, 1)
-      files = files.slice(0, fileUploadConfig.batch_count_limit)
+      const selectionLimit = supportBatchUpload ? fileUploadConfig.file_upload_limit : 1
+      files = files.slice(0, selectionLimit)
       const valid = files.filter(isValid)
       initialUpload(valid)
     },
@@ -302,9 +304,10 @@ export const useFileUpload = ({
 
   const fileChangeHandle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     let files = Array.from(e.target.files ?? []) as File[]
-    files = files.slice(0, fileUploadConfig.batch_count_limit)
+    const selectionLimit = supportBatchUpload ? fileUploadConfig.file_upload_limit : 1
+    files = files.slice(0, selectionLimit)
     initialUpload(files.filter(isValid))
-  }, [isValid, initialUpload, fileUploadConfig])
+  }, [isValid, initialUpload, fileUploadConfig, supportBatchUpload])
 
   const handlePreview = useCallback((file: File) => {
     if (file?.id)

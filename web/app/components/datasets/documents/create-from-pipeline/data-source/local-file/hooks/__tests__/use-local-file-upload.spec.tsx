@@ -376,7 +376,7 @@ describe('useLocalFileUpload', () => {
       )
     })
 
-    it('should limit files to batch count limit', async () => {
+    it('should limit selected files to total file upload limit', async () => {
       mockUpload.mockResolvedValue({ id: 'uploaded-id' })
 
       const { result } = renderHook(
@@ -402,9 +402,9 @@ describe('useLocalFileUpload', () => {
         expect(mockSetLocalFileList).toHaveBeenCalled()
       })
 
-      // Should only process first 5 files (batch_count_limit)
+      // Should only process first 10 files (file_upload_limit); upload concurrency is still batched separately
       const firstCall = mockSetLocalFileList.mock.calls[0]
-      expect(firstCall![0].length).toBeLessThanOrEqual(5)
+      expect(firstCall![0].length).toBeLessThanOrEqual(10)
     })
   })
 

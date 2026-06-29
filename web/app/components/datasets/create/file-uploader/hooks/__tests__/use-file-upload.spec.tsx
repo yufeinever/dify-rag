@@ -274,7 +274,7 @@ describe('useFileUpload', () => {
       })
     })
 
-    it('should limit files to batch count', () => {
+    it('should limit selected files to total file upload limit', () => {
       const prepareFileList = vi.fn()
       const { result } = renderHook(
         () => useFileUpload({ ...defaultOptions, prepareFileList }),
@@ -292,10 +292,10 @@ describe('useFileUpload', () => {
         result.current.fileChangeHandle(event)
       })
 
-      // Should be called with at most batch_count_limit files
+      // Should be called with at most file_upload_limit files
       if (prepareFileList.mock.calls.length > 0) {
         const calledFiles = prepareFileList.mock.calls[0]![0]
-        expect(calledFiles.length).toBeLessThanOrEqual(mockFileUploadConfig.batch_count_limit)
+        expect(calledFiles.length).toBeLessThanOrEqual(mockFileUploadConfig.file_upload_limit)
       }
     })
 
