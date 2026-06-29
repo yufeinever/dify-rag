@@ -493,6 +493,26 @@ describe('RenameDatasetModal', () => {
       })
     })
 
+    it('should not include external knowledge IDs when external knowledge info is null', async () => {
+      const dataset = {
+        ...createMockDataset(),
+        external_knowledge_info: null,
+      } as unknown as DataSet
+      render(<RenameDatasetModal {...defaultProps} dataset={dataset} />)
+
+      const saveButton = screen.getByText('common.operation.save')
+      await act(async () => {
+        fireEvent.click(saveButton)
+      })
+
+      await waitFor(() => {
+        expect(mockUpdateDatasetSetting).toHaveBeenCalled()
+        const callArgs = mockUpdateDatasetSetting.mock.calls[0]![0]
+        expect(callArgs.body.external_knowledge_id).toBeUndefined()
+        expect(callArgs.body.external_knowledge_api_id).toBeUndefined()
+      })
+    })
+
     it('should handle image icon correctly in API call', async () => {
       const dataset = createMockDatasetWithImageIcon()
       render(<RenameDatasetModal {...defaultProps} dataset={dataset} />)
@@ -1174,6 +1194,16 @@ describe('RenameDatasetModal', () => {
           external_knowledge_api_endpoint: '',
         },
       })
+
+      render(<RenameDatasetModal {...defaultProps} dataset={dataset} />)
+      expect(screen.getByDisplayValue('Test Dataset'))!.toBeInTheDocument()
+    })
+
+    it('should handle dataset with null external knowledge info', () => {
+      const dataset = {
+        ...createMockDataset(),
+        external_knowledge_info: null,
+      } as unknown as DataSet
 
       render(<RenameDatasetModal {...defaultProps} dataset={dataset} />)
       expect(screen.getByDisplayValue('Test Dataset'))!.toBeInTheDocument()

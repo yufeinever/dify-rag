@@ -5,11 +5,11 @@ import type { DataSet } from '@/models/datasets'
 import { Button } from '@langgenius/dify-ui/button'
 import { cn } from '@langgenius/dify-ui/cn'
 import { Dialog, DialogContent } from '@langgenius/dify-ui/dialog'
+import { Input } from '@langgenius/dify-ui/input'
 import { toast } from '@langgenius/dify-ui/toast'
 import { RiCloseLine } from '@remixicon/react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Input from '@/app/components/base/input'
 import Textarea from '@/app/components/base/textarea'
 import { updateDatasetSetting } from '@/service/datasets'
 import AppIcon from '../../base/app-icon'
@@ -26,8 +26,8 @@ const RenameDatasetModal = ({ show, dataset, onSuccess, onClose }: RenameDataset
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState<string>(dataset.name)
   const [description, setDescription] = useState<string>(dataset.description)
-  const externalKnowledgeId = dataset.external_knowledge_info.external_knowledge_id
-  const externalKnowledgeApiId = dataset.external_knowledge_info.external_knowledge_api_id
+  const externalKnowledgeId = dataset.external_knowledge_info?.external_knowledge_id
+  const externalKnowledgeApiId = dataset.external_knowledge_info?.external_knowledge_api_id
   const [appIcon, setAppIcon] = useState<AppIconSelection>(dataset.icon_info?.icon_type === 'image'
     ? { type: 'image' as const, url: dataset.icon_info?.icon_url || '', fileId: dataset.icon_info?.icon || '' }
     : { type: 'emoji' as const, icon: dataset.icon_info?.icon || '', background: dataset.icon_info?.icon_background || '' })
