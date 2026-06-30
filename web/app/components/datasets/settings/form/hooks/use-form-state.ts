@@ -46,9 +46,9 @@ export const useFormState = () => {
   const [selectedMemberIDs, setSelectedMemberIDs] = useState<string[]>(currentDataset?.partial_member_list || [])
 
   // External retrieval state
-  const [topK, setTopK] = useState(currentDataset?.external_retrieval_model.top_k ?? 2)
-  const [scoreThreshold, setScoreThreshold] = useState(currentDataset?.external_retrieval_model.score_threshold ?? 0.5)
-  const [scoreThresholdEnabled, setScoreThresholdEnabled] = useState(currentDataset?.external_retrieval_model.score_threshold_enabled ?? false)
+  const [topK, setTopK] = useState(currentDataset?.external_retrieval_model?.top_k ?? 2)
+  const [scoreThreshold, setScoreThreshold] = useState(currentDataset?.external_retrieval_model?.score_threshold ?? 0.5)
+  const [scoreThresholdEnabled, setScoreThresholdEnabled] = useState(currentDataset?.external_retrieval_model?.score_threshold_enabled ?? false)
 
   // Indexing and retrieval state
   const [indexMethod, setIndexMethod] = useState(currentDataset?.indexing_technique)
