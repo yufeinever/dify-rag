@@ -175,8 +175,8 @@ const SettingsModal: FC<SettingsModalProps> = ({
       },
       rerankingEnable: retrievalConfig.reranking_enable,
       rerankModel: {
-        rerankingProviderName: retrievalConfig.reranking_model.reranking_provider_name,
-        rerankingModelName: retrievalConfig.reranking_model.reranking_model_name,
+        rerankingProviderName: retrievalConfig.reranking_model?.reranking_provider_name ?? '',
+        rerankingModelName: retrievalConfig.reranking_model?.reranking_model_name ?? '',
       },
       indexMethod,
       embeddingModelList,
