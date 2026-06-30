@@ -5,7 +5,6 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import Input from '@/app/components/base/input'
 import TabSliderNew from '@/app/components/base/tab-slider-new'
 import Card from '@/app/components/plugins/card'
 import CardMoreInfo from '@/app/components/plugins/card/card-more-info'
@@ -16,6 +15,7 @@ import LabelFilter from '@/app/components/tools/labels/filter'
 import CustomCreateCard from '@/app/components/tools/provider/custom-create-card'
 import ProviderDetail from '@/app/components/tools/provider/detail'
 import WorkflowToolEmpty from '@/app/components/tools/provider/empty'
+import { useRouter } from '@/next/navigation'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { useCheckInstalled, useInvalidateInstalledPluginList } from '@/service/use-plugins'
 import { useAllToolProviders } from '@/service/use-tools'
@@ -39,6 +39,7 @@ const ProviderList = () => {
   // const searchParams = useSearchParams()
   // searchParams.get('category') === 'workflow'
   const { t } = useTranslation()
+  const router = useRouter()
   const { getTagLabel } = useTags()
   const { data: enable_marketplace } = useSuspenseQuery({
     ...systemFeaturesQueryOptions(),
@@ -146,17 +147,26 @@ const ProviderList = () => {
               options={options}
             />
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-divider-regular bg-components-button-secondary-bg px-3 text-sm font-medium text-components-button-secondary-text shadow-xs hover:bg-components-button-secondary-bg-hover"
+                onClick={() => router.push('/tools/local-material-compress-demo')}
+              >
+                <span className="i-ri-file-zip-line size-4" />
+                本地材料压缩
+              </button>
               {activeTab !== 'mcp' && (
                 <LabelFilter value={tagFilterValue} onChange={handleTagsChange} />
               )}
-              <Input
-                showLeftIcon
-                showClearIcon
-                wrapperClassName="w-[200px]"
-                value={keywords}
-                onChange={e => handleKeywordsChange(e.target.value)}
-                onClear={() => handleKeywordsChange('')}
-              />
+              <label className="relative block w-[200px]">
+                <span className="pointer-events-none absolute top-1/2 left-3 i-ri-search-line size-4 -translate-y-1/2 text-text-quaternary" />
+                <input
+                  value={keywords}
+                  onChange={e => handleKeywordsChange(e.target.value)}
+                  placeholder={t('placeholder.search', { ns: 'common' })}
+                  className="h-9 w-full rounded-lg border border-divider-regular bg-components-input-bg-normal pr-3 pl-9 text-sm text-text-primary outline-none placeholder:text-text-quaternary hover:border-components-input-border-hover focus:border-components-input-border-active"
+                />
+              </label>
             </div>
           </div>
           {activeTab !== 'mcp' && (
