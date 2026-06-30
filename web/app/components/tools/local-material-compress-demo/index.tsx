@@ -218,12 +218,17 @@ const compressPptx = async (
   }
 }
 
+type PdfJsModule = {
+  GlobalWorkerOptions: { workerSrc: string }
+  getDocument: (options: { data: ArrayBuffer }) => { promise: Promise<PdfDocumentProxy> }
+}
+
+const PDFJS_STATIC_BASE = '/vendor/pdfjs-4.4.168'
+
 const loadPdfJs = async () => {
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/legacy/build/pdf.worker.mjs',
-    import.meta.url,
-  ).toString()
+  const pdfjsUrl = `${PDFJS_STATIC_BASE}/pdf.mjs`
+  const pdfjs = await import(/* webpackIgnore: true */ pdfjsUrl) as PdfJsModule
+  pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS_STATIC_BASE}/pdf.worker.mjs`
   return pdfjs
 }
 
