@@ -12,10 +12,11 @@ import { ModelTypeEnum } from '@/app/components/header/account-setting/model-pro
 import { useModelList } from '@/app/components/header/account-setting/model-provider-page/hooks'
 import { useSelector as useAppContextWithSelector } from '@/context/app-context'
 import { useDatasetDetailContextWithSelector } from '@/context/dataset-detail'
-import { DatasetPermission } from '@/models/datasets'
+import { DatasetPermission, RerankingModeEnum } from '@/models/datasets'
 import { updateDatasetSetting } from '@/service/datasets'
 import { useInvalidDatasetList } from '@/service/knowledge/use-dataset'
 import { useMembers } from '@/service/use-common'
+import { RETRIEVE_METHOD } from '@/types/app'
 import { checkShowMultiModalTip } from '../../utils'
 
 const DEFAULT_APP_ICON: IconInfo = {
@@ -24,6 +25,20 @@ const DEFAULT_APP_ICON: IconInfo = {
   icon_background: '#FFF4ED',
   icon_url: '',
 }
+
+const normalizeRetrievalConfig = (config?: RetrievalConfig | null): RetrievalConfig => ({
+  search_method: config?.search_method ?? RETRIEVE_METHOD.semantic,
+  reranking_enable: config?.reranking_enable ?? false,
+  reranking_model: config?.reranking_model ?? {
+    reranking_provider_name: '',
+    reranking_model_name: '',
+  },
+  top_k: config?.top_k ?? 3,
+  score_threshold_enabled: config?.score_threshold_enabled ?? false,
+  score_threshold: config?.score_threshold ?? 0,
+  reranking_mode: config?.reranking_mode ?? RerankingModeEnum.RerankingModel,
+  weights: config?.weights,
+})
 
 export const useFormState = () => {
   const { t } = useTranslation()
@@ -53,7 +68,7 @@ export const useFormState = () => {
   // Indexing and retrieval state
   const [indexMethod, setIndexMethod] = useState(currentDataset?.indexing_technique)
   const [keywordNumber, setKeywordNumber] = useState(currentDataset?.keyword_number ?? 10)
-  const [retrievalConfig, setRetrievalConfig] = useState(currentDataset?.retrieval_model_dict as RetrievalConfig)
+  const [retrievalConfig, setRetrievalConfig] = useState(() => normalizeRetrievalConfig(currentDataset?.retrieval_model_dict))
   const [embeddingModel, setEmbeddingModel] = useState<DefaultModel>(
     currentDataset?.embedding_model
       ? {
@@ -70,8 +85,8 @@ export const useFormState = () => {
   const [summaryIndexSetting, setSummaryIndexSetting] = useState(currentDataset?.summary_index_setting)
 
   // Model lists
-  const { data: rerankModelList } = useModelList(ModelTypeEnum.rerank)
-  const { data: embeddingModelList } = useModelList(ModelTypeEnum.textEmbedding)
+  const { data: rerankModelList = [] } = useModelList(ModelTypeEnum.rerank)
+  const { data: embeddingModelList = [] } = useModelList(ModelTypeEnum.textEmbedding)
   const { data: membersData } = useMembers()
   const invalidDatasetList = useInvalidDatasetList()
 

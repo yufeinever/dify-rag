@@ -23,9 +23,10 @@ import ModelSelector from '@/app/components/header/account-setting/model-provide
 import { useAppContext } from '@/context/app-context'
 import { useDocLink } from '@/context/i18n'
 import { useModalContext } from '@/context/modal-context'
-import { DatasetPermission } from '@/models/datasets'
+import { DatasetPermission, RerankingModeEnum } from '@/models/datasets'
 import { updateDatasetSetting } from '@/service/datasets'
 import { useMembers } from '@/service/use-common'
+import { RETRIEVE_METHOD } from '@/types/app'
 import { RetrievalChangeTip, RetrievalSection } from './retrieval-section'
 
 type SettingsModalProps = {
@@ -42,13 +43,27 @@ const labelClass = `
   flex w-[168px] shrink-0
 `
 
+const normalizeRetrievalConfig = (config?: RetrievalConfig | null): RetrievalConfig => ({
+  search_method: config?.search_method ?? RETRIEVE_METHOD.semantic,
+  reranking_enable: config?.reranking_enable ?? false,
+  reranking_model: config?.reranking_model ?? {
+    reranking_provider_name: '',
+    reranking_model_name: '',
+  },
+  top_k: config?.top_k ?? 3,
+  score_threshold_enabled: config?.score_threshold_enabled ?? false,
+  score_threshold: config?.score_threshold ?? 0,
+  reranking_mode: config?.reranking_mode ?? RerankingModeEnum.RerankingModel,
+  weights: config?.weights,
+})
+
 const SettingsModal: FC<SettingsModalProps> = ({
   currentDataset,
   onCancel,
   onSave,
 }) => {
-  const { data: embeddingModelList } = useModelList(ModelTypeEnum.textEmbedding)
-  const { data: rerankModelList } = useModelList(ModelTypeEnum.rerank)
+  const { data: embeddingModelList = [] } = useModelList(ModelTypeEnum.textEmbedding)
+  const { data: rerankModelList = [] } = useModelList(ModelTypeEnum.rerank)
   const { t } = useTranslation()
   const docLink = useDocLink()
   const ref = useRef(null)
@@ -57,15 +72,15 @@ const SettingsModal: FC<SettingsModalProps> = ({
   const [loading, setLoading] = useState(false)
   const { isCurrentWorkspaceDatasetOperator } = useAppContext()
   const [localeCurrentDataset, setLocaleCurrentDataset] = useState({ ...currentDataset })
-  const [topK, setTopK] = useState(localeCurrentDataset?.external_retrieval_model.top_k ?? 2)
-  const [scoreThreshold, setScoreThreshold] = useState(localeCurrentDataset?.external_retrieval_model.score_threshold ?? 0.5)
-  const [scoreThresholdEnabled, setScoreThresholdEnabled] = useState(localeCurrentDataset?.external_retrieval_model.score_threshold_enabled ?? false)
+  const [topK, setTopK] = useState(localeCurrentDataset?.external_retrieval_model?.top_k ?? 2)
+  const [scoreThreshold, setScoreThreshold] = useState(localeCurrentDataset?.external_retrieval_model?.score_threshold ?? 0.5)
+  const [scoreThresholdEnabled, setScoreThresholdEnabled] = useState(localeCurrentDataset?.external_retrieval_model?.score_threshold_enabled ?? false)
   const [selectedMemberIDs, setSelectedMemberIDs] = useState<string[]>(currentDataset.partial_member_list || [])
   const [memberList, setMemberList] = useState<Member[]>([])
   const { data: membersData } = useMembers()
 
   const [indexMethod, setIndexMethod] = useState(currentDataset.indexing_technique)
-  const [retrievalConfig, setRetrievalConfig] = useState(localeCurrentDataset?.retrieval_model_dict as RetrievalConfig)
+  const [retrievalConfig, setRetrievalConfig] = useState(() => normalizeRetrievalConfig(localeCurrentDataset?.retrieval_model_dict))
   const [keywordNumber, setKeywordNumber] = useState(currentDataset.keyword_number ?? 10)
 
   const handleValueChange = (type: string, value: string) => {
