@@ -30,6 +30,7 @@ The codebase is split into:
 - If API migrations changed, run them from `/home/yu/projects/dify-rag/docker` with `docker compose run --rm --no-deps api flask db upgrade`; verify `alembic_version` when needed.
 - Recreate the runtime services from `/home/yu/projects/dify-rag/docker` with `docker compose up -d --no-build --force-recreate api api_websocket worker worker_beat web`.
 - Restart nginx after recreating api or web because nginx can cache old Docker DNS upstream IPs for both upstreams: `docker compose restart nginx`.
+- If `api` or `web` was recreated and the UI/API returns 502/503 while containers are healthy, restart nginx first; nginx is usually still using the old Docker upstream IP.
 - Verify both the internal and public UI/API entrypoints before reporting completion:
   - On T1000: `curl -I http://127.0.0.1/admin` and `curl -I http://127.0.0.1/console/api/setup`
   - Public: `curl -I http://118.196.65.83:18088/admin` and `curl -I http://118.196.65.83:18088/console/api/setup`
