@@ -20,6 +20,7 @@ from core.memory.token_buffer_memory import TokenBufferMemory
 from core.model_manager import ModelInstance
 from core.prompt.entities.advanced_prompt_entities import MemoryConfig
 from core.trigger.constants import TRIGGER_NODE_TYPES
+from core.workflow.document_extractor_table_patch import apply_document_extractor_table_patch
 from core.workflow.human_input_adapter import adapt_node_config_for_graph
 from core.workflow.node_runtime import (
     DifyFileReferenceFactory,
@@ -61,6 +62,8 @@ from graphon.nodes.parameter_extractor.entities import ParameterExtractorNodeDat
 from graphon.nodes.question_classifier.entities import QuestionClassifierNodeData
 from graphon.variables.segments import ArrayObjectSegment
 from models.model import Conversation
+
+apply_document_extractor_table_patch()
 
 if TYPE_CHECKING:
     from graphon.entities import GraphInitParams

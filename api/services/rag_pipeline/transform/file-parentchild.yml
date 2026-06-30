@@ -3,10 +3,9 @@ dependencies:
   type: marketplace
   value:
     plugin_unique_identifier: langgenius/parentchild_chunker:0.0.1@b1a28a27e33fec442ce494da2a7814edd7eb9d646c81f38bccfcf1133d486e40
-- current_identifier: null
-  type: marketplace
+- type: marketplace
   value:
-    plugin_unique_identifier: langgenius/dify_extractor:0.0.1@50103421d4e002f059b662d21ad2d7a1cf34869abdbe320299d7e382516ebb1c
+    plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.1@98c6547faf8c407d083571f847c190d5d7e7e4e9326b7a336cb3221d609983f4
 kind: rag_pipeline
 rag_pipeline:
   description: 统一多格式材料导入：视觉材料走 MinerU 解析，表格和文本走结构化轻量解析。
@@ -185,56 +184,113 @@ workflow:
         is_team_authorization: true
         output_schema:
           properties:
-            documents:
-              description: the documents extracted from the file
-              items:
-                type: object
-              type: array
-            images:
-              description: The images extracted from the file
-              items:
-                type: object
-              type: array
+            compression_report:
+              type: object
+            file_metadata:
+              type: object
+            json:
+              type: object
+            text:
+              type: string
           type: object
         paramSchemas:
-        - auto_generate: null
-          default: null
-          form: llm
+        - form: llm
           human_description:
-            en_US: the file to be parsed(support pdf, ppt, pptx, doc, docx, png, jpg,
-              jpeg)
-            ja_JP: 解析するファイル(pdf, ppt, pptx, doc, docx, png, jpg, jpegをサポート)
-            pt_BR: o arquivo a ser analisado (suporta pdf, ppt, pptx, doc, docx, png,
-              jpg, jpeg)
-            zh_Hans: 用于解析的文件(支持 pdf, ppt, pptx, doc, docx, png, jpg, jpeg)
+            en_US: The original material file to normalize and parse.
+            zh_Hans: 需要归一化并解析的原始材料文件。
           label:
-            en_US: file
-            ja_JP: ファイル
-            pt_BR: arquivo
-            zh_Hans: file
-          llm_description: the file to be parsed (support pdf, ppt, pptx, doc, docx,
-            png, jpg, jpeg)
-          max: null
-          min: null
+            en_US: File
+            zh_Hans: 文件
+          llm_description: 'Original material file. Supported: pdf, doc, docx, ppt,
+            pptx, png, jpg, jpeg.'
           name: file
-          options: []
-          placeholder: null
-          precision: null
           required: true
-          scope: null
-          template: null
           type: file
-        params:
-          file: ''
-        provider_id: langgenius/dify_extractor/dify_extractor
-        provider_name: langgenius/dify_extractor/dify_extractor
+        - default: auto
+          form: form
+          label:
+            en_US: Parse Method
+            zh_Hans: 解析模式
+          name: parse_method
+          options:
+          - label:
+              en_US: Auto
+              zh_Hans: 自动
+            value: auto
+          - label:
+              en_US: OCR
+              zh_Hans: OCR
+            value: ocr
+          - label:
+              en_US: Text
+              zh_Hans: 文本
+            value: txt
+          required: false
+          type: select
+        - default: ch
+          form: form
+          label:
+            en_US: OCR Language
+            zh_Hans: OCR 语言
+          name: language
+          required: false
+          type: string
+        - default: 1800
+          form: form
+          label:
+            en_US: Max Long Edge
+            zh_Hans: 图片最长边
+          max: 4000
+          min: 800
+          name: max_long_edge
+          required: false
+          type: number
+        - default: 82
+          form: form
+          label:
+            en_US: JPEG Quality
+            zh_Hans: JPEG 质量
+          max: 95
+          min: 50
+          name: jpeg_quality
+          required: false
+          type: number
+        - default: 30
+          form: form
+          label:
+            en_US: Large File Threshold MB
+            zh_Hans: 大文件阈值 MB
+          max: 500
+          min: 1
+          name: large_file_mb
+          required: false
+          type: number
+        plugin_id: mmb/mmb_material_preprocessor
+        provider_id: mmb/mmb_material_preprocessor/mmb_material_preprocessor
+        provider_name: mmb_material_preprocessor
         provider_type: builtin
         selected: false
-        title: 视觉材料解析（MinerU）
-        tool_configurations: {}
-        tool_description: 解析 PDF、PPT、Word 和图片等视觉材料
-        tool_label: 视觉材料解析
-        tool_name: dify_extractor
+        title: MMB Normalize + MinerU Parse
+        tool_configurations:
+          jpeg_quality:
+            type: constant
+            value: 82
+          language:
+            type: constant
+            value: ch
+          large_file_mb:
+            type: constant
+            value: 30
+          max_long_edge:
+            type: constant
+            value: 1800
+          parse_method:
+            type: constant
+            value: auto
+        tool_description: Normalize large materials, preserve original files, parse
+          MinerU formats, and extract image OCR text.
+        tool_label: Normalize and Parse File
+        tool_name: normalize-file
         tool_parameters:
           file:
             type: variable
@@ -242,6 +298,7 @@ workflow:
             - '1752479895761'
             - file
         type: tool
+        tool_node_version: '2'
       height: 52
       id: '1752480460682'
       position:
@@ -537,8 +594,7 @@ workflow:
             en_US: Split text into paragraphs based on separator and maximum chunk
               length, using split text as parent block or entire document as parent
               block and directly retrieve.
-            ja_JP: セパレーターと最大チャンク長に基づいてテキストを段落に分割し、分割されたテキスト
-              を親ブロックとして使用するか、文書全体を親ブロックとして使用して直接取得します。
+            ja_JP: セパレーターと最大チャンク長に基づいてテキストを段落に分割し、分割されたテキスト を親ブロックとして使用するか、文書全体を親ブロックとして使用して直接取得します。
             pt_BR: Dividir texto em parágrafos com base no separador e no comprimento
               máximo do bloco, usando o texto dividido como bloco pai ou documento
               completo como bloco pai e diretamente recuperá-lo.
