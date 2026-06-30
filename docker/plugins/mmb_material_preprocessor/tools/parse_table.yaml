@@ -1,0 +1,40 @@
+identity:
+  name: parse-table
+  author: mmb
+  label:
+    en_US: Excel/CSV Table Parser
+    zh_Hans: Excel/CSV 表格解析器
+description:
+  human:
+    en_US: Parse Excel and CSV files into table-aware row text for RAG indexing.
+    zh_Hans: 将 Excel 和 CSV 解析为适合 RAG 入库的表格感知行文本。
+  llm: Parse xlsx, xls, and csv files into row-level searchable text with sheet, row,
+    column, and source metadata.
+parameters:
+- name: file
+  type: file
+  required: true
+  label:
+    en_US: File
+    zh_Hans: 文件
+  human_description:
+    en_US: Supports xlsx, xls, and csv.
+    zh_Hans: 支持 xlsx、xls、csv。
+  form: llm
+output_schema:
+  type: object
+  properties:
+    table_metadata:
+      type: object
+      description: Table source metadata.
+    parse_report:
+      type: object
+      description: Parser decisions and row counts.
+    content_list:
+      type: array
+      items:
+        type: object
+      description: Table and row records.
+extra:
+  python:
+    source: tools/parse_table.py

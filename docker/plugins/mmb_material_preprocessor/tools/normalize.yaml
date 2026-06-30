@@ -17,8 +17,8 @@ parameters:
       en_US: File
       zh_Hans: 文件
     human_description:
-      en_US: Supports pdf, doc, docx, ppt, pptx, png, jpg, jpeg, xls, xlsx, csv, md, html, json, yaml, txt.
-      zh_Hans: 支持 pdf、doc、docx、ppt、pptx、png、jpg、jpeg、xls、xlsx、csv、md、html、json、yaml、txt。
+      en_US: Supports pdf, doc, docx, ppt, pptx, png, jpg, jpeg, md, html, json, yaml, txt.
+      zh_Hans: 支持 pdf、doc、docx、ppt、pptx、png、jpg、jpeg、md、html、json、yaml、txt。
     form: llm
   - name: parse_method
     type: select

@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import io
 import logging
-import re
 from collections.abc import Sequence
 from html.parser import HTMLParser
 from typing import Any
@@ -25,7 +24,6 @@ _TABLE_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
 _ORIGINAL_EXTRACT_TEXT_FROM_FILE = document_extractor_node._extract_text_from_file
-_KS_SOURCE_RE = re.compile(r"#(?P<sheet>.+)!(?P<start_col>[A-Z]+)\d+:(?P<end_col>[A-Z]+)\d+$")
 
 
 def apply_document_extractor_table_patch() -> None:
@@ -83,13 +81,6 @@ def _extract_excel_rows(file_content: bytes, file_name: str) -> str:
     if _looks_like_html(file_content):
         return _extract_html_table_rows(file_content, file_name)
 
-    if file_name.lower().endswith(".xlsx"):
-        try:
-            ks_text = _extract_xlsx_rows_with_ks_parser(file_content, file_name)
-            if ks_text:
-                return ks_text
-        except Exception:
-            logger.warning("Failed to extract xlsx rows with ks-xlsx-parser; falling back to pandas", exc_info=True)
 
     return _extract_excel_rows_with_pandas(file_content, file_name)
 
@@ -138,54 +129,6 @@ def _extract_excel_rows_with_pandas(
                     )
                 )
     return "\n\n".join(documents)
-
-
-def _extract_xlsx_rows_with_ks_parser(file_content: bytes, file_name: str) -> str:
-    from ks_xlsx_parser import parse_workbook
-
-    result = parse_workbook(content=file_content, filename=file_name or "workbook.xlsx")
-    chunks = list(getattr(result, "chunks", []) or [])
-    if not chunks:
-        return ""
-
-    source_ranges = _ks_source_ranges(chunks)
-    table_summaries = [_format_ks_table_summary(file_name, idx, chunk) for idx, chunk in enumerate(chunks, start=1)]
-    row_text = _extract_excel_rows_with_pandas(file_content, file_name, source_ranges=source_ranges)
-    parts = [part for part in [*table_summaries, row_text] if part]
-    return "\n\n".join(parts)
-
-
-def _format_ks_table_summary(file_name: str, table_index: int, chunk: Any) -> str:
-    source_uri = _clean_value(getattr(chunk, "source_uri", ""))
-    block_type = _clean_value(getattr(chunk, "block_type", ""))
-    token_count = getattr(chunk, "token_count", None)
-    render_text = _clean_value(getattr(chunk, "render_text", ""))
-    summary = render_text.split("|")[0].strip() if render_text else ""
-
-    lines = []
-    if file_name:
-        lines.append(f"File: {file_name}")
-    lines.extend([f"Table: {table_index}", "Parser: ks-xlsx-parser"])
-    if source_uri:
-        lines.append(f"Source: {source_uri}")
-    if block_type:
-        lines.append(f"Block: {block_type}")
-    if token_count is not None:
-        lines.append(f"Tokens: {token_count}")
-    if summary:
-        lines.append(f"Summary: {summary}")
-    return "\n".join(lines)
-
-
-def _ks_source_ranges(chunks: Sequence[Any]) -> dict[str, tuple[str, str, str]]:
-    ranges: dict[str, tuple[str, str, str]] = {}
-    for chunk in chunks:
-        source_uri = _clean_value(getattr(chunk, "source_uri", ""))
-        match = _KS_SOURCE_RE.search(source_uri)
-        if not match:
-            continue
-        ranges[match.group("sheet")] = (source_uri.split("#", 1)[0], match.group("start_col"), match.group("end_col"))
-    return ranges
 
 
 def _row_source_uri(

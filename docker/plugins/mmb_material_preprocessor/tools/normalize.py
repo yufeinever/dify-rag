@@ -22,7 +22,7 @@ from yarl import URL
 logger = logging.getLogger(__name__)
 
 SUPPORTED_MINERU_EXTENSIONS = {".pdf", ".doc", ".docx", ".ppt", ".pptx", ".png", ".jpg", ".jpeg"}
-SUPPORTED_FALLBACK_EXTENSIONS = {".xls", ".xlsx", ".csv", ".md", ".markdown", ".html", ".htm", ".json", ".yaml", ".yml", ".txt"}
+SUPPORTED_FALLBACK_EXTENSIONS = {".md", ".markdown", ".html", ".htm", ".json", ".yaml", ".yml", ".txt"}
 SUPPORTED_EXTENSIONS = SUPPORTED_MINERU_EXTENSIONS | SUPPORTED_FALLBACK_EXTENSIONS
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 OFFICE_ZIP_EXTENSIONS = {".docx", ".pptx"}

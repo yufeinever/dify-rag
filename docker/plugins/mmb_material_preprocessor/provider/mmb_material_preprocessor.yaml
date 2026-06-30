@@ -25,10 +25,10 @@ credentials_for_provider:
     required: true
     type: select
     options:
-      - value: local
-        label:
-          en_US: Local Deployment
-          zh_Hans: 本地部署
+    - value: local
+      label:
+        en_US: Local Deployment
+        zh_Hans: 本地部署
   token:
     label:
       en_US: Token
@@ -39,4 +39,5 @@ extra:
   python:
     source: provider/mmb_material_preprocessor.py
 tools:
-  - tools/normalize.yaml
+- tools/normalize.yaml
+- tools/parse_table.yaml

@@ -1351,7 +1351,6 @@ dependencies = [
     { name = "httpx", extra = ["socks"] },
     { name = "httpx-sse" },
     { name = "json-repair" },
-    { name = "ks-xlsx-parser" },
     { name = "opentelemetry-distro" },
     { name = "opentelemetry-instrumentation-celery" },
     { name = "opentelemetry-instrumentation-flask" },
@@ -1635,7 +1634,6 @@ requires-dist = [
     { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
     { name = "httpx-sse", specifier = "==0.4.3" },
     { name = "json-repair", specifier = "==0.59.4" },
-    { name = "ks-xlsx-parser", specifier = "==0.2.1" },
     { name = "opentelemetry-distro", specifier = "==0.62b1" },
     { name = "opentelemetry-instrumentation-celery", specifier = "==0.62b1" },
     { name = "opentelemetry-instrumentation-flask", specifier = "==0.62b1" },
@@ -3608,22 +3606,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b6/a5/607e533ed6c83ae1a696969b8e1c137dfebd5759a2e9682e26ff1b97740b/kombu-5.6.2.tar.gz", hash = "sha256:8060497058066c6f5aed7c26d7cd0d3b574990b09de842a8c5aaed0b92cc5a55", size = 472594, upload-time = "2025-12-29T20:30:07.779Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fb/0f/834427d8c03ff1d7e867d3db3d176470c64871753252b21b4f4897d1fa45/kombu-5.6.2-py3-none-any.whl", hash = "sha256:efcfc559da324d41d61ca311b0c64965ea35b4c55cc04ee36e55386145dace93", size = 214219, upload-time = "2025-12-29T20:30:05.74Z" },
-]
-
-[[package]]
-name = "ks-xlsx-parser"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "lxml" },
-    { name = "openpyxl" },
-    { name = "pydantic" },
-    { name = "tiktoken" },
-    { name = "xxhash" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/35/33/6fa08bd2af59a80e0c45d508039d2b2c0ba26b537eee8ce3b3077706a06e/ks_xlsx_parser-0.2.1.tar.gz", hash = "sha256:f98399a86d4f1f48b82efd093d30caaeb18e734056173158e3462fd9899d45ff", size = 151236, upload-time = "2026-05-19T22:28:45.419Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/5c/f1e9a48fbb9da6896830e0ff4cddde5ec9c41e455af768c9df589dbb1703/ks_xlsx_parser-0.2.1-py3-none-any.whl", hash = "sha256:012f0774e78b34800c85d2be88357e20629592a0f40ed12547ffb5df01e4e620", size = 134198, upload-time = "2026-05-19T22:28:43.585Z" },
 ]
 
 [[package]]
