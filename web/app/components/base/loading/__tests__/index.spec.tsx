@@ -19,11 +19,14 @@ describe('Loading Component', () => {
     expect(container.firstChild).toHaveClass('h-full')
   })
 
-  it('contains SVG with spin-animation class', () => {
+  it('contains MMB loading image and beer fill animation layer', () => {
     const { container } = render(<Loading />)
 
-    const svgElement = container.querySelector('svg')
-    expect(svgElement).toHaveClass('spin-animation')
+    const imageElement = container.querySelector('img.mmb-loading-image')
+    const beerFillElement = container.querySelector('.mmb-beer-fill')
+
+    expect(imageElement).toHaveAttribute('src', '/custom-assets/mmb-loading/mmb-bear-bottle-transparent.png')
+    expect(beerFillElement).toBeInTheDocument()
   })
 
   it('handles undefined props correctly', () => {
