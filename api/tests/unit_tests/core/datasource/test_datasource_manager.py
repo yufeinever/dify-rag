@@ -651,8 +651,36 @@ def test_get_upload_file_by_id_builds_file(mocker: MockerFixture):
     f = DatasourceManager.get_upload_file_by_id(file_id="fid", tenant_id="t1")
     assert f.related_id == "fid"
     assert f.extension == ".txt"
+    assert f.type.value == "document"
     assert parse_file_reference(f.reference).storage_key is None
     assert f.storage_key == "k"
+
+
+def test_get_upload_file_by_id_marks_images_by_mime_type(mocker: MockerFixture):
+    fake_row = types.SimpleNamespace(
+        id="fid",
+        name="store.png",
+        extension="png",
+        mime_type="image/png",
+        size=1,
+        key="k",
+        source_url="http://x",
+    )
+
+    class _S:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def scalar(self, *_args, **_kwargs):
+            return fake_row
+
+    mocker.patch("core.datasource.datasource_manager.session_factory.create_session", return_value=_S())
+
+    f = DatasourceManager.get_upload_file_by_id(file_id="fid", tenant_id="t1")
+    assert f.type.value == "image"
 
 
 def test_get_upload_file_by_id_raises_when_missing(mocker: MockerFixture):

@@ -8,7 +8,7 @@ dependencies:
     plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.2@a54aa798815efd3d62888f01af38dd2543060fb2232d41934f32c500496e9e5d
 kind: rag_pipeline
 rag_pipeline:
-  description: 统一多格式材料导入：视觉材料走 MinerU，Excel/CSV 走独立表格解析，文本/HTML 走轻量提取。
+  description: 统一多格式材料导入：PDF/PPT/Word 走 MinerU，Excel/CSV 走独立表格解析，图片走 gpt-5.5 视觉 Caption，文本/HTML 走轻量提取。
   icon: 📙
   icon_background: ''
   icon_type: emoji
@@ -124,6 +124,28 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1752481129417-image-files-1752481719000-target
+      source: '1752481129417'
+      sourceHandle: image-files
+      target: '1752481719000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: variable-aggregator
+      id: 1752481719000-source-1752482022496-target
+      source: '1752481719000'
+      sourceHandle: source
+      target: '1752482022496'
+      targetHandle: target
+      type: custom
+      zIndex: 0
     nodes:
     - data:
         chunk_structure: text_model
@@ -220,12 +242,12 @@ workflow:
         paramSchemas:
         - form: llm
           human_description:
-            en_US: The original material file to normalize and parse.
-            zh_Hans: 需要归一化并解析的原始材料文件。
+            en_US: Supports pdf, doc, docx, ppt, and pptx.
+            zh_Hans: 支持 pdf、doc、docx、ppt、pptx。
           label:
             en_US: File
             zh_Hans: 文件
-          llm_description: 'Original material file. Supported: pdf, doc, docx, ppt, pptx, png, jpg, jpeg.'
+          llm_description: 'Original material file. Supported: pdf, doc, docx, ppt, pptx.'
           name: file
           required: true
           type: file
@@ -310,7 +332,7 @@ workflow:
           parse_method:
             type: constant
             value: auto
-        tool_description: Normalize large materials, preserve original files, parse MinerU formats, and extract image OCR text.
+        tool_description: Normalize large office/PDF materials, preserve original files, and parse them with MinerU.
         tool_label: Normalize and Parse File
         tool_name: normalize-file
         tool_parameters:
@@ -360,7 +382,7 @@ workflow:
         - case_id: 24e47cad-f1e2-4f74-9884-3f49d5bb37b7
           conditions:
           - comparison_operator: is
-            id: 4acbafc7-4f77-4a61-8bdb-fc4f60326101
+            id: visual-pdf
             value: .pdf
             varType: file
             variable_selector:
@@ -368,7 +390,7 @@ workflow:
             - file
             - extension
           - comparison_operator: is
-            id: 65f801fa-a9da-4c08-84c6-21068eed1665
+            id: visual-ppt
             value: .ppt
             varType: file
             variable_selector:
@@ -376,7 +398,7 @@ workflow:
             - file
             - extension
           - comparison_operator: is
-            id: a2d03d03-a210-48d2-a4db-bbb54b153292
+            id: visual-pptx
             value: .pptx
             varType: file
             variable_selector:
@@ -384,7 +406,7 @@ workflow:
             - file
             - extension
           - comparison_operator: is
-            id: bb776f32-0efb-43a0-9023-92b76cabf952
+            id: visual-doc
             value: .doc
             varType: file
             variable_selector:
@@ -392,32 +414,8 @@ workflow:
             - file
             - extension
           - comparison_operator: is
-            id: 2d7ea860-bf88-41ea-8ce8-a552fdc307ce
+            id: visual-docx
             value: .docx
-            varType: file
-            variable_selector:
-            - '1752479895761'
-            - file
-            - extension
-          - comparison_operator: is
-            id: d4b0a32b-8fe7-46e3-b1c1-76c8da7fe817
-            value: .png
-            varType: file
-            variable_selector:
-            - '1752479895761'
-            - file
-            - extension
-          - comparison_operator: is
-            id: b9cb1244-b559-4a3f-b1b5-bcbf49d23c0a
-            value: .jpg
-            varType: file
-            variable_selector:
-            - '1752479895761'
-            - file
-            - extension
-          - comparison_operator: is
-            id: 4487e978-5c9b-450f-910b-2ef2ac97b2d9
-            value: .jpeg
             varType: file
             variable_selector:
             - '1752479895761'
@@ -453,6 +451,34 @@ workflow:
             - extension
           id: table-files
           logical_operator: or
+        - case_id: image-files
+          conditions:
+          - comparison_operator: is
+            id: image-png
+            value: .png
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: image-jpg
+            value: .jpg
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: image-jpeg
+            value: .jpeg
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          id: image-files
+          logical_operator: or
         selected: false
         title: IF/ELSE
         type: if-else
@@ -483,6 +509,8 @@ workflow:
               - text
             - - '1752481519000'
               - text
+            - - '1752481719000'
+              - text
         output_type: string
         selected: false
         title: Variable Aggregator
@@ -493,6 +521,8 @@ workflow:
         - - '1752480460682'
           - text
         - - '1752481519000'
+          - text
+        - - '1752481719000'
           - text
       height: 129
       id: '1752482022496'
@@ -777,6 +807,88 @@ workflow:
       targetPosition: left
       type: custom
       width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 调用 gpt-5.5 视觉能力，为图片生成适合知识库检索的结构化 Caption。
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: gpt-5.5
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: mmb-image-caption-system
+          role: system
+          text: '你是 MMB 知识库的图片视觉解析器。请只根据输入图片生成适合 RAG 入库和检索的中文结构化文本，不要编造图片中看不到的信息。
+
+
+            请严格按以下 Markdown 结构输出：
+
+
+            # 图片解析元数据
+
+            - 文件名: {{#1752479895761.file.name#}}
+
+            - 文件类型: {{#1752479895761.file.extension#}}
+
+            - parser: mmb_image_caption_parser
+
+            - model: gpt-5.5
+
+
+            # 图片类型
+
+            从以下类别中选择最贴近的一类或多类：Logo/标识、海报/宣传图、门店/空间效果图、现场活动图、人物/IP形象、产品图、表格截图、其他。
+
+
+            # 视觉描述
+
+            用 2-4 句话描述画面主体、场景、氛围、人物/空间/物品、品牌元素和可能用途。
+
+
+            # OCR文字
+
+            列出图片中可识别的主要文字；如果没有可辨认文字，写“无明显可识别文字”。
+
+
+            # 品牌/主体/场景元素
+
+            用短语列出画面中的品牌、主体对象、空间场景、颜色/风格、标识元素。
+
+
+            # 检索关键词
+
+            给出不少于 8 个中文关键词，覆盖品牌、场景、用途、画面元素、素材类型。
+
+
+            # 入库标签
+
+            给出 3-8 个适合知识库筛选和检索的标签。'
+        selected: false
+        title: MMB Image Caption Parser
+        type: llm
+        vision:
+          enabled: true
+          configs:
+            variable_selector:
+            - '1752479895761'
+            - file
+            detail: high
+      height: 148
+      id: '1752481719000'
+      position:
+        x: -108.28652292656551
+        y: 611.3910724383104
+      positionAbsolute:
+        x: -108.28652292656551
+        y: 611.3910724383104
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
     viewport:
       x: 701.4999626224237
       y: 128.33739021504016
@@ -792,7 +904,8 @@ workflow:
     options: []
     placeholder: null
     required: true
-    tooltips: A delimiter is the character used to separate text. \n\n is recommended for splitting the original document into large parent chunks. You can also use special delimiters defined by yourself.
+    tooltips: A delimiter is the character used to separate text. \n\n is recommended for splitting the original document
+      into large parent chunks. You can also use special delimiters defined by yourself.
     type: text-input
     unit: null
     variable: delimiter

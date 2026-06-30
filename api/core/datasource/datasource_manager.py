@@ -356,7 +356,7 @@ class DatasourceManager:
             filename=upload_file.name,
             extension="." + upload_file.extension,
             mime_type=upload_file.mime_type,
-            file_type=FileType.CUSTOM,
+            file_type=get_file_type_by_mime_type(upload_file.mime_type),
             transfer_method=FileTransferMethod.LOCAL_FILE,
             remote_url=upload_file.source_url,
             reference=build_file_reference(record_id=str(upload_file.id)),
