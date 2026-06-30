@@ -9,7 +9,7 @@ dependencies:
     plugin_unique_identifier: langgenius/dify_extractor:0.0.1@50103421d4e002f059b662d21ad2d7a1cf34869abdbe320299d7e382516ebb1c
 kind: rag_pipeline
 rag_pipeline:
-  description: ''
+  description: 统一多格式材料导入：视觉材料走 MinerU 解析，表格和文本走结构化轻量解析。
   icon: 📙
   icon_background: ''
   icon_type: emoji
@@ -142,25 +142,27 @@ workflow:
         datasource_name: upload-file
         datasource_parameters: {}
         fileExtensions:
-        - txt
-        - markdown
-        - mdx
         - pdf
-        - html
-        - xlsx
-        - xls
-        - vtt
-        - properties
+        - ppt
+        - pptx
         - doc
         - docx
+        - png
+        - jpg
+        - jpeg
+        - xls
+        - xlsx
         - csv
-        - eml
-        - msg
-        - pptx
-        - xml
-        - epub
-        - ppt
+        - txt
         - md
+        - markdown
+        - mdx
+        - json
+        - yaml
+        - yml
+        - xml
+        - html
+        - htm
         plugin_id: langgenius/file
         provider_name: file
         provider_type: local_file
@@ -229,10 +231,10 @@ workflow:
         provider_name: langgenius/dify_extractor/dify_extractor
         provider_type: builtin
         selected: false
-        title: Dify Extractor
+        title: 视觉材料解析（MinerU）
         tool_configurations: {}
-        tool_description: Dify Extractor
-        tool_label: Dify Extractor
+        tool_description: 解析 PDF、PPT、Word 和图片等视觉材料
+        tool_label: 视觉材料解析
         tool_name: dify_extractor
         tool_parameters:
           file:
@@ -257,7 +259,7 @@ workflow:
     - data:
         is_array_file: false
         selected: false
-        title: 文档提取器
+        title: 表格/文本提取器
         type: document-extractor
         variable_selector:
         - '1752479895761'
@@ -280,63 +282,39 @@ workflow:
         - case_id: 24e47cad-f1e2-4f74-9884-3f49d5bb37b7
           conditions:
           - comparison_operator: is
-            id: 9da88d93-3ff6-463f-abfd-6bcafbf2554d
-            value: .xlsx
+            id: 4acbafc7-4f77-4a61-8bdb-fc4f60326101
+            value: .pdf
             varType: file
             variable_selector:
             - '1752479895761'
             - file
             - extension
           - comparison_operator: is
-            id: d0e88f5e-dfe3-4bae-af0c-dbec267500de
-            value: .xls
+            id: 65f801fa-a9da-4c08-84c6-21068eed1665
+            value: .ppt
             varType: file
             variable_selector:
             - '1752479895761'
             - file
             - extension
           - comparison_operator: is
-            id: a957e91e-1ed7-4c6b-9c80-2f0948858f1d
-            value: .md
+            id: a2d03d03-a210-48d2-a4db-bbb54b153292
+            value: .pptx
             varType: file
             variable_selector:
             - '1752479895761'
             - file
             - extension
           - comparison_operator: is
-            id: 870c3c39-8d3f-474a-ab8b-9c0ccf53db73
-            value: .markdown
+            id: bb776f32-0efb-43a0-9023-92b76cabf952
+            value: .doc
             varType: file
             variable_selector:
             - '1752479895761'
             - file
             - extension
           - comparison_operator: is
-            id: f9541513-1e71-4dc1-9db5-35dc84a39e3c
-            value: .mdx
-            varType: file
-            variable_selector:
-            - '1752479895761'
-            - file
-            - extension
-          - comparison_operator: is
-            id: 4c7f455b-ac20-40ca-9495-6cc44ffcb35d
-            value: .html
-            varType: file
-            variable_selector:
-            - '1752479895761'
-            - file
-            - extension
-          - comparison_operator: is
-            id: 2e12d9c7-8057-4a09-8851-f9fd1d0718d1
-            value: .htm
-            varType: file
-            variable_selector:
-            - '1752479895761'
-            - file
-            - extension
-          - comparison_operator: is
-            id: 73a995a9-d8b9-4aef-89f7-306e2ddcbce2
+            id: 2d7ea860-bf88-41ea-8ce8-a552fdc307ce
             value: .docx
             varType: file
             variable_selector:
@@ -344,16 +322,24 @@ workflow:
             - file
             - extension
           - comparison_operator: is
-            id: 8a2e8772-0426-458b-a1f9-9eaaec0f27c8
-            value: .csv
+            id: d4b0a32b-8fe7-46e3-b1c1-76c8da7fe817
+            value: .png
             varType: file
             variable_selector:
             - '1752479895761'
             - file
             - extension
           - comparison_operator: is
-            id: aa2cb6b6-a2fc-462a-a9f5-c9c3f33a1602
-            value: .txt
+            id: b9cb1244-b559-4a3f-b1b5-bcbf49d23c0a
+            value: .jpg
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: 4487e978-5c9b-450f-910b-2ef2ac97b2d9
+            value: .jpeg
             varType: file
             variable_selector:
             - '1752479895761'

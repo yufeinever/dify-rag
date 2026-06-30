@@ -27,8 +27,8 @@ class TestCSVExtractor:
         docs = extractor.extract()
 
         assert len(docs) == 1
-        assert docs[0].page_content == "id: source-1;body: hello"
-        assert docs[0].metadata == {"source": "source-1", "row": 0}
+        assert docs[0].page_content == "Row: 2\nid: source-1\nbody: hello"
+        assert docs[0].metadata == {"source": "source-1", "row": 2}
 
     def test_extract_raises_when_source_column_missing(self, tmp_path):
         file_path = tmp_path / "data.csv"
@@ -72,7 +72,8 @@ class TestCSVExtractor:
         docs = extractor.extract()
 
         assert len(docs) == 1
-        assert docs[0].page_content == "id: source-1;body: hello"
+        assert docs[0].page_content == "Row: 2\nid: source-1\nbody: hello"
+        assert docs[0].metadata == {"source": "dummy.csv", "row": 2}
         assert attempted_encodings == [None, "bad", "utf-8"]
 
     def test_extract_autodetect_encoding_all_attempts_fail_returns_empty(self, monkeypatch: pytest.MonkeyPatch):

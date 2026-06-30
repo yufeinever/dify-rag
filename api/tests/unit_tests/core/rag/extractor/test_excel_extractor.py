@@ -64,9 +64,10 @@ class TestExcelExtractor:
 
         assert workbook.closed is True
         assert len(docs) == 2
-        assert docs[0].page_content == '"Name":"Alice";"Link":"[Doc](https://example.com/doc)"'
-        assert docs[1].page_content == '"Name":"";"Link":"123"'
-        assert all(doc.metadata["source"] == "/tmp/sample.xlsx" for doc in docs)
+        assert docs[0].page_content == "Sheet: Data\nRow: 2\nName: Alice\nLink: [Doc](https://example.com/doc)"
+        assert docs[1].page_content == "Sheet: Data\nRow: 3\nName: \nLink: 123"
+        assert docs[0].metadata == {"source": "/tmp/sample.xlsx", "sheet": "Data", "row": 2}
+        assert docs[1].metadata == {"source": "/tmp/sample.xlsx", "sheet": "Data", "row": 3}
 
     def test_extract_xls_path(self, monkeypatch: pytest.MonkeyPatch):
         class FakeExcelFile:
@@ -82,8 +83,8 @@ class TestExcelExtractor:
         docs = extractor.extract()
 
         assert len(docs) == 1
-        assert docs[0].page_content == '"A":"x";"B":"1.0"'
-        assert docs[0].metadata == {"source": "/tmp/sample.xls"}
+        assert docs[0].page_content == "Sheet: Sheet1\nRow: 2\nA: x\nB: 1.0"
+        assert docs[0].metadata == {"source": "/tmp/sample.xls", "sheet": "Sheet1", "row": 2}
 
     def test_extract_unsupported_extension_raises(self):
         extractor = ExcelExtractor("/tmp/sample.txt")

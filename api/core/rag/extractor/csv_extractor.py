@@ -67,10 +67,12 @@ class CSVExtractor(BaseExtractor):
             # create document objects
 
             for i, row in df.iterrows():
-                content = ";".join(f"{col.strip()}: {str(row[col]).strip()}" for col in df.columns)
-                source = row[self.source_column] if self.source_column else ""
-                metadata = {"source": source, "row": i}
-                doc = Document(page_content=content, metadata=metadata)
+                row_number = int(i) + 2
+                lines = [f"Row: {row_number}"]
+                lines.extend(f"{str(col).strip()}: {str(row[col]).strip()}" for col in df.columns)
+                source = row[self.source_column] if self.source_column else self._file_path
+                metadata = {"source": source, "row": row_number}
+                doc = Document(page_content="\n".join(lines), metadata=metadata)
                 docs.append(doc)
         except csv.Error as e:
             raise e

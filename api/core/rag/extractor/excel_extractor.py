@@ -44,10 +44,13 @@ class ExcelExtractor(BaseExtractor):
                     if not column_map:
                         continue
                     start_row = header_row_idx + 1
-                    for row in sheet.iter_rows(min_row=start_row, max_col=max_col_idx, values_only=False):
+                    for row_number, row in enumerate(
+                        sheet.iter_rows(min_row=start_row, max_col=max_col_idx, values_only=False),
+                        start=start_row,
+                    ):
                         if all(cell.value is None for cell in row):
                             continue
-                        page_content = []
+                        fields = []
                         for col_idx, cell in enumerate(row):
                             value = cell.value
                             if col_idx in column_map:
@@ -56,15 +59,13 @@ class ExcelExtractor(BaseExtractor):
                                     target = getattr(cell.hyperlink, "target", None)
                                     if target:
                                         value = f"[{value}]({target})"
-                                if value is None:
-                                    value = ""
-                                elif not isinstance(value, str):
-                                    value = str(value)
-                                value = value.strip().replace('"', '\\"')
-                                page_content.append(f'"{col_name}":"{value}"')
-                        if page_content:
+                                fields.append((col_name, self._format_cell_value(value)))
+                        if fields:
                             documents.append(
-                                Document(page_content=";".join(page_content), metadata={"source": self._file_path})
+                                Document(
+                                    page_content=self._format_row_content(sheet_name, row_number, fields),
+                                    metadata={"source": self._file_path, "sheet": sheet_name, "row": row_number},
+                                )
                             )
             finally:
                 wb.close()
@@ -75,18 +76,38 @@ class ExcelExtractor(BaseExtractor):
                 df = excel_file.parse(sheet_name=excel_sheet_name)
                 df.dropna(how="all", inplace=True)
 
-                for _, series_row in df.iterrows():
-                    page_content = []
-                    for k, v in series_row.items():
-                        if pd.notna(v):
-                            page_content.append(f'"{k}":"{v}"')
-                    documents.append(
-                        Document(page_content=";".join(page_content), metadata={"source": self._file_path})
-                    )
+                for row_index, series_row in df.iterrows():
+                    fields = [
+                        (str(column), self._format_cell_value(value))
+                        for column, value in series_row.items()
+                        if pd.notna(value)
+                    ]
+                    if fields:
+                        row_number = int(row_index) + 2
+                        documents.append(
+                            Document(
+                                page_content=self._format_row_content(excel_sheet_name, row_number, fields),
+                                metadata={"source": self._file_path, "sheet": excel_sheet_name, "row": row_number},
+                            )
+                        )
         else:
             raise ValueError(f"Unsupported file extension: {file_extension}")
 
         return documents
+
+    @staticmethod
+    def _format_cell_value(value) -> str:
+        if value is None:
+            return ""
+        if not isinstance(value, str):
+            value = str(value)
+        return value.strip()
+
+    @staticmethod
+    def _format_row_content(sheet_name: str, row_number: int, fields: list[tuple[str, str]]) -> str:
+        lines = [f"Sheet: {sheet_name}", f"Row: {row_number}"]
+        lines.extend(f"{name}: {value}" for name, value in fields)
+        return "\n".join(lines)
 
     def _find_header_and_columns(self, sheet, scan_rows=10) -> tuple[int, dict[int, str], int]:
         """
