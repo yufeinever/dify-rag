@@ -44,9 +44,10 @@ const LocaleLayout = async ({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="MMBAI" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/icon-192x192.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=mmb-20260630" />
+        <link rel="shortcut icon" href="/favicon.ico?v=mmb-20260630" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icon-192x192.png?v=mmb-20260630" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/icon-192x192.png?v=mmb-20260630" />
         <meta name="msapplication-TileColor" content="#1C64F2" />
         <meta name="msapplication-config" content="/browserconfig.xml" />
 
