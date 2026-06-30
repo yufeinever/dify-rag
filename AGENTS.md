@@ -36,6 +36,8 @@ The codebase is split into:
   - Public: `curl -I http://118.196.65.83:18088/admin` and `curl -I http://118.196.65.83:18088/console/api/setup`
   - Check logs when relevant: `docker compose logs --tail=100 api web nginx`
 - If the browser still shows the old UI after deployment, tell the user to hard refresh with `Ctrl+F5` because stale Next.js chunks may be cached.
+- For small visual/static-asset changes such as favicon, logo, image, or other `web/public` resource swaps, prefer a fast preview loop on T1000 before a full Docker rebuild: copy the candidate asset into the running `docker-web-1` container with `docker cp`, or otherwise replace only the needed runtime static asset for visual confirmation. After the user confirms the result, persist the same change in the repository, commit and push it, then run the build/deployment validation required by the actual change scope. Runtime-only replacement is never a final deliverable.
+- For TSX/CSS behavior changes, compiled frontend code, dependencies, Dockerfile, compose, build scripts, or anything that affects built artifacts beyond static files, use the normal source-change plus production-equivalent Docker build flow. Do not treat editing built output as the final implementation.
 
 
 ## Related Windows Upload Client
