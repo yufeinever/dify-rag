@@ -45,6 +45,8 @@ def test_xlsx_document_extractor_outputs_sheet_and_row_context():
     assert "Sheet: Projects" in result
     assert "Row: 2" in result
     assert "project: Alpha" in result
+    assert "Parser: ks-xlsx-parser" in result
+    assert "Source: sample.xlsx#Projects!A2:C2" in result
     assert "amount: 1200" in result
     assert "Sheet: Notes" in result
     assert "text: xlsx-needle-0630" in result
