@@ -1,0 +1,85 @@
+identity:
+  name: preprocess-image
+  author: mmb
+  label:
+    en_US: Image Preprocess
+    zh_Hans: 图片过滤/压缩预处理
+description:
+  human:
+    en_US: Create a compressed image copy for vision captioning while preserving the original uploaded image.
+    zh_Hans: 为视觉 Caption 生成压缩解析副本，同时保留原始上传图片。
+  llm: Resize and compress png/jpg/jpeg into a normalized image file for downstream vision parsing.
+parameters:
+- name: file
+  type: file
+  required: true
+  label:
+    en_US: Image File
+    zh_Hans: 图片文件
+  human_description:
+    en_US: Supports png, jpg and jpeg.
+    zh_Hans: 支持 png、jpg、jpeg。
+  form: llm
+- name: max_long_edge
+  type: number
+  required: false
+  default: 1600
+  label:
+    en_US: Max Long Edge
+    zh_Hans: 最长边限制
+  human_description:
+    en_US: Resize the parsing copy when the image long edge exceeds this value.
+    zh_Hans: 图片最长边超过该值时缩小解析副本。
+  llm_description: Max long edge for the normalized image copy.
+  form: form
+- name: jpeg_quality
+  type: number
+  required: false
+  default: 82
+  label:
+    en_US: JPEG Quality
+    zh_Hans: JPEG 质量
+  human_description:
+    en_US: JPEG quality for the parsing copy.
+    zh_Hans: 解析副本使用的 JPEG 质量。
+  llm_description: JPEG quality for the normalized image copy.
+  form: form
+- name: small_passthrough_kb
+  type: number
+  required: false
+  default: 512
+  label:
+    en_US: Small Passthrough KB
+    zh_Hans: 小图直通阈值 KB
+  human_description:
+    en_US: Small images below this size can be passed through when force_jpeg is disabled.
+    zh_Hans: 关闭强制 JPEG 时，低于该体积的小图可直接透传。
+  llm_description: Small image passthrough threshold in KB.
+  form: form
+- name: force_jpeg
+  type: boolean
+  required: false
+  default: true
+  label:
+    en_US: Force JPEG Copy
+    zh_Hans: 强制 JPEG 副本
+  human_description:
+    en_US: Convert all images to a JPEG parsing copy for stable vision request size.
+    zh_Hans: 将所有图片转换为 JPEG 解析副本，稳定视觉请求体积。
+  llm_description: Whether to always output a JPEG parsing copy.
+  form: form
+output_schema:
+  type: object
+  properties:
+    file_metadata:
+      type: object
+      description: Source and processed image file metadata.
+    preprocess_report:
+      type: object
+      description: Image resize and compression decisions.
+    files:
+      type: array
+      description: Processed image file for downstream vision nodes.
+extra:
+  python:
+    source: tools/preprocess_image.py

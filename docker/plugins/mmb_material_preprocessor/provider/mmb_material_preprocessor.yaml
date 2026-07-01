@@ -41,3 +41,4 @@ extra:
 tools:
 - tools/normalize.yaml
 - tools/parse_table.yaml
+- tools/preprocess_image.yaml
