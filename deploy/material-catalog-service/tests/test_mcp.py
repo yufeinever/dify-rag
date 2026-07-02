@@ -279,6 +279,23 @@ class MaterialMCPServerTests(unittest.TestCase):
             chunk = repo._format_chunk({"segment_id": "segment-1", "position": 8, "content": "上下文", "word_count": 3, "tokens": 4})
             self.assertEqual(chunk["segment_position"], 8)
 
+    def test_file_query_expands_common_chinese_visual_terms(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            settings = Settings(
+                MATERIAL_CATALOG_APP_ROOT=tmp_path / "dify-app",
+                MATERIAL_CATALOG_ALLOWED_ROOTS="storage",
+                MATERIAL_CATALOG_DB_PATH=tmp_path / "catalog.sqlite",
+                MATERIAL_CATALOG_SYNC_INTERVAL_SECONDS=60,
+                DIFY_DB_PASSWORD="unused",
+            )
+            repo = DifyMetadataRepository(settings)
+            terms = repo._split_file_query("广场啤酒夜景")
+            self.assertIn("广场", terms)
+            self.assertIn("夜景", terms)
+            self.assertIn("鲜啤", terms)
+            self.assertIn("交易所", terms)
+
     def test_thumbnail_service_generates_cached_webp_and_rejects_bad_access(self) -> None:
         with TemporaryDirectory() as tmp:
             from PIL import Image

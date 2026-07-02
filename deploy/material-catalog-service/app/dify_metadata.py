@@ -426,6 +426,12 @@ class DifyMetadataRepository:
         terms = [cleaned]
         terms.extend(re.findall(r"[A-Za-z0-9]+", cleaned))
         terms.extend(part for part in re.split(r"[\s，。！？、；：,.!?;:()（）\[\]【】<>《》/\\|_-]+", cleaned) if part)
+        if "广场" in cleaned:
+            terms.extend(["广场", "现场", "效果图"])
+        if "夜景" in cleaned:
+            terms.extend(["夜景", "门店", "效果图"])
+        if "啤酒" in cleaned:
+            terms.extend(["啤酒", "鲜啤", "交易所"])
         if re.search(r"logo", cleaned, re.IGNORECASE):
             terms.extend(["Logo", "logo", "标识", "品牌"])
         if any(word in cleaned for word in ["图片", "图", "照片", "海报", "logo", "Logo"]):
