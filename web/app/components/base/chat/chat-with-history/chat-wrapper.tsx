@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import { Avatar } from '@langgenius/dify-ui/avatar'
 import { cn } from '@langgenius/dify-ui/cn'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AnswerIcon from '@/app/components/base/answer-icon'
 import AppIcon from '@/app/components/base/app-icon'
 import InputsForm from '@/app/components/base/chat/chat-with-history/inputs-form'
@@ -82,6 +82,7 @@ const ChatWrapper = () => {
     handleResume,
     detachRunningStream,
     isResponding: respondingState,
+    handleSwitchSibling,
     suggestedQuestions,
   } = useChat(
     appConfig,
@@ -146,6 +147,12 @@ const ChatWrapper = () => {
 
   // Resume running or paused workflows when chat history is loaded. Switching conversations
   // detaches the local stream only; the backend workflow keeps running and can be re-subscribed.
+  const resumedWorkflowRunIdRef = useRef<string>()
+
+  useEffect(() => {
+    resumedWorkflowRunIdRef.current = undefined
+  }, [currentConversationId])
+
   useEffect(() => {
     if (!appPrevChatTree || appPrevChatTree.length === 0)
       return
@@ -171,7 +178,9 @@ const ChatWrapper = () => {
     findLastResumableWorkflow(appPrevChatTree)
 
     const resumableNode = lastRunningNode || lastPausedNode
-    if (resumableNode) {
+    if (resumableNode?.workflow_run_id
+      && resumedWorkflowRunIdRef.current !== resumableNode.workflow_run_id) {
+      resumedWorkflowRunIdRef.current = resumableNode.workflow_run_id
       handleResume(
         resumableNode.id,
         resumableNode.workflow_run_id!,
@@ -184,7 +193,14 @@ const ChatWrapper = () => {
         },
       )
     }
-  }, [])
+  }, [
+    appPrevChatTree,
+    appSourceType,
+    appId,
+    currentConversationId,
+    handleNewConversationCompleted,
+    handleResume,
+  ])
 
   const doSend: OnSend = useCallback((message, files, isRegenerate = false, parentAnswer: ChatItem | null = null) => {
     const data: any = {
