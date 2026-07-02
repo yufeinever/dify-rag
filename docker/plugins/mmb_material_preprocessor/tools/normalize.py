@@ -70,6 +70,8 @@ class MmbMaterialPreprocessorTool(Tool):
             md_content, content_list = self._parse_fallback_document(source_file, extension)
         md_content = self._with_metadata_header(md_content, file_metadata, normalized.report)
 
+        yield self.create_variable_message("content_list", content_list)
+        yield self.create_variable_message("content_list_text", json.dumps(content_list, ensure_ascii=False))
         yield self.create_text_message(md_content)
         yield self.create_json_message(
             {

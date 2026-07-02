@@ -1,0 +1,57 @@
+identity:
+  name: structure-visual-document
+  author: mmb
+  label:
+    en_US: PDF/PPT Visual Enricher + Structurer
+    zh_Hans: PDF/PPT 图文增强结构化
+description:
+  human:
+    en_US: Bind embedded PDF/PPT visual elements to source, page, title, and nearby context, then emit clean Markdown for general chunking.
+    zh_Hans: 将 PDF/PPT 内嵌图片、图表绑定来源、页码、标题和邻近上下文，并输出适合通用分段的干净 Markdown。
+  llm: Structure MinerU Markdown/content_list into self-contained visual-aware Markdown before General Chunker.
+parameters:
+- name: parsed_text
+  type: string
+  required: true
+  label:
+    en_US: Parsed Markdown
+    zh_Hans: 解析 Markdown
+  human_description:
+    en_US: Markdown text from MMB Normalize + MinerU Parse.
+    zh_Hans: 来自 MMB Normalize + MinerU Parse 的 Markdown 文本。
+  llm_description: Parsed Markdown text from upstream MinerU normalization node.
+  form: llm
+- name: content_list
+  type: string
+  required: false
+  label:
+    en_US: MinerU Content List
+    zh_Hans: MinerU 内容列表
+  human_description:
+    en_US: Optional JSON content list from MinerU.
+    zh_Hans: 可选的 MinerU JSON 内容列表。
+  llm_description: Optional MinerU content_list JSON for page/image/table context binding.
+  form: llm
+- name: file_metadata
+  type: string
+  required: false
+  label:
+    en_US: File Metadata
+    zh_Hans: 文件元数据
+  human_description:
+    en_US: Optional file metadata from normalize node.
+    zh_Hans: 可选的 normalize 节点文件元数据。
+  llm_description: Optional source file metadata JSON.
+  form: llm
+output_schema:
+  type: object
+  properties:
+    text:
+      type: string
+      description: Visual-aware structured Markdown for General Chunker.
+    structure_report:
+      type: object
+      description: Structuring stats and strategy.
+extra:
+  python:
+    source: tools/structure_visual_document.py

@@ -43,3 +43,4 @@ tools:
 - tools/parse_table.yaml
 - tools/preprocess_image.yaml
 - tools/bind_image_asset.yaml
+- tools/structure_visual_document.yaml

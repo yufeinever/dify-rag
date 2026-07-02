@@ -107,6 +107,9 @@ output_schema:
       items:
         type: object
       description: MinerU content list.
+    content_list_text:
+      type: string
+      description: MinerU content list serialized as JSON string for downstream tool parameters.
 extra:
   python:
     source: tools/normalize.py
