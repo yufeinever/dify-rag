@@ -46,6 +46,14 @@ server {
       include proxy.conf;
     }
 
+    location /material-agent/media/ {
+      resolver 127.0.0.11 valid=30s ipv6=off;
+      set $material_agent_upstream material-catalog-service:8091;
+      rewrite ^/material-agent/media/(.*)$ /media/$1 break;
+      proxy_pass http://$material_agent_upstream;
+      include proxy.conf;
+    }
+
     location /explore {
       proxy_pass http://web:3000;
       include proxy.conf;

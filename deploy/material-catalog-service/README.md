@@ -4,9 +4,9 @@ Read-only OpenAPI and MCP tool service for the Dify "资料全知agent".
 
 v2 exposes low-level material exploration tools over MCP so Dify Agent/function-call mode can decide which tools to call. It keeps the v1 HTTP/OpenAPI endpoints for compatibility.
 
-The service only reads the Dify app volume and Dify Postgres. It writes its own SQLite catalog under `./catalog` for incremental scan state.
+The service only reads the Dify app volume and Dify Postgres. It writes its own SQLite catalog under `./catalog` for incremental scan state and generated media thumbnails under `./catalog/media-cache`.
 
-For media display, the MCP response stays structured: Dify upload images get `image_preview_path` and `markdown_image` values such as `![name](/files/<upload_file_id>/image-preview?...signature...)`. Markdown files are read as text with `render_as=markdown`; the agent should output them as Markdown instead of flattening them into plain text.
+For media display, the MCP response stays structured: Dify upload images get `thumbnail_url`, `thumbnail_markdown_image`, `original_preview_url`, and `original_link_markdown`. `markdown_image` is kept as a compatibility alias and points to the thumbnail when available. Markdown files are read as text with `render_as=markdown`; the agent should output them as Markdown instead of flattening them into plain text.
 
 ## MCP tools
 
@@ -16,7 +16,7 @@ For media display, the MCP response stays structured: Dify upload images get `im
 - `list_documents`
 - `search_segments`
 - `read_document_chunks`
-- `search_files` - image upload results include `markdown_image` for direct Dify chat rendering
+- `search_files` - image upload results include `thumbnail_markdown_image` for fast Dify chat rendering and `original_link_markdown` for source verification
 - `read_file_text` - Markdown files return `render_as=markdown` so the agent can preserve headings, lists, tables, and image syntax
 - `profile_materials`
 - `list_material_changes`
@@ -29,6 +29,8 @@ For media display, the MCP response stays structured: Dify upload images get `im
 - Dify network: `mmb-dify-v010_default`
 - Service URL from Dify containers: `http://material-catalog-service:8091`
 - Optional image rendering secret: `DIFY_FILE_PREVIEW_SECRET_KEY`, set to the same value as the Dify API `SECRET_KEY` so `markdown_image` URLs can be opened by the Dify frontend.
+- Thumbnail public prefix: `/material-agent/media`, reverse-proxied by Dify nginx to this service's `/media` endpoint.
+- Thumbnail defaults: longest side `1024px`, WebP quality `78`, signature TTL `300s`.
 
 ## Run
 

@@ -6,10 +6,12 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse
 
 from .catalog import MaterialCatalog
 from .config import get_settings
 from .dify_metadata import DifyMetadataRepository, FileTextReader
+from .media import MediaAccessError, MediaThumbnailService
 from .mcp import MaterialMCPServer
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ catalog = MaterialCatalog(
 )
 metadata_repo = DifyMetadataRepository(settings)
 file_reader = FileTextReader(settings.app_root)
+media_service = MediaThumbnailService(settings, metadata_repo)
 mcp_server = MaterialMCPServer(settings, catalog, metadata_repo)
 
 
@@ -169,3 +172,29 @@ def read_document_chunks(
 @app.get("/v1/apps")
 def list_apps(limit: int = Query(50, ge=1, le=200)) -> dict[str, object]:
     return {"apps": metadata_repo.list_apps(limit=limit)}
+
+
+@app.get("/media/thumbnails/{upload_file_id}.webp")
+def render_thumbnail(
+    upload_file_id: str,
+    w: int | None = Query(None, ge=64, le=4096),
+    q: int | None = Query(None, ge=1, le=100),
+    timestamp: str | None = None,
+    nonce: str | None = None,
+    sign: str | None = None,
+) -> FileResponse:
+    try:
+        thumbnail_path = media_service.render_thumbnail(
+            upload_file_id=upload_file_id,
+            width=w,
+            quality=q,
+            timestamp=timestamp,
+            nonce=nonce,
+            sign=sign,
+        )
+    except MediaAccessError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    response = FileResponse(thumbnail_path, media_type="image/webp")
+    ttl = max(int(settings.dify_file_preview_ttl_seconds or 300), 1)
+    response.headers["Cache-Control"] = f"private, max-age={ttl}"
+    return response

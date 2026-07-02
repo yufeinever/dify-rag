@@ -14,6 +14,7 @@ from typing import Any
 from psycopg.rows import dict_row
 
 from .config import Settings
+from .media import THUMBNAIL_EXTENSIONS, sign_material_thumbnail_url
 
 
 DEFAULT_FACT_EXPANSIONS = {
@@ -70,7 +71,7 @@ class DifyMetadataRepository:
                     """,
                     (limit,),
                 )
-                return [dict(row) for row in cur.fetchall()]
+                return [self._format_dataset(dict(row)) for row in cur.fetchall()]
 
     def list_dataset_documents(self, dataset_id: str, limit: int = 100) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -90,6 +91,8 @@ class DifyMetadataRepository:
                         WHERE doc.dataset_id = %s::uuid AND doc.archived = false
                     )
                     SELECT
+                        ds.dataset_id::text AS dataset_id,
+                        dset.name AS dataset_name,
                         ds.id::text AS document_id,
                         ds.name AS document_name,
                         ds.indexing_status,
@@ -108,13 +111,14 @@ class DifyMetadataRepository:
                         uf.mime_type AS upload_mime_type,
                         uf.hash AS upload_hash
                     FROM document_sources ds
+                    JOIN datasets dset ON dset.id = ds.dataset_id
                     LEFT JOIN upload_files uf ON uf.id = ds.related_upload_file_id
                     ORDER BY ds.updated_at DESC
                     LIMIT %s
                     """,
                     (dataset_id, limit),
                 )
-                return [dict(row) for row in cur.fetchall()]
+                return [self._format_document_row(dict(row)) for row in cur.fetchall()]
 
     def list_documents(self, dataset_id: str | None = None, query: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         clauses = ["doc.archived = false"]
@@ -149,7 +153,7 @@ class DifyMetadataRepository:
                     """,
                     tuple(params),
                 )
-                return [dict(row) for row in cur.fetchall()]
+                return [self._format_document_row(dict(row)) for row in cur.fetchall()]
 
     def list_apps(self, limit: int = 50) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -291,6 +295,34 @@ class DifyMetadataRepository:
                 )
                 return [self._format_upload_file(dict(row)) for row in cur.fetchall()]
 
+    def get_upload_file(self, upload_file_id: str) -> dict[str, Any] | None:
+        uuid_pattern = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+        if not re.fullmatch(uuid_pattern, upload_file_id or ""):
+            return None
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        uf.id::text AS upload_file_id,
+                        uf.name,
+                        uf.key,
+                        uf.size,
+                        uf.extension,
+                        uf.mime_type,
+                        uf.created_at,
+                        uf.used,
+                        uf.used_at,
+                        uf.hash,
+                        'storage/' || uf.key AS relative_path
+                    FROM upload_files uf
+                    WHERE uf.id = %s::uuid
+                    """,
+                    (upload_file_id,),
+                )
+                row = cur.fetchone()
+        return self._format_upload_file(dict(row)) if row else None
+
     def read_document_chunks(
         self,
         document_id: str,
@@ -306,7 +338,11 @@ class DifyMetadataRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT doc.id::text AS document_id, doc.name AS document_name, dset.name AS dataset_name
+                    SELECT
+                        doc.id::text AS document_id,
+                        doc.dataset_id::text AS dataset_id,
+                        doc.name AS document_name,
+                        dset.name AS dataset_name
                     FROM documents doc
                     JOIN datasets dset ON dset.id = doc.dataset_id
                     WHERE doc.id = %s::uuid AND doc.archived = false
@@ -344,7 +380,7 @@ class DifyMetadataRepository:
                         (document_id, start, end, limit),
                     )
                 chunks = [self._format_chunk(dict(row)) for row in cur.fetchall()]
-        return {"document": dict(document), "chunks": chunks}
+        return {"document": self._format_document_row(dict(document)), "chunks": chunks}
 
     def _expand_query_terms(self, query: str) -> list[str]:
         cleaned = (query or "").strip()
@@ -414,9 +450,27 @@ class DifyMetadataRepository:
         if file_id:
             row["file_preview_path"] = self._signed_preview_url(file_id, "file-preview")
             if is_image:
-                row["image_preview_path"] = self._signed_preview_url(file_id, "image-preview")
-                row["markdown_image"] = f"![{self._markdown_alt(row.get('name') or 'image')}]({row['image_preview_path']})"
-                row["display_hint"] = "用户要求展示图片、logo、海报时，优先原样输出 markdown_image 字段。该 URL 使用 Dify 同源文件预览路径；如果配置了 DIFY_FILE_PREVIEW_SECRET_KEY，会带临时签名。"
+                original_url = self._signed_preview_url(file_id, "image-preview")
+                row["image_preview_path"] = original_url
+                row["original_preview_url"] = original_url
+                row["original_link_markdown"] = f"[查看原图]({original_url})"
+                thumbnail_url = None
+                if extension in THUMBNAIL_EXTENSIONS:
+                    thumbnail_url = sign_material_thumbnail_url(self.settings, file_id)
+                if thumbnail_url:
+                    row["thumbnail_url"] = thumbnail_url
+                    row["thumbnail_markdown_image"] = f"![{self._markdown_alt(row.get('name') or 'image')}]({thumbnail_url})"
+                    row["markdown_image"] = row["thumbnail_markdown_image"]
+                    row["display_hint"] = (
+                        "用户要求展示图片、logo、海报时，优先原样输出 thumbnail_markdown_image 字段；"
+                        "如需核验原始材料，再输出 original_link_markdown。不要输出 storage 绝对路径。"
+                    )
+                else:
+                    row["markdown_image"] = f"![{self._markdown_alt(row.get('name') or 'image')}]({original_url})"
+                    row["display_hint"] = (
+                        "用户要求展示图片、logo、海报时，优先原样输出 markdown_image 字段。"
+                        "该格式暂未生成压缩缩略图；如需核验原始材料，再输出 original_link_markdown。"
+                    )
             elif is_markdown:
                 row["display_hint"] = "这是 Markdown 文件。需要展示内容时，先调用 read_file_text，然后按 render_as=markdown 原样渲染 text。"
         return row
@@ -438,12 +492,45 @@ class DifyMetadataRepository:
     def _markdown_alt(self, text: str) -> str:
         return (text or "image").replace("[", "(").replace("]", ")")
 
+    def _markdown_link_label(self, text: str) -> str:
+        return (text or "文档").replace("[", "(").replace("]", ")")
+
+    def _dataset_url(self, dataset_id: str | None) -> str | None:
+        if not dataset_id:
+            return None
+        return f"/datasets/{dataset_id}/documents"
+
+    def _document_url(self, dataset_id: str | None, document_id: str | None) -> str | None:
+        if not dataset_id or not document_id:
+            return None
+        return f"/datasets/{dataset_id}/documents/{document_id}"
+
+    def _format_dataset(self, row: dict[str, Any]) -> dict[str, Any]:
+        dataset_id = row.get("id") or row.get("dataset_id")
+        dataset_url = self._dataset_url(dataset_id)
+        if dataset_url:
+            row["dataset_url"] = dataset_url
+        return row
+
+    def _format_document_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        dataset_id = row.get("dataset_id")
+        document_id = row.get("document_id") or row.get("id")
+        document_name = row.get("document_name") or row.get("name") or document_id
+        dataset_url = self._dataset_url(dataset_id)
+        document_url = self._document_url(dataset_id, document_id)
+        if dataset_url:
+            row["dataset_url"] = dataset_url
+        if document_url:
+            row["document_url"] = document_url
+            row["document_link_markdown"] = f"[{self._markdown_link_label(str(document_name))}]({document_url})"
+        return row
+
     def _format_segment_hit(self, row: dict[str, Any], terms: list[str]) -> dict[str, Any]:
         content = row.get("content") or ""
         matched_terms = [term for term in terms if term.lower() in content.lower()]
         score = len(matched_terms) * 10 + min(len(content), 2000) / 2000
         snippet = self._best_snippet(content, matched_terms or terms)
-        return {
+        hit = {
             "dataset_id": row["dataset_id"],
             "dataset_name": row["dataset_name"],
             "document_id": row["document_id"],
@@ -451,6 +538,7 @@ class DifyMetadataRepository:
             "canonical_document_name": self._canonical_document_name(row["document_name"]),
             "segment_id": row["segment_id"],
             "position": row["position"],
+            "segment_position": row["position"],
             "snippet": snippet,
             "matched_terms": matched_terms,
             "score": round(score, 3),
@@ -458,11 +546,13 @@ class DifyMetadataRepository:
             "tokens": row.get("tokens"),
             "document_updated_at": row.get("document_updated_at"),
         }
+        return self._format_document_row(hit)
 
     def _format_chunk(self, row: dict[str, Any]) -> dict[str, Any]:
         return {
             "segment_id": row["segment_id"],
             "position": row["position"],
+            "segment_position": row["position"],
             "content": self._trim(row.get("content") or "", 4000),
             "word_count": row.get("word_count"),
             "tokens": row.get("tokens"),

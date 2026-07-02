@@ -31,12 +31,34 @@ class Settings(BaseSettings):
     dify_files_url: str = Field("", alias="DIFY_FILES_URL")
     dify_file_preview_secret_key: str = Field("", alias="DIFY_FILE_PREVIEW_SECRET_KEY")
     dify_file_preview_ttl_seconds: int = Field(300, alias="DIFY_FILE_PREVIEW_TTL_SECONDS")
+    media_cache_dir: Path = Field(Path("/app/catalog/media-cache"), alias="MATERIAL_CATALOG_MEDIA_CACHE_DIR")
+    thumbnail_public_prefix: str = Field(
+        "/material-agent/media",
+        alias="MATERIAL_CATALOG_THUMBNAIL_PUBLIC_PREFIX",
+    )
+    thumbnail_default_width: int = Field(1024, alias="MATERIAL_CATALOG_THUMBNAIL_DEFAULT_WIDTH")
+    thumbnail_default_quality: int = Field(78, alias="MATERIAL_CATALOG_THUMBNAIL_DEFAULT_QUALITY")
+    thumbnail_max_width: int = Field(2048, alias="MATERIAL_CATALOG_THUMBNAIL_MAX_WIDTH")
 
     @field_validator("sync_interval_seconds")
     @classmethod
     def validate_sync_interval(cls, value: int) -> int:
         if value < 60:
             raise ValueError("sync interval must be at least 60 seconds")
+        return value
+
+    @field_validator("thumbnail_default_width", "thumbnail_max_width")
+    @classmethod
+    def validate_thumbnail_width(cls, value: int) -> int:
+        if value < 64:
+            raise ValueError("thumbnail width must be at least 64 pixels")
+        return value
+
+    @field_validator("thumbnail_default_quality")
+    @classmethod
+    def validate_thumbnail_quality(cls, value: int) -> int:
+        if value < 40 or value > 95:
+            raise ValueError("thumbnail quality must be between 40 and 95")
         return value
 
     @property
@@ -49,4 +71,5 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     settings = Settings()
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.media_cache_dir.mkdir(parents=True, exist_ok=True)
     return settings

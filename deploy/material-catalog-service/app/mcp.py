@@ -47,9 +47,10 @@ class MaterialMCPServer:
             "serverInfo": {"name": "material-catalog-mcp", "version": "0.2.0"},
             "instructions": (
                 "Read-only tools for exploring the 150 Dify material store. Use search_segments and "
-                "read_document_chunks for factual answers; cite document_name and snippet. Do not claim access "
+                "read_document_chunks for factual answers; cite document_link_markdown, segment_position, and snippet. Do not claim access "
                 "outside configured storage and Dify metadata. For image/logo requests, use search_files and return "
-                "markdown_image when present. For Markdown files, use read_file_text and preserve Markdown rendering."
+                "thumbnail_markdown_image when present, plus original_link_markdown for source verification. "
+                "For Markdown files, use read_file_text and preserve Markdown rendering."
             ),
         }
 
@@ -104,7 +105,7 @@ class MaterialMCPServer:
             ),
             self._tool(
                 "search_files",
-                "Search cataloged storage files by file name, relative path, or extension. Image upload results include markdown_image for direct display.",
+                "Search cataloged storage files by file name, relative path, or extension. Image upload results include thumbnail_markdown_image for fast display and original_link_markdown for verification.",
                 {
                     "query": self._string("Optional filename or path search text."),
                     "extension": self._string("Optional extension, such as pdf or .docx."),
@@ -167,7 +168,8 @@ class MaterialMCPServer:
             "path_boundary": "All file paths are relative to the configured Dify app storage mount.",
             "supported_direct_text_extensions": [".txt", ".md", ".markdown", ".csv", ".json", ".yaml", ".yml", ".html", ".htm", ".xml", ".docx"],
             "renderable_image_extensions": [".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"],
-            "rendering": "search_files returns markdown_image for Dify upload images; read_file_text returns render_as=markdown for Markdown files.",
+            "thumbnail_image_extensions": [".bmp", ".jpeg", ".jpg", ".png", ".webp"],
+            "rendering": "search_files returns thumbnail_markdown_image for Dify upload images when thumbnailing is supported, original_link_markdown for original verification, and read_file_text returns render_as=markdown for Markdown files.",
             "safety": "No delete, move, overwrite, ingest, reindex, or secret-reading tools are exposed.",
         }
 
