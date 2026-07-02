@@ -159,7 +159,7 @@ const createContextValue = (overrides: Partial<EmbeddedChatbotContextValue> = {}
   appId: 'app-1',
   disableFeedback: false,
   handleFeedback: vi.fn(),
-  currentChatInstanceRef: { current: { handleStop: vi.fn() } },
+  currentChatInstanceRef: { current: { handleStop: vi.fn(), detachRunningStream: vi.fn() } },
   themeBuilder: undefined,
   clearChatList: false,
   setClearChatList: vi.fn(),
@@ -198,9 +198,9 @@ describe('EmbeddedChatbot chat-wrapper', () => {
 
   describe('Welcome behavior', () => {
     it('should show opening message and suggested question for a new chat', () => {
-      const handleSwitchSibling = vi.fn()
+      const handleResume = vi.fn()
       vi.mocked(useChat).mockReturnValue(createUseChatReturn({
-        handleSwitchSibling,
+        handleResume,
         chatList: [{ id: 'opening-1', isAnswer: true, isOpeningStatement: true, content: 'Welcome to the app', suggestedQuestions: ['How does it work?'] }],
       }))
       vi.mocked(useEmbeddedChatbotContext).mockReturnValue(createContextValue({
@@ -225,10 +225,10 @@ describe('EmbeddedChatbot chat-wrapper', () => {
       render(<ChatWrapper />)
 
       expect(screen.getByText('How does it work?')).toBeInTheDocument()
-      expect(handleSwitchSibling).toHaveBeenCalledWith('paused-workflow', expect.objectContaining({
+      expect(handleResume).toHaveBeenCalledWith('paused-workflow', 'run-1', expect.objectContaining({
         isPublicAPI: true,
       }))
-      const resumeOptions = handleSwitchSibling.mock.calls[0]?.[1] as { onGetSuggestedQuestions: (responseItemId: string) => void }
+      const resumeOptions = handleResume.mock.calls[0]?.[2] as { onGetSuggestedQuestions: (responseItemId: string) => void }
       resumeOptions.onGetSuggestedQuestions('resume-1')
       expect(fetchSuggestedQuestions).toHaveBeenCalledWith('resume-1', AppSourceType.webApp, 'app-1')
     })
@@ -521,9 +521,9 @@ describe('EmbeddedChatbot chat-wrapper', () => {
     })
 
     it('should resume paused workflows when chat history is loaded', () => {
-      const handleSwitchSibling = vi.fn()
+      const handleResume = vi.fn()
       vi.mocked(useChat).mockReturnValue(createUseChatReturn({
-        handleSwitchSibling,
+        handleResume,
       }))
       vi.mocked(useEmbeddedChatbotContext).mockReturnValue(createContextValue({
         appPrevChatList: [
@@ -538,7 +538,9 @@ describe('EmbeddedChatbot chat-wrapper', () => {
         ],
       }))
       render(<ChatWrapper />)
-      expect(handleSwitchSibling).toHaveBeenCalled()
+      expect(handleResume).toHaveBeenCalledWith('node-1', 'run-1', expect.objectContaining({
+        isPublicAPI: true,
+      }))
     })
 
     it('should handle conversation completion and suggested questions in chat actions', async () => {
@@ -637,7 +639,7 @@ describe('EmbeddedChatbot chat-wrapper', () => {
 
     it('should handle null/undefined refs and config fallbacks', () => {
       vi.mocked(useEmbeddedChatbotContext).mockReturnValue(createContextValue({
-        currentChatInstanceRef: { current: null } as unknown as RefObject<{ handleStop: () => void }>,
+        currentChatInstanceRef: { current: null } as unknown as RefObject<{ handleStop: () => void, detachRunningStream: () => void }>,
         appParams: null,
         appMeta: null,
       }))

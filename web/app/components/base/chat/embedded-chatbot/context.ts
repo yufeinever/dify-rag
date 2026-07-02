@@ -43,7 +43,7 @@ export type EmbeddedChatbotContextValue = {
   appId?: string
   disableFeedback?: boolean
   handleFeedback: (messageId: string, feedback: Feedback) => void
-  currentChatInstanceRef: RefObject<{ handleStop: () => void }>
+  currentChatInstanceRef: RefObject<{ handleStop: () => void, detachRunningStream: () => void }>
   themeBuilder?: ThemeBuilder
   clearChatList?: boolean
   setClearChatList: (state: boolean) => void
@@ -81,7 +81,7 @@ export const EmbeddedChatbotContext = createContext<EmbeddedChatbotContextValue>
   isInstalledApp: false,
   allowResetChat: true,
   handleFeedback: noop,
-  currentChatInstanceRef: { current: { handleStop: noop } },
+  currentChatInstanceRef: { current: { handleStop: noop, detachRunningStream: noop } },
   clearChatList: false,
   setClearChatList: noop,
   isResponding: false,

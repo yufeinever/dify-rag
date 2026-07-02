@@ -7,16 +7,17 @@ import type {
 } from '../types'
 import { Avatar } from '@langgenius/dify-ui/avatar'
 import { cn } from '@langgenius/dify-ui/cn'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AnswerIcon from '@/app/components/base/answer-icon'
 import AppIcon from '@/app/components/base/app-icon'
 import SuggestedQuestions from '@/app/components/base/chat/chat/answer/suggested-questions'
 import InputsForm from '@/app/components/base/chat/embedded-chatbot/inputs-form'
 import LogoAvatar from '@/app/components/base/logo/logo-embedded-chat-avatar'
 import { Markdown } from '@/app/components/base/markdown'
-import { InputVarType } from '@/app/components/workflow/types'
+import { InputVarType, WorkflowRunningStatus } from '@/app/components/workflow/types'
 import {
   AppSourceType,
+  fetchChatList,
   fetchSuggestedQuestions,
   getUrl,
   stopChatMessageResponding,
@@ -84,7 +85,9 @@ const ChatWrapper = () => {
     chatList,
     handleSend,
     handleStop,
+    handleResume,
     handleSwitchSibling,
+    detachRunningStream,
     isResponding: respondingState,
     suggestedQuestions,
   } = useChat(
@@ -135,46 +138,71 @@ const ChatWrapper = () => {
   }, [inputsFormValue, inputsForms, allInputsHidden])
 
   useEffect(() => {
-    if (currentChatInstanceRef.current)
+    if (currentChatInstanceRef.current) {
       currentChatInstanceRef.current.handleStop = handleStop
-  }, [currentChatInstanceRef, handleStop])
+      currentChatInstanceRef.current.detachRunningStream = detachRunningStream
+    }
+  }, [currentChatInstanceRef, handleStop, detachRunningStream])
   useEffect(() => {
     setIsResponding(respondingState)
   }, [respondingState, setIsResponding])
 
-  // Resume paused workflows when chat history is loaded
+  // Resume running or paused workflows when chat history is loaded. Switching conversations
+  // detaches the local stream only; the backend workflow keeps running and can be re-subscribed.
+  const resumedWorkflowRunIdRef = useRef<string>()
+
+  useEffect(() => {
+    resumedWorkflowRunIdRef.current = undefined
+  }, [currentConversationId])
+
   useEffect(() => {
     if (!appPrevChatList || appPrevChatList.length === 0)
       return
 
-    // Find the last answer item with workflow_run_id that needs resumption (DFS - find deepest first)
+    let lastRunningNode: ChatItemInTree | undefined
     let lastPausedNode: ChatItemInTree | undefined
-    const findLastPausedWorkflow = (nodes: ChatItemInTree[]) => {
+    const findLastResumableWorkflow = (nodes: ChatItemInTree[]) => {
       nodes.forEach((node) => {
-        // DFS: recurse to children first
         if (node.children && node.children.length > 0)
-          findLastPausedWorkflow(node.children)
+          findLastResumableWorkflow(node.children)
 
-        // Track the last node with humanInputFormDataList
-        if (node.isAnswer && node.workflow_run_id && node.humanInputFormDataList && node.humanInputFormDataList.length > 0)
+        if (!node.isAnswer || !node.workflow_run_id)
+          return
+
+        if (node.workflowProcess?.status === WorkflowRunningStatus.Running)
+          lastRunningNode = node
+
+        if (node.humanInputFormDataList && node.humanInputFormDataList.length > 0)
           lastPausedNode = node
       })
     }
 
-    findLastPausedWorkflow(appPrevChatList)
+    findLastResumableWorkflow(appPrevChatList)
 
-    // Only resume the last paused workflow
-    if (lastPausedNode) {
-      handleSwitchSibling(
-        lastPausedNode.id,
+    const resumableNode = lastRunningNode || lastPausedNode
+    if (resumableNode?.workflow_run_id
+      && resumedWorkflowRunIdRef.current !== resumableNode.workflow_run_id) {
+      resumedWorkflowRunIdRef.current = resumableNode.workflow_run_id
+      handleResume(
+        resumableNode.id,
+        resumableNode.workflow_run_id,
         {
+          conversationId: currentConversationId,
+          onGetConversationMessages: conversationId => fetchChatList(conversationId, appSourceType, appId),
           onGetSuggestedQuestions: responseItemId => fetchSuggestedQuestions(responseItemId, appSourceType, appId),
           onConversationComplete: currentConversationId ? undefined : handleNewConversationCompleted,
           isPublicAPI: appSourceType === AppSourceType.webApp,
         },
       )
     }
-  }, [])
+  }, [
+    appPrevChatList,
+    appSourceType,
+    appId,
+    currentConversationId,
+    handleNewConversationCompleted,
+    handleResume,
+  ])
 
   const doSend: OnSend = useCallback((message, files, isRegenerate = false, parentAnswer: ChatItem | null = null) => {
     const data: any = {

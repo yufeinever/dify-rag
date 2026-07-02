@@ -107,7 +107,7 @@ const createHookReturn = (overrides: Partial<EmbeddedChatbotHookReturn> = {}): E
     chatShouldReloadKey: 'reload-key',
     allowResetChat: true,
     handleFeedback: vi.fn(),
-    currentChatInstanceRef: { current: { handleStop: vi.fn() } },
+    currentChatInstanceRef: { current: { handleStop: vi.fn(), detachRunningStream: vi.fn() } },
     clearChatList: false,
     setClearChatList: vi.fn(),
     isResponding: false,

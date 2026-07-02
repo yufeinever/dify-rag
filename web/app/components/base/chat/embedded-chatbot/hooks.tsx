@@ -353,9 +353,10 @@ export const useEmbeddedChatbot = (appSourceType: AppSourceType, tryAppId?: stri
   }, [setShowNewConversationItemInList, checkInputsRequired])
   const currentChatInstanceRef = useRef<{
     handleStop: () => void
-  }>({ handleStop: noop })
+    detachRunningStream: () => void
+  }>({ handleStop: noop, detachRunningStream: noop })
   const handleChangeConversation = useCallback((conversationId: string) => {
-    currentChatInstanceRef.current.handleStop()
+    currentChatInstanceRef.current.detachRunningStream()
     setNewConversationId('')
     handleConversationIdInfoChange(conversationId)
     if (conversationId)
@@ -366,7 +367,7 @@ export const useEmbeddedChatbot = (appSourceType: AppSourceType, tryAppId?: stri
       setClearChatList(true)
       return
     }
-    currentChatInstanceRef.current.handleStop()
+    currentChatInstanceRef.current.detachRunningStream()
     setShowNewConversationItemInList(true)
     handleChangeConversation('')
     handleNewConversationInputsChange(await getProcessedInputsFromUrlParams())
