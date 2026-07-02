@@ -39,6 +39,17 @@ awk '{
 
 
 mkdir -p /etc/squid/conf.d
+: > /etc/squid/conf.d/direct_hosts.conf
+if [ -n "${SSRF_DIRECT_HOSTS:-}" ]; then
+    echo "[ENTRYPOINT] configuring direct hosts ${SSRF_DIRECT_HOSTS}"
+    DIRECT_HOSTS="$(echo "${SSRF_DIRECT_HOSTS}" | tr ',' ' ')"
+    cat > /etc/squid/conf.d/direct_hosts.conf <<EOF
+acl direct_hosts dstdomain ${DIRECT_HOSTS}
+always_direct allow direct_hosts
+never_direct deny direct_hosts
+EOF
+fi
+
 : > /etc/squid/conf.d/upstream_proxy.conf
 if [ -n "${SSRF_UPSTREAM_PROXY_HOST:-}" ] && [ -n "${SSRF_UPSTREAM_PROXY_PORT:-}" ]; then
     echo "[ENTRYPOINT] configuring upstream proxy ${SSRF_UPSTREAM_PROXY_HOST}:${SSRF_UPSTREAM_PROXY_PORT}"

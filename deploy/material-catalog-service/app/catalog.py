@@ -203,6 +203,23 @@ class MaterialCatalog:
             ]
         return {"changes": rows, "count": len(rows)}
 
+    def search_files(self, query: str | None = None, extension: str | None = None, limit: int = 50) -> dict[str, object]:
+        limit = min(max(limit, 1), 500)
+        clauses = ["status != 'missing'"]
+        params: list[object] = []
+        if query:
+            clauses.append("(name LIKE ? OR relative_path LIKE ?)")
+            params.extend([f"%{query}%", f"%{query}%"])
+        if extension:
+            ext = extension if extension.startswith(".") else f".{extension}"
+            clauses.append("extension = ?")
+            params.append(ext.lower())
+        params.append(limit)
+        sql = "SELECT * FROM material_assets WHERE " + " AND ".join(clauses) + " ORDER BY last_seen_at DESC LIMIT ?"
+        with self._connect() as conn:
+            rows = [dict(row) for row in conn.execute(sql, tuple(params))]
+        return {"files": rows, "count": len(rows)}
+
     def _iter_files(self, root_path: Path) -> Iterable[Path]:
         if root_path.is_file():
             yield root_path

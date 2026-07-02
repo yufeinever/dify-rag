@@ -672,6 +672,7 @@ services:
       SANDBOX_PORT: ${SANDBOX_PORT:-8194}
       SSRF_UPSTREAM_PROXY_HOST: ${SSRF_UPSTREAM_PROXY_HOST:-}
       SSRF_UPSTREAM_PROXY_PORT: ${SSRF_UPSTREAM_PROXY_PORT:-}
+      SSRF_DIRECT_HOSTS: ${SSRF_DIRECT_HOSTS:-}
     networks:
       - ssrf_proxy_network
       - default
