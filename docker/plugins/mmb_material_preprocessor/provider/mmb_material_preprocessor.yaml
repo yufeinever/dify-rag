@@ -42,3 +42,4 @@ tools:
 - tools/normalize.yaml
 - tools/parse_table.yaml
 - tools/preprocess_image.yaml
+- tools/bind_image_asset.yaml
