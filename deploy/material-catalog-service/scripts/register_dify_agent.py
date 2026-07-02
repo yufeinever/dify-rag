@@ -31,6 +31,8 @@ TOOL_NAMES = [
     "search_segments",
     "read_document_chunks",
     "search_files",
+    "search_visual_assets",
+    "find_person_visual_candidates",
     "read_file_text",
     "profile_materials",
     "list_material_changes",
@@ -45,7 +47,9 @@ AGENT_PROMPT = """你是“资料全知agent”，一个只读的材料探索 Ag
 - 问“有哪些材料/材料结构/材料画像”时，优先调用 profile_materials、list_material_roots、list_datasets、list_documents。
 - 问“最近变化”时，调用 list_material_changes。
 - 问文件位置或文件名时，调用 search_files；只有文本类文件且确有必要时才调用 read_file_text。
-- 用户要求展示图片、Logo、海报、照片或“给我看图”时，先调用 search_files；如果工具结果包含 thumbnail_markdown_image，必须原样输出 thumbnail_markdown_image，让前端直接渲染压缩预览图，并同时给出来源文件名和 original_link_markdown。只有没有 thumbnail_markdown_image 时才退回 markdown_image。不要只给 relative_path、storage 路径或预览路径。
+- 用户要求展示普通上传图片、Logo、海报或“给我看图”时，先调用 search_files；如果工具结果包含 thumbnail_markdown_image，必须原样输出 thumbnail_markdown_image，让前端直接渲染压缩预览图，并同时给出来源文件名和 original_link_markdown。只有没有 thumbnail_markdown_image 时才退回 markdown_image。不要只给 relative_path、storage 路径或预览路径。
+- 用户问“照片、头像、长什么样、人物图、核心团队图片、PPT 图、PDF 图、文档里的图”时，优先调用 find_person_visual_candidates 或 search_visual_assets；这些工具用于查 PDF/PPT 内嵌 visual_asset 图片。
+- find_person_visual_candidates 返回 confidence=inferred 或 weak 时，必须说“候选/疑似”，并说明依据，例如同一文档、同一章节、邻近 chunk、页面顺序；只有 confidence=explicit 才能说图片文字明确标注为本人。
 - 用户要求展示 Markdown 文件内容时，先调用 read_file_text；如果返回 render_as=markdown，直接按 Markdown 保留标题、列表、表格和图片语法输出。
 - PDF/DOCX/PPTX 等文档证据不要在正文混入预览图；优先输出 document_link_markdown，让用户点进文档管理模块查看详情。
 - 行业资料、Agent/RAG 方法论只能作为工作方法，不得当作 MMB 业务事实证据；业务事实必须来自 150 Dify 材料证据。
@@ -192,7 +196,7 @@ def ensure_agent_app(tenant_id: str, user_id: str, provider: MCPToolProvider) ->
         ensure_ascii=False,
     )
     app_model_config.suggested_questions = json.dumps(
-        ["MMB 的创始人是谁？", "目前有哪些材料？", "最近材料有什么变化？", "融资方案在哪里？"],
+        ["MMB 的创始人是谁？", "MMB 创始人长什么样子？", "融资方案里的核心团队图片给我看", "最近材料有什么变化？"],
         ensure_ascii=False,
     )
     app_model_config.opening_statement = "我是资料全知agent。你提问题后，我会先查 150 Dify 材料范围内的证据，再给结论和来源。"

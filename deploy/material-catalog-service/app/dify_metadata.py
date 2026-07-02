@@ -26,6 +26,9 @@ DEFAULT_FACT_EXPANSIONS = {
 
 IMAGE_EXTENSIONS = {"bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"}
 MARKDOWN_EXTENSIONS = {"md", "markdown"}
+TOOL_FILE_URL_PATTERN = re.compile(
+    r"(?:https?://[^/\s)\"']+)?/files/tools/([0-9a-fA-F-]{36})\.([A-Za-z0-9]+)(?:\?[^;\s)\"']*)?"
+)
 
 
 class DifyMetadataRepository:
@@ -240,6 +243,134 @@ class DifyMetadataRepository:
         ranked.sort(key=lambda item: item["score"], reverse=True)
         return self._dedupe_segment_hits(ranked, min(max(limit, 1), 50))
 
+    def search_visual_assets(
+        self,
+        query: str | None = None,
+        dataset_id: str | None = None,
+        document_id: str | None = None,
+        section: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        terms = self._expand_visual_query_terms(" ".join(item for item in [query or "", section or ""] if item).strip())
+        clauses = ["seg.enabled = true", "seg.status = 'completed'", "seg.content ILIKE %s"]
+        params: list[Any] = ["%chunk_type: visual_asset%"]
+        if dataset_id:
+            clauses.append("seg.dataset_id = %s::uuid")
+            params.append(dataset_id)
+        if document_id:
+            clauses.append("seg.document_id = %s::uuid")
+            params.append(document_id)
+        if section:
+            clauses.append("seg.content ILIKE %s")
+            params.append(f"%{section.strip()}%")
+        if terms:
+            match_sql = " OR ".join(["seg.content ILIKE %s" for _ in terms])
+            clauses.append(f"({match_sql})")
+            params.extend([f"%{term}%" for term in terms])
+        order_terms = terms or ([section.strip()] if section else [])
+        order_score_sql = "0"
+        if order_terms:
+            order_score_sql = " + ".join(["CASE WHEN seg.content ILIKE %s THEN 1 ELSE 0 END" for _ in order_terms])
+            params.extend([f"%{term}%" for term in order_terms])
+        params.append(min(max(limit * 5, 20), 200))
+        where_sql = " AND ".join(clauses)
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT
+                        seg.id::text AS segment_id,
+                        seg.dataset_id::text AS dataset_id,
+                        dset.name AS dataset_name,
+                        seg.document_id::text AS document_id,
+                        doc.name AS document_name,
+                        seg.position,
+                        seg.content,
+                        seg.word_count,
+                        seg.tokens,
+                        doc.updated_at AS document_updated_at
+                    FROM document_segments seg
+                    JOIN documents doc ON doc.id = seg.document_id
+                    JOIN datasets dset ON dset.id = seg.dataset_id
+                    WHERE {where_sql}
+                    ORDER BY ({order_score_sql}) DESC, doc.updated_at DESC, seg.position ASC
+                    LIMIT %s
+                    """,
+                    tuple(params),
+                )
+                rows = [dict(row) for row in cur.fetchall()]
+        assets = [self._format_visual_asset(row, terms) for row in rows]
+        assets.sort(key=lambda item: item["score"], reverse=True)
+        return assets[: min(max(limit, 1), 50)]
+
+    def find_person_visual_candidates(
+        self,
+        person_name: str,
+        role_hint: str | None = None,
+        limit: int = 5,
+    ) -> dict[str, Any]:
+        person_name = (person_name or "").strip()
+        role_hint = (role_hint or "").strip()
+        if not person_name:
+            return {"person_name": person_name, "role_hint": role_hint, "evidence": [], "candidates": [], "count": 0}
+
+        fact_query = " ".join(item for item in [person_name, role_hint] if item)
+        evidence = self.search_segments(fact_query, limit=max(limit * 3, 8))
+        candidate_assets: list[dict[str, Any]] = []
+        seen_assets: set[str] = set()
+        visual_query = self._person_visual_query(person_name, role_hint)
+        evidence_by_document: dict[str, list[dict[str, Any]]] = {}
+        document_order: list[str] = []
+        for hit in evidence:
+            document_id = str(hit.get("document_id") or "")
+            if not document_id:
+                continue
+            if document_id not in evidence_by_document:
+                evidence_by_document[document_id] = []
+                document_order.append(document_id)
+            evidence_by_document[document_id].append(hit)
+        for document_id in document_order:
+            assets = self.search_visual_assets(query=visual_query, document_id=document_id, limit=max(limit * 3, 10))
+            if not assets:
+                assets = self.search_visual_assets(query=None, document_id=document_id, limit=max(limit * 3, 10))
+            for asset in assets:
+                asset_id = asset.get("visual_asset_id") or asset.get("segment_id")
+                if not asset_id or asset_id in seen_assets or not asset.get("image_links"):
+                    continue
+                hit = self._nearest_evidence_hit(asset, evidence_by_document.get(document_id, []))
+                if not hit:
+                    continue
+                candidate = dict(asset)
+                confidence, reason = self._visual_candidate_confidence(candidate, hit, person_name, role_hint)
+                candidate["confidence"] = confidence
+                candidate["reason"] = reason
+                candidate["person_evidence"] = {
+                    "document_link_markdown": hit.get("document_link_markdown"),
+                    "document_name": hit.get("document_name"),
+                    "segment_position": hit.get("segment_position"),
+                    "snippet": hit.get("snippet"),
+                }
+                candidate_assets.append(candidate)
+                seen_assets.add(asset_id)
+        confidence_rank = {"explicit": 3, "inferred": 2, "weak": 1}
+        candidate_assets.sort(
+            key=lambda item: (
+                confidence_rank.get(str(item.get("confidence")), 0),
+                -int(item.get("distance_to_person_evidence") or 100000),
+                item.get("score") or 0,
+            ),
+            reverse=True,
+        )
+        limited = candidate_assets[: min(max(limit, 1), 20)]
+        return {
+            "person_name": person_name,
+            "role_hint": role_hint,
+            "evidence": evidence[: min(len(evidence), 5)],
+            "candidates": limited,
+            "count": len(limited),
+            "display_hint": "只有 confidence=explicit 才能说图片明确标注为本人；inferred/weak 必须说候选或疑似，并说明推断依据。",
+        }
+
     def search_upload_files(
         self,
         query: str | None = None,
@@ -444,6 +575,35 @@ class DifyMetadataRepository:
             deduped.append(term)
         return deduped[:16]
 
+    def _expand_visual_query_terms(self, query: str) -> list[str]:
+        cleaned = (query or "").strip()
+        if not cleaned:
+            return []
+        terms = [cleaned]
+        terms.extend(self._split_query(cleaned))
+        terms.extend(part for part in re.split(r"[\s，。！？、；：,.!?;:()（）\[\]【】<>《》/\\|_-]+", cleaned) if part)
+        if any(word in cleaned for word in ["照片", "头像", "长什么样", "人物", "团队", "核心团队", "创始人", "负责人"]):
+            terms.extend(["图片链接", "图像说明", "视觉元素", "核心团队", "团队", "人物"])
+        if any(word in cleaned for word in ["PPT", "ppt", "PDF", "pdf", "页面", "内嵌图"]):
+            terms.extend(["PDF/PPT", "内嵌图片", "图示", "图片链接"])
+        deduped: list[str] = []
+        for term in terms:
+            term = term.strip()
+            if len(term) < 2 or term in deduped:
+                continue
+            deduped.append(term)
+        return deduped[:16]
+
+    def _person_visual_query(self, person_name: str, role_hint: str | None) -> str:
+        terms = [person_name]
+        if role_hint:
+            terms.append(role_hint)
+        if role_hint and any(word in role_hint for word in ["创始", "负责人", "团队"]):
+            terms.extend(["核心团队", "团队", "人物", "照片"])
+        else:
+            terms.extend(["照片", "头像", "人物", "团队"])
+        return " ".join(terms)
+
     def _format_upload_file(self, row: dict[str, Any]) -> dict[str, Any]:
         extension = (row.get("extension") or "").strip().lower().lstrip(".")
         mime_type = (row.get("mime_type") or "").strip().lower()
@@ -480,6 +640,21 @@ class DifyMetadataRepository:
             elif is_markdown:
                 row["display_hint"] = "这是 Markdown 文件。需要展示内容时，先调用 read_file_text，然后按 render_as=markdown 原样渲染 text。"
         return row
+
+    def _signed_tool_file_url(self, tool_file_id: str, extension: str) -> str:
+        extension = extension if extension.startswith(".") else f".{extension}"
+        base_path = f"/files/tools/{tool_file_id}{extension}"
+        base_url = (self.settings.dify_files_url or "").rstrip("/")
+        preview_url = f"{base_url}{base_path}" if base_url else base_path
+        secret_key = self.settings.dify_file_preview_secret_key
+        if not secret_key:
+            return preview_url
+        timestamp = str(int(time.time()))
+        nonce = os.urandom(16).hex()
+        data_to_sign = f"file-preview|{tool_file_id}|{timestamp}|{nonce}"
+        digest = hmac.new(secret_key.encode(), data_to_sign.encode(), hashlib.sha256).digest()
+        sign = base64.urlsafe_b64encode(digest).decode()
+        return f"{preview_url}?timestamp={timestamp}&nonce={nonce}&sign={sign}"
 
     def _signed_preview_url(self, upload_file_id: str, preview_type: str) -> str:
         base_path = f"/files/{upload_file_id}/{preview_type}"
@@ -563,6 +738,136 @@ class DifyMetadataRepository:
             "word_count": row.get("word_count"),
             "tokens": row.get("tokens"),
         }
+
+    def _format_visual_asset(self, row: dict[str, Any], terms: list[str]) -> dict[str, Any]:
+        content = row.get("content") or ""
+        metadata = self._parse_visual_asset_content(content)
+        matched_terms = [term for term in terms if term.lower() in content.lower()]
+        score = len(matched_terms) * 10 + (15 if metadata["image_links"] else 0) + min(len(content), 2000) / 2000
+        asset = {
+            "visual_asset_id": row["segment_id"],
+            "segment_id": row["segment_id"],
+            "dataset_id": row["dataset_id"],
+            "dataset_name": row["dataset_name"],
+            "document_id": row["document_id"],
+            "document_name": row["document_name"],
+            "canonical_document_name": self._canonical_document_name(row["document_name"]),
+            "position": row["position"],
+            "segment_position": row["position"],
+            "page_number": metadata["page_number"],
+            "section_title": metadata["section_title"],
+            "image_type": metadata["image_type"],
+            "visible_text": metadata["visible_text"],
+            "context": metadata["context"],
+            "bbox": metadata["bbox"],
+            "image_links": metadata["image_links"],
+            "image_markdown_images": metadata["image_markdown_images"],
+            "evidence_snippet": self._trim(content, 1200),
+            "matched_terms": matched_terms,
+            "score": round(score, 3),
+            "word_count": row.get("word_count"),
+            "tokens": row.get("tokens"),
+            "document_updated_at": row.get("document_updated_at"),
+            "display_hint": "这是 PDF/PPT 内嵌视觉资产。回答中可以直接输出 image_markdown_images；人物图若非 explicit 置信度，必须说候选或疑似。",
+        }
+        return self._format_document_row(asset)
+
+    def _parse_visual_asset_content(self, content: str) -> dict[str, Any]:
+        section_title = self._extract_line_value(content, r"###\s*图像说明｜(.+)")
+        if not section_title:
+            section_title = self._extract_line_value(content, r"章节/邻近标题：(.+)")
+        page_number = None
+        page_match = re.search(r"第\s*(\d+)\s*页", content)
+        if page_match:
+            page_number = int(page_match.group(1))
+        image_type = self._extract_line_value(content, r"图像类型：(.+)")
+        visible_text = self._extract_line_value(content, r"可见文字：(.+)")
+        context = self._extract_line_value(content, r"上下文：(.+)")
+        bbox = None
+        bbox_match = re.search(r"位置：\s*(\[[^\]]+\])", content)
+        if bbox_match:
+            try:
+                parsed = json.loads(bbox_match.group(1))
+                if isinstance(parsed, list):
+                    bbox = parsed
+            except json.JSONDecodeError:
+                bbox = bbox_match.group(1)
+        image_links = self._extract_tool_file_links(content, section_title or "视觉资产")
+        return {
+            "page_number": page_number,
+            "section_title": section_title,
+            "image_type": image_type,
+            "visible_text": visible_text,
+            "context": context,
+            "bbox": bbox,
+            "image_links": image_links,
+            "image_markdown_images": [item["markdown_image"] for item in image_links],
+        }
+
+    def _extract_tool_file_links(self, content: str, label: str) -> list[dict[str, Any]]:
+        links: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for index, match in enumerate(TOOL_FILE_URL_PATTERN.finditer(content), 1):
+            tool_file_id = match.group(1)
+            extension = match.group(2).lower()
+            key = (tool_file_id, extension)
+            if key in seen:
+                continue
+            seen.add(key)
+            signed_url = self._signed_tool_file_url(tool_file_id, extension)
+            alt = self._markdown_alt(f"{label} {index}")
+            links.append(
+                {
+                    "tool_file_id": tool_file_id,
+                    "extension": extension,
+                    "url": signed_url,
+                    "markdown_image": f"![{alt}]({signed_url})",
+                    "original_reference": match.group(0),
+                }
+            )
+        return links
+
+    def _extract_line_value(self, content: str, pattern: str) -> str | None:
+        match = re.search(pattern, content)
+        if not match:
+            return None
+        return match.group(1).strip()
+
+    def _nearest_evidence_hit(self, asset: dict[str, Any], evidence_hits: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if not evidence_hits:
+            return None
+        asset_position = int(asset.get("segment_position") or 0)
+        return min(
+            evidence_hits,
+            key=lambda hit: abs(asset_position - int(hit.get("segment_position") or 0)),
+        )
+
+    def _visual_candidate_confidence(
+        self,
+        asset: dict[str, Any],
+        evidence_hit: dict[str, Any],
+        person_name: str,
+        role_hint: str | None,
+    ) -> tuple[str, str]:
+        asset_text = " ".join(
+            str(asset.get(key) or "")
+            for key in ["section_title", "visible_text", "context", "evidence_snippet"]
+        )
+        role_hint = role_hint or ""
+        distance = abs(int(asset.get("segment_position") or 0) - int(evidence_hit.get("segment_position") or 0))
+        asset["distance_to_person_evidence"] = distance
+        if person_name and person_name in asset_text:
+            return "explicit", f"视觉资产文字中直接出现“{person_name}”。"
+        if role_hint and role_hint in asset_text:
+            return "explicit", f"视觉资产文字中直接出现角色线索“{role_hint}”。"
+        if distance <= 5:
+            return "inferred", (
+                f"同一文档中视觉资产距离人物事实 chunk {distance} 个位置；"
+                f"人物事实为：{self._trim(evidence_hit.get('snippet') or '', 160)}"
+            )
+        if any(word in asset_text for word in ["核心团队", "团队", "人物"]):
+            return "inferred", "视觉资产位于核心团队/团队相关章节，且同文档找到人物事实证据。"
+        return "weak", "仅能确认同文档存在人物事实和视觉资产，当前材料未提供明确图片姓名绑定。"
 
     def _best_snippet(self, content: str, terms: list[str], radius: int = 220) -> str:
         if not content:

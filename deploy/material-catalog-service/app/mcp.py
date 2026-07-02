@@ -50,6 +50,8 @@ class MaterialMCPServer:
                 "read_document_chunks for factual answers; cite document_link_markdown, segment_position, and snippet. Do not claim access "
                 "outside configured storage and Dify metadata. For image/logo requests, use search_files and return "
                 "thumbnail_markdown_image when present, plus original_link_markdown for source verification. "
+                "For PDF/PPT embedded images, use search_visual_assets. For person photo questions, use "
+                "find_person_visual_candidates and label inferred results as candidates. "
                 "For Markdown files, use read_file_text and preserve Markdown rendering."
             ),
         }
@@ -113,6 +115,27 @@ class MaterialMCPServer:
                 },
             ),
             self._tool(
+                "search_visual_assets",
+                "Search PDF/PPT embedded visual_asset chunks and return signed /files/tools image links with source document context.",
+                {
+                    "query": self._string("Keywords such as 核心团队, 创始人照片, PPT 图, or PDF 图片."),
+                    "dataset_id": self._string("Optional Dify dataset UUID."),
+                    "document_id": self._string("Optional Dify document UUID."),
+                    "section": self._string("Optional section title, such as 核心团队."),
+                    "limit": self._integer("Maximum visual assets to return.", 1, 50, 10),
+                },
+            ),
+            self._tool(
+                "find_person_visual_candidates",
+                "Find candidate PDF/PPT embedded images for a person by combining factual evidence with nearby visual_asset chunks.",
+                {
+                    "person_name": self._string("Person name, such as 陈立昌.", required=True),
+                    "role_hint": self._string("Optional role hint, such as 创始人."),
+                    "limit": self._integer("Maximum candidate visual assets to return.", 1, 20, 5),
+                },
+                required=["person_name"],
+            ),
+            self._tool(
                 "read_file_text",
                 "Read safe text from a storage-relative file path. Markdown files return render_as=markdown; PDF/PPT should use indexed chunks first.",
                 {
@@ -142,6 +165,8 @@ class MaterialMCPServer:
             "search_segments": self._search_segments,
             "read_document_chunks": self._read_document_chunks,
             "search_files": self._search_files,
+            "search_visual_assets": self._search_visual_assets,
+            "find_person_visual_candidates": self._find_person_visual_candidates,
             "read_file_text": self._read_file_text,
             "profile_materials": self._profile_materials,
             "list_material_changes": self._list_material_changes,
@@ -169,7 +194,8 @@ class MaterialMCPServer:
             "supported_direct_text_extensions": [".txt", ".md", ".markdown", ".csv", ".json", ".yaml", ".yml", ".html", ".htm", ".xml", ".docx"],
             "renderable_image_extensions": [".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"],
             "thumbnail_image_extensions": [".bmp", ".jpeg", ".jpg", ".png", ".webp"],
-            "rendering": "search_files returns thumbnail_markdown_image for Dify upload images when thumbnailing is supported, original_link_markdown for original verification, and read_file_text returns render_as=markdown for Markdown files.",
+            "visual_assets": "search_visual_assets and find_person_visual_candidates expose PDF/PPT embedded images from visual_asset chunks with signed /files/tools links.",
+            "rendering": "search_files returns thumbnail_markdown_image for Dify upload images; visual tools return image_markdown_images for PDF/PPT embedded images; read_file_text returns render_as=markdown for Markdown files.",
             "safety": "No delete, move, overwrite, ingest, reindex, or secret-reading tools are exposed.",
         }
 
@@ -236,6 +262,26 @@ class MaterialMCPServer:
             "catalog_files": catalog_files,
             "count": len(upload_files) + len(catalog_files),
         }
+
+    def _search_visual_assets(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        assets = self.metadata_repo.search_visual_assets(
+            query=arguments.get("query"),
+            dataset_id=arguments.get("dataset_id"),
+            document_id=arguments.get("document_id"),
+            section=arguments.get("section"),
+            limit=int(arguments.get("limit") or 10),
+        )
+        return {"query": arguments.get("query"), "assets": assets, "count": len(assets)}
+
+    def _find_person_visual_candidates(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        person_name = str(arguments.get("person_name") or "").strip()
+        if not person_name:
+            raise ValueError("person_name is required")
+        return self.metadata_repo.find_person_visual_candidates(
+            person_name=person_name,
+            role_hint=arguments.get("role_hint"),
+            limit=int(arguments.get("limit") or 5),
+        )
 
     def _decorate_catalog_file(self, row: dict[str, Any]) -> dict[str, Any]:
         extension = str(row.get("extension") or "").lower()

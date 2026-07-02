@@ -96,6 +96,69 @@ class FakeMetadataRepository:
             }
         ]
 
+    def search_visual_assets(self, query=None, dataset_id=None, document_id=None, section=None, limit: int = 10):
+        if query and "不存在" in query:
+            return []
+        return [
+            {
+                "visual_asset_id": "visual-1",
+                "segment_id": "visual-1",
+                "dataset_id": "dataset-1",
+                "document_id": document_id or "doc-1",
+                "document_name": "瞢瞢熊智慧鮮啤交易所融资方案 0211.pdf",
+                "document_link_markdown": "[瞢瞢熊智慧鮮啤交易所融资方案 0211.pdf](/datasets/dataset-1/documents/doc-1)",
+                "segment_position": 85,
+                "page_number": 11,
+                "section_title": "2. 核心团队",
+                "image_type": "PDF/PPT 内嵌图片或图示",
+                "context": "该图片附近暂无可抽取正文。",
+                "image_links": [
+                    {
+                        "tool_file_id": "093f5a81-2ff4-4feb-a607-f58afa2438fe",
+                        "extension": "jpg",
+                        "url": "/files/tools/093f5a81-2ff4-4feb-a607-f58afa2438fe.jpg?timestamp=1&nonce=n&sign=s",
+                        "markdown_image": "![核心团队 1](/files/tools/093f5a81-2ff4-4feb-a607-f58afa2438fe.jpg?timestamp=1&nonce=n&sign=s)",
+                    },
+                    {
+                        "tool_file_id": "fdee5b1f-39e0-4ed4-8ad0-f4d525f17c9d",
+                        "extension": "jpg",
+                        "url": "/files/tools/fdee5b1f-39e0-4ed4-8ad0-f4d525f17c9d.jpg?timestamp=1&nonce=n&sign=s",
+                        "markdown_image": "![核心团队 2](/files/tools/fdee5b1f-39e0-4ed4-8ad0-f4d525f17c9d.jpg?timestamp=1&nonce=n&sign=s)",
+                    },
+                    {
+                        "tool_file_id": "ef4561e8-a6ac-4d35-bfaf-3d4ac9fca353",
+                        "extension": "jpg",
+                        "url": "/files/tools/ef4561e8-a6ac-4d35-bfaf-3d4ac9fca353.jpg?timestamp=1&nonce=n&sign=s",
+                        "markdown_image": "![核心团队 3](/files/tools/ef4561e8-a6ac-4d35-bfaf-3d4ac9fca353.jpg?timestamp=1&nonce=n&sign=s)",
+                    },
+                ],
+                "image_markdown_images": [
+                    "![核心团队 1](/files/tools/093f5a81-2ff4-4feb-a607-f58afa2438fe.jpg?timestamp=1&nonce=n&sign=s)",
+                    "![核心团队 2](/files/tools/fdee5b1f-39e0-4ed4-8ad0-f4d525f17c9d.jpg?timestamp=1&nonce=n&sign=s)",
+                    "![核心团队 3](/files/tools/ef4561e8-a6ac-4d35-bfaf-3d4ac9fca353.jpg?timestamp=1&nonce=n&sign=s)",
+                ],
+                "evidence_snippet": "<!-- chunk_type: visual_asset --> 核心团队 图片链接：/files/tools/093f5a81-2ff4-4feb-a607-f58afa2438fe.jpg",
+                "score": 30.0,
+            }
+        ][:limit]
+
+    def find_person_visual_candidates(self, person_name, role_hint=None, limit: int = 5):
+        asset = self.search_visual_assets(query="核心团队", document_id="doc-1", limit=1)[0]
+        asset["confidence"] = "inferred"
+        asset["reason"] = "同一文档中视觉资产距离人物事实 chunk 2 个位置。"
+        asset["person_evidence"] = {
+            "document_link_markdown": "[瞢瞢熊智慧鮮啤交易所融资方案 0211.pdf](/datasets/dataset-1/documents/doc-1)",
+            "segment_position": 87,
+            "snippet": "创始人：陈立昌",
+        }
+        return {
+            "person_name": person_name,
+            "role_hint": role_hint,
+            "evidence": self.search_segments(f"{person_name} {role_hint or ''}", limit=2),
+            "candidates": [asset][:limit],
+            "count": 1,
+        }
+
 
 class MaterialMCPServerTests(unittest.TestCase):
     def _server(self, tmp_path: Path) -> MaterialMCPServer:
@@ -135,6 +198,8 @@ class MaterialMCPServerTests(unittest.TestCase):
                     "search_segments",
                     "read_document_chunks",
                     "search_files",
+                    "search_visual_assets",
+                    "find_person_visual_candidates",
                     "read_file_text",
                     "profile_materials",
                     "list_material_changes",
@@ -194,6 +259,30 @@ class MaterialMCPServerTests(unittest.TestCase):
             self.assertTrue(logo_files["upload_files"][0]["is_renderable_image"])
             self.assertIn("/material-agent/media/thumbnails/image-1.webp", logo_files["upload_files"][0]["thumbnail_markdown_image"])
             self.assertIn("/files/image-1/image-preview", logo_files["upload_files"][0]["original_link_markdown"])
+
+            visual_assets = server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 10,
+                    "method": "tools/call",
+                    "params": {"name": "search_visual_assets", "arguments": {"query": "核心团队"}},
+                }
+            )["result"]["structuredContent"]
+            self.assertEqual(visual_assets["count"], 1)
+            self.assertEqual(len(visual_assets["assets"][0]["image_links"]), 3)
+            self.assertIn("/files/tools/093f5a81-2ff4-4feb-a607-f58afa2438fe.jpg", visual_assets["assets"][0]["image_markdown_images"][0])
+
+            person_visuals = server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 11,
+                    "method": "tools/call",
+                    "params": {"name": "find_person_visual_candidates", "arguments": {"person_name": "陈立昌", "role_hint": "创始人"}},
+                }
+            )["result"]["structuredContent"]
+            self.assertEqual(person_visuals["count"], 1)
+            self.assertEqual(person_visuals["candidates"][0]["confidence"], "inferred")
+            self.assertIn("创始人：陈立昌", person_visuals["candidates"][0]["person_evidence"]["snippet"])
 
             markdown = server.handle(
                 {
@@ -278,6 +367,51 @@ class MaterialMCPServerTests(unittest.TestCase):
 
             chunk = repo._format_chunk({"segment_id": "segment-1", "position": 8, "content": "上下文", "word_count": 3, "tokens": 4})
             self.assertEqual(chunk["segment_position"], 8)
+
+    def test_visual_asset_parser_signs_tool_file_links(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            settings = Settings(
+                MATERIAL_CATALOG_APP_ROOT=tmp_path / "dify-app",
+                MATERIAL_CATALOG_ALLOWED_ROOTS="storage",
+                MATERIAL_CATALOG_DB_PATH=tmp_path / "catalog.sqlite",
+                MATERIAL_CATALOG_SYNC_INTERVAL_SECONDS=60,
+                DIFY_DB_PASSWORD="unused",
+                DIFY_FILE_PREVIEW_SECRET_KEY="test-secret",
+            )
+            repo = DifyMetadataRepository(settings)
+            content = """<!-- chunk_type: visual_asset -->
+### 图像说明｜2. 核心团队
+来源：瞢瞢熊智慧鮮啤交易所融资方案 0211.pdf，第11页，视觉元素 14
+图像类型：PDF/PPT 内嵌图片或图示
+可见文字：未提供独立可见文字，使用相邻标题和正文建立上下文
+上下文：该图片附近暂无可抽取正文。
+位置：[43, 205, 331, 679]
+图片链接：http://150.5.132.104/files/tools/093f5a81-2ff4-4feb-a607-f58afa2438fe.jpg?timestamp=old&nonce=old&sign=old; /files/tools/fdee5b1f-39e0-4ed4-8ad0-f4d525f17c9d.jpg; /files/tools/ef4561e8-a6ac-4d35-bfaf-3d4ac9fca353.jpg
+"""
+            asset = repo._format_visual_asset(
+                {
+                    "segment_id": "visual-1",
+                    "dataset_id": "dataset-1",
+                    "dataset_name": "资料库",
+                    "document_id": "doc-1",
+                    "document_name": "融资方案.pdf",
+                    "position": 85,
+                    "content": content,
+                    "word_count": 80,
+                    "tokens": 90,
+                    "document_updated_at": None,
+                },
+                ["核心团队"],
+            )
+            self.assertEqual(asset["page_number"], 11)
+            self.assertEqual(asset["section_title"], "2. 核心团队")
+            self.assertEqual(asset["bbox"], [43, 205, 331, 679])
+            self.assertEqual(len(asset["image_links"]), 3)
+            self.assertIn("/files/tools/093f5a81-2ff4-4feb-a607-f58afa2438fe.jpg?timestamp=", asset["image_links"][0]["url"])
+            self.assertIn("&nonce=", asset["image_links"][0]["url"])
+            self.assertIn("&sign=", asset["image_links"][0]["url"])
+            self.assertIn("![2. 核心团队 1]", asset["image_markdown_images"][0])
 
     def test_file_query_expands_common_chinese_visual_terms(self) -> None:
         with TemporaryDirectory() as tmp:
