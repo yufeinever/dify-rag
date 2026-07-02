@@ -357,11 +357,14 @@ export const useEmbeddedChatbot = (appSourceType: AppSourceType, tryAppId?: stri
   }>({ handleStop: noop, detachRunningStream: noop })
   const handleChangeConversation = useCallback((conversationId: string) => {
     currentChatInstanceRef.current.detachRunningStream()
+    invalidateShareConversations()
+    if (typeof window !== 'undefined')
+      window.setTimeout(() => invalidateShareConversations(), 1500)
     setNewConversationId('')
     handleConversationIdInfoChange(conversationId)
     if (conversationId)
       setClearChatList(false)
-  }, [handleConversationIdInfoChange, setClearChatList])
+  }, [handleConversationIdInfoChange, invalidateShareConversations, setClearChatList])
   const handleNewConversation = useCallback(async () => {
     if (isTryApp) {
       setClearChatList(true)
@@ -372,7 +375,7 @@ export const useEmbeddedChatbot = (appSourceType: AppSourceType, tryAppId?: stri
     handleChangeConversation('')
     handleNewConversationInputsChange(await getProcessedInputsFromUrlParams())
     setClearChatList(true)
-  }, [isTryApp, setShowNewConversationItemInList, handleNewConversationInputsChange, setClearChatList])
+  }, [isTryApp, handleChangeConversation, setShowNewConversationItemInList, handleNewConversationInputsChange, setClearChatList])
   const handleNewConversationCompleted = useCallback((newConversationId: string) => {
     setNewConversationId(newConversationId)
     handleConversationIdInfoChange(newConversationId)

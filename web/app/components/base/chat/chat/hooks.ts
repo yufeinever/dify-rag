@@ -253,6 +253,13 @@ export const useChat = (
     handleResponding(true)
     hasStopRespondedRef.current = false
     pausedStateRef.current = false
+    let hasNotifiedConversationCreated = false
+    const notifyConversationCreated = (conversationId?: string) => {
+      if (!conversationId || hasNotifiedConversationCreated)
+        return
+      hasNotifiedConversationCreated = true
+      onConversationComplete?.(conversationId)
+    }
     const getOrCreatePlayer = createAudioPlayerManager()
     // Re-subscribe to workflow events for the specific message
     const url = `/workflow/${workflowRunId}/events?include_state_snapshot=true`
@@ -277,8 +284,10 @@ export const useChat = (
             responseItem.id = messageId
         })
 
-        if (isFirstMessage && newConversationId)
+        if (isFirstMessage && newConversationId) {
           conversationIdRef.current = newConversationId
+          notifyConversationCreated(newConversationId)
+        }
 
         if (taskId)
           taskIdRef.current = taskId
@@ -289,8 +298,7 @@ export const useChat = (
         if (hasError)
           return
 
-        if (onConversationComplete)
-          onConversationComplete(conversationIdRef.current)
+        notifyConversationCreated(conversationIdRef.current)
 
         const conversationIdForReload = conversationIdRef.current || conversationId
         if (conversationIdForReload && !hasStopRespondedRef.current && onGetConversationMessages) {
@@ -738,6 +746,13 @@ export const useChat = (
 
     let isAgentMode = false
     let hasSetResponseId = false
+    let hasNotifiedConversationCreated = false
+    const notifyConversationCreated = (conversationId?: string) => {
+      if (!conversationId || hasNotifiedConversationCreated)
+        return
+      hasNotifiedConversationCreated = true
+      onConversationComplete?.(conversationId)
+    }
 
     const getOrCreatePlayer = createAudioPlayerManager()
 
@@ -954,6 +969,7 @@ export const useChat = (
         // If there are no streaming messages, we still need to set the conversation_id to avoid create a new conversation when regeneration in chat-flow.
         if (conversation_id) {
           conversationIdRef.current = conversation_id
+          notifyConversationCreated(conversation_id)
         }
         if (message_id && !hasSetResponseId) {
           questionItem.id = `question-${message_id}`
