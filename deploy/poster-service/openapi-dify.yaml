@@ -1,0 +1,104 @@
+openapi: 3.0.3
+info:
+  title: MMB Poster Service
+  version: 0.1.0
+  description: Generate vertical social posters from a structured brief and retrieved Dify knowledge-base assets.
+servers:
+  - url: http://poster-service:8088
+paths:
+  /v1/posters:
+    post:
+      operationId: generatePoster
+      summary: Generate a poster image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneratePosterRequest'
+      responses:
+        '200':
+          description: Poster generation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratePosterResponse'
+components:
+  schemas:
+    PosterBrief:
+      type: object
+      required: [theme]
+      properties:
+        theme:
+          type: string
+        background:
+          type: string
+        special_elements:
+          type: array
+          items:
+            type: string
+        audience:
+          type: string
+        main_title:
+          type: string
+        subtitle:
+          type: string
+        selling_points:
+          type: array
+          items:
+            type: string
+        brand_constraints:
+          type: string
+    PosterAsset:
+      type: object
+      properties:
+        url:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+    GeneratePosterRequest:
+      type: object
+      required: [brief]
+      properties:
+        brief:
+          $ref: '#/components/schemas/PosterBrief'
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/PosterAsset'
+        size:
+          type: string
+          default: 1080x1440
+        overlay_text:
+          type: boolean
+          default: true
+        request_id:
+          type: string
+    GeneratePosterResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [succeeded, failed]
+        poster_url:
+          type: string
+        thumbnail_url:
+          type: string
+        used_assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/PosterAsset'
+        final_prompt:
+          type: string
+        size:
+          type: string
+        request_id:
+          type: string
+        error:
+          type: string
