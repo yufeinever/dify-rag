@@ -25,11 +25,20 @@ class OpenAIImageClient:
             raise RuntimeError("mock-openai")
         if not self.settings.openai_api_key:
             raise ValueError("OPENAI_API_KEY is not configured")
-        if self.settings.image_mode == "responses":
+        mode = self.settings.image_mode.lower().strip()
+        if mode == "responses":
             image_bytes = await self._generate_with_responses(prompt)
-        else:
+        elif mode == "images":
             image_bytes = await self._generate_with_images(prompt)
+        else:
+            raise ValueError(f"Unsupported POSTER_IMAGE_MODE: {self.settings.image_mode}")
         return ImageGenerationResult(image_bytes=image_bytes, prompt=prompt)
+
+    def _api_url(self, path: str) -> str:
+        base = self.settings.openai_base_url.rstrip("/")
+        if base.endswith("/v1") and path.startswith("/v1/"):
+            return base + path[3:]
+        return base + path
 
     async def _generate_with_images(self, prompt: str) -> bytes:
         payload: dict[str, Any] = {
@@ -38,14 +47,14 @@ class OpenAIImageClient:
             "size": self.settings.image_size,
             "n": 1,
         }
-        data = await self._post_json("https://api.openai.com/v1/images/generations", payload)
+        data = await self._post_json(self._api_url("/v1/images/generations"), payload)
         item = data.get("data", [{}])[0]
         encoded = item.get("b64_json")
         if encoded:
             return base64.b64decode(encoded)
         url = item.get("url")
         if not url:
-            raise RuntimeError("OpenAI image response did not include b64_json or url")
+            raise RuntimeError("image response did not include b64_json or url")
         async with httpx.AsyncClient(timeout=120) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -57,22 +66,45 @@ class OpenAIImageClient:
             "input": prompt,
             "tools": [{"type": "image_generation"}],
         }
-        data = await self._post_json("https://api.openai.com/v1/responses", payload)
-        for item in data.get("output", []):
-            if item.get("type") == "image_generation_call":
-                encoded = item.get("result")
-                if encoded:
-                    return base64.b64decode(encoded)
-        raise RuntimeError("OpenAI Responses output did not include an image_generation_call result")
+        data = await self._post_json(self._api_url("/v1/responses"), payload)
+        encoded = self._find_image_base64(data)
+        if encoded:
+            return base64.b64decode(encoded.split(",", 1)[-1])
+        raise RuntimeError("Responses output did not include image base64 result")
+
+    def _find_image_base64(self, value: Any) -> str | None:
+        if isinstance(value, dict):
+            if value.get("type") == "image_generation_call" and isinstance(value.get("result"), str):
+                return value["result"]
+            for key in ("b64_json", "base64", "result", "data"):
+                item = value.get(key)
+                if isinstance(item, str) and self._looks_like_base64_image(item):
+                    return item
+            for item in value.values():
+                found = self._find_image_base64(item)
+                if found:
+                    return found
+        elif isinstance(value, list):
+            for item in value:
+                found = self._find_image_base64(item)
+                if found:
+                    return found
+        return None
+
+    @staticmethod
+    def _looks_like_base64_image(value: str) -> bool:
+        if value.startswith("data:image/"):
+            return True
+        return len(value) > 1000 and value[:16].startswith(("iVBOR", "/9j/", "R0lGOD"))
 
     async def _post_json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.settings.openai_api_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(timeout=240) as client:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code >= 400:
                 detail = response.text[:1000]
-                raise RuntimeError(f"OpenAI request failed with HTTP {response.status_code}: {detail}")
+                raise RuntimeError(f"image request failed with HTTP {response.status_code}: {detail}")
             return response.json()
