@@ -413,6 +413,21 @@ class MaterialMCPServerTests(unittest.TestCase):
             self.assertIn("&sign=", asset["image_links"][0]["url"])
             self.assertIn("![2. 核心团队 1]", asset["image_markdown_images"][0])
 
+    def test_visual_asset_empty_query_order_score_is_valid_sql(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            settings = Settings(
+                MATERIAL_CATALOG_APP_ROOT=tmp_path / "dify-app",
+                MATERIAL_CATALOG_ALLOWED_ROOTS="storage",
+                MATERIAL_CATALOG_DB_PATH=tmp_path / "catalog.sqlite",
+                MATERIAL_CATALOG_SYNC_INTERVAL_SECONDS=60,
+                DIFY_DB_PASSWORD="unused",
+            )
+            repo = DifyMetadataRepository(settings)
+            self.assertEqual(repo._visual_order_score_sql([]), "CASE WHEN TRUE THEN 0 ELSE 0 END")
+            self.assertNotEqual(repo._visual_order_score_sql([]), "0")
+            self.assertIn("seg.content ILIKE %s", repo._visual_order_score_sql(["核心团队"]))
+
     def test_file_query_expands_common_chinese_visual_terms(self) -> None:
         with TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

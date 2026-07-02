@@ -268,9 +268,8 @@ class DifyMetadataRepository:
             clauses.append(f"({match_sql})")
             params.extend([f"%{term}%" for term in terms])
         order_terms = terms or ([section.strip()] if section else [])
-        order_score_sql = "0"
+        order_score_sql = self._visual_order_score_sql(order_terms)
         if order_terms:
-            order_score_sql = " + ".join(["CASE WHEN seg.content ILIKE %s THEN 1 ELSE 0 END" for _ in order_terms])
             params.extend([f"%{term}%" for term in order_terms])
         params.append(min(max(limit * 5, 20), 200))
         where_sql = " AND ".join(clauses)
@@ -593,6 +592,11 @@ class DifyMetadataRepository:
                 continue
             deduped.append(term)
         return deduped[:16]
+
+    def _visual_order_score_sql(self, order_terms: list[str]) -> str:
+        if not order_terms:
+            return "CASE WHEN TRUE THEN 0 ELSE 0 END"
+        return " + ".join(["CASE WHEN seg.content ILIKE %s THEN 1 ELSE 0 END" for _ in order_terms])
 
     def _person_visual_query(self, person_name: str, role_hint: str | None) -> str:
         terms = [person_name]
