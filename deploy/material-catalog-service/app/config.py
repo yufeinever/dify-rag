@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     dify_db_name: str = Field("dify", alias="DIFY_DB_NAME")
     dify_db_user: str = Field("postgres", alias="DIFY_DB_USER")
     dify_db_password: str = Field("", alias="DIFY_DB_PASSWORD")
+    dify_files_url: str = Field("", alias="DIFY_FILES_URL")
+    dify_file_preview_secret_key: str = Field("", alias="DIFY_FILE_PREVIEW_SECRET_KEY")
+    dify_file_preview_ttl_seconds: int = Field(300, alias="DIFY_FILE_PREVIEW_TTL_SECONDS")
 
     @field_validator("sync_interval_seconds")
     @classmethod

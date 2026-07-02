@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 
 from app.catalog import MaterialCatalog
 from app.config import Settings
+from app.dify_metadata import DifyMetadataRepository
 from app.mcp import MaterialMCPServer
 
 
@@ -41,6 +42,20 @@ class FakeMetadataRepository:
         }
 
     def search_upload_files(self, query=None, extension=None, limit: int = 50):
+        if query and "Logo" in query:
+            return [
+                {
+                    "upload_file_id": "image-1",
+                    "name": "MMB啤酒熊品牌Logo.png",
+                    "key": "upload_files/tenant/logo.png",
+                    "extension": "png",
+                    "mime_type": "image/png",
+                    "relative_path": "storage/upload_files/tenant/logo.png",
+                    "file_kind": "image",
+                    "is_renderable_image": True,
+                    "markdown_image": "![MMB啤酒熊品牌Logo.png](/files/image-1/image-preview)",
+                }
+            ]
         return [
             {
                 "upload_file_id": "file-1",
@@ -58,6 +73,7 @@ class MaterialMCPServerTests(unittest.TestCase):
         storage = app_root / "storage"
         storage.mkdir(parents=True)
         (storage / "note.txt").write_text("MMB 创始人：陈立昌", encoding="utf-8")
+        (storage / "guide.md").write_text("# MMB 指南\n\n- Logo 展示", encoding="utf-8")
         catalog = MaterialCatalog(app_root, tmp_path / "catalog.sqlite", max_hash_bytes=1024 * 1024, max_scan_files=100)
         catalog.sync(["storage"])
         settings = Settings(
@@ -137,16 +153,65 @@ class MaterialMCPServerTests(unittest.TestCase):
             )["result"]["structuredContent"]
             self.assertEqual(files["upload_files"][0]["name"], "瞢瞢熊智慧鮮啤交易所融资方案 0211.pdf")
 
-            profile = server.handle(
+            logo_files = server.handle(
                 {
                     "jsonrpc": "2.0",
                     "id": 7,
+                    "method": "tools/call",
+                    "params": {"name": "search_files", "arguments": {"query": "Logo"}},
+                }
+            )["result"]["structuredContent"]
+            self.assertTrue(logo_files["upload_files"][0]["is_renderable_image"])
+            self.assertIn("/files/image-1/image-preview", logo_files["upload_files"][0]["markdown_image"])
+
+            markdown = server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 8,
+                    "method": "tools/call",
+                    "params": {"name": "read_file_text", "arguments": {"relative_path": "storage/guide.md"}},
+                }
+            )["result"]["structuredContent"]
+            self.assertEqual(markdown["render_as"], "markdown")
+            self.assertIn("# MMB 指南", markdown["text"])
+
+            profile = server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 9,
                     "method": "tools/call",
                     "params": {"name": "profile_materials", "arguments": {"limit": 1}},
                 }
             )["result"]["structuredContent"]
             self.assertNotIn("path", profile["recent_assets"][0])
             self.assertNotIn("sha256", profile["recent_assets"][0])
+
+    def test_upload_image_preview_urls_are_signed_when_secret_is_configured(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            app_root = tmp_path / "dify-app"
+            app_root.mkdir()
+            settings = Settings(
+                MATERIAL_CATALOG_APP_ROOT=app_root,
+                MATERIAL_CATALOG_ALLOWED_ROOTS="storage",
+                MATERIAL_CATALOG_DB_PATH=tmp_path / "catalog.sqlite",
+                MATERIAL_CATALOG_SYNC_INTERVAL_SECONDS=60,
+                DIFY_DB_PASSWORD="unused",
+                DIFY_FILE_PREVIEW_SECRET_KEY="test-secret",
+            )
+            repo = DifyMetadataRepository(settings)
+            row = repo._format_upload_file(
+                {
+                    "upload_file_id": "image-1",
+                    "name": "MMB啤酒熊品牌Logo.png",
+                    "extension": "png",
+                    "mime_type": "image/png",
+                }
+            )
+            self.assertTrue(row["is_renderable_image"])
+            self.assertIn("/files/image-1/image-preview?timestamp=", row["markdown_image"])
+            self.assertIn("&nonce=", row["markdown_image"])
+            self.assertIn("&sign=", row["markdown_image"])
 
     def test_tool_error_is_mcp_tool_error_not_jsonrpc_failure(self) -> None:
         with TemporaryDirectory() as tmp:

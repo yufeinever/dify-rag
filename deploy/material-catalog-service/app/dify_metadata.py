@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
+import os
 import re
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -17,6 +22,9 @@ DEFAULT_FACT_EXPANSIONS = {
     "负责人": ["负责人", "创始人", "陈总", "团队"],
     "founder": ["founder", "创始人", "创办人"],
 }
+
+IMAGE_EXTENSIONS = {"bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"}
+MARKDOWN_EXTENSIONS = {"md", "markdown"}
 
 
 class DifyMetadataRepository:
@@ -237,13 +245,26 @@ class DifyMetadataRepository:
         limit = min(max(limit, 1), 500)
         clauses = ["1 = 1"]
         params: list[Any] = []
+        score_params: list[Any] = []
+        score_sql = "0"
         if query:
-            clauses.append("(uf.name ILIKE %s OR uf.key ILIKE %s OR uf.source_url ILIKE %s)")
-            params.extend([f"%{query}%", f"%{query}%", f"%{query}%"])
+            terms = self._split_file_query(query)
+            match_clauses: list[str] = []
+            score_parts: list[str] = []
+            for term in terms:
+                pattern = f"%{term}%"
+                match_clauses.append("(uf.name ILIKE %s OR uf.key ILIKE %s OR uf.source_url ILIKE %s)")
+                params.extend([pattern, pattern, pattern])
+                score_parts.append("CASE WHEN (uf.name ILIKE %s OR uf.key ILIKE %s OR uf.source_url ILIKE %s) THEN 1 ELSE 0 END")
+                score_params.extend([pattern, pattern, pattern])
+            if match_clauses:
+                clauses.append("(" + " OR ".join(match_clauses) + ")")
+                score_sql = " + ".join(score_parts)
         if extension:
             ext = extension[1:] if extension.startswith(".") else extension
             clauses.append("LOWER(uf.extension) = LOWER(%s)")
             params.append(ext)
+        params.extend(score_params)
         params.append(limit)
         where_sql = " AND ".join(clauses)
         with self._connect() as conn:
@@ -263,12 +284,12 @@ class DifyMetadataRepository:
                         'storage/' || uf.key AS relative_path
                     FROM upload_files uf
                     WHERE {where_sql}
-                    ORDER BY uf.created_at DESC
+                    ORDER BY ({score_sql}) DESC, uf.created_at DESC
                     LIMIT %s
                     """,
                     tuple(params),
                 )
-                return [dict(row) for row in cur.fetchall()]
+                return [self._format_upload_file(dict(row)) for row in cur.fetchall()]
 
     def read_document_chunks(
         self,
@@ -361,6 +382,61 @@ class DifyMetadataRepository:
             if anchor in query:
                 terms.append(anchor)
         return terms
+
+    def _split_file_query(self, query: str) -> list[str]:
+        cleaned = (query or "").strip()
+        if not cleaned:
+            return []
+        terms = [cleaned]
+        terms.extend(re.findall(r"[A-Za-z0-9]+", cleaned))
+        terms.extend(part for part in re.split(r"[\s，。！？、；：,.!?;:()（）\[\]【】<>《》/\\|_-]+", cleaned) if part)
+        if re.search(r"logo", cleaned, re.IGNORECASE):
+            terms.extend(["Logo", "logo", "标识", "品牌"])
+        if any(word in cleaned for word in ["图片", "图", "照片", "海报", "logo", "Logo"]):
+            terms.extend(["jpg", "jpeg", "png", "webp", "海报", "图片"])
+        deduped: list[str] = []
+        for term in terms:
+            term = term.strip()
+            if len(term) < 2 or term in deduped:
+                continue
+            deduped.append(term)
+        return deduped[:16]
+
+    def _format_upload_file(self, row: dict[str, Any]) -> dict[str, Any]:
+        extension = (row.get("extension") or "").strip().lower().lstrip(".")
+        mime_type = (row.get("mime_type") or "").strip().lower()
+        file_id = row.get("upload_file_id")
+        is_image = extension in IMAGE_EXTENSIONS or mime_type.startswith("image/")
+        is_markdown = extension in MARKDOWN_EXTENSIONS or mime_type == "text/markdown"
+        row["file_kind"] = "image" if is_image else "markdown" if is_markdown else "file"
+        row["is_renderable_image"] = is_image
+        row["is_markdown"] = is_markdown
+        if file_id:
+            row["file_preview_path"] = self._signed_preview_url(file_id, "file-preview")
+            if is_image:
+                row["image_preview_path"] = self._signed_preview_url(file_id, "image-preview")
+                row["markdown_image"] = f"![{self._markdown_alt(row.get('name') or 'image')}]({row['image_preview_path']})"
+                row["display_hint"] = "用户要求展示图片、logo、海报时，优先原样输出 markdown_image 字段。该 URL 使用 Dify 同源文件预览路径；如果配置了 DIFY_FILE_PREVIEW_SECRET_KEY，会带临时签名。"
+            elif is_markdown:
+                row["display_hint"] = "这是 Markdown 文件。需要展示内容时，先调用 read_file_text，然后按 render_as=markdown 原样渲染 text。"
+        return row
+
+    def _signed_preview_url(self, upload_file_id: str, preview_type: str) -> str:
+        base_path = f"/files/{upload_file_id}/{preview_type}"
+        base_url = (self.settings.dify_files_url or "").rstrip("/")
+        preview_url = f"{base_url}{base_path}" if base_url else base_path
+        secret_key = self.settings.dify_file_preview_secret_key
+        if not secret_key:
+            return preview_url
+        timestamp = str(int(time.time()))
+        nonce = os.urandom(16).hex()
+        data_to_sign = f"{preview_type}|{upload_file_id}|{timestamp}|{nonce}"
+        digest = hmac.new(secret_key.encode(), data_to_sign.encode(), hashlib.sha256).digest()
+        sign = base64.urlsafe_b64encode(digest).decode()
+        return f"{preview_url}?timestamp={timestamp}&nonce={nonce}&sign={sign}"
+
+    def _markdown_alt(self, text: str) -> str:
+        return (text or "image").replace("[", "(").replace("]", ")")
 
     def _format_segment_hit(self, row: dict[str, Any], terms: list[str]) -> dict[str, Any]:
         content = row.get("content") or ""
@@ -459,6 +535,8 @@ class FileTextReader:
             "relative_path": relative_path,
             "supported": True,
             "extension": extension,
+            "render_as": "markdown" if extension in {".md", ".markdown"} else "plain_text",
+            "display_hint": "这是 Markdown 文件，回答中可以直接按 Markdown 渲染 text。" if extension in {".md", ".markdown"} else "这是普通文本，按原文或摘要展示。",
             "text": text[:max_chars],
             "truncated": len(text) > max_chars,
         }

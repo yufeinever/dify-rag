@@ -48,7 +48,8 @@ class MaterialMCPServer:
             "instructions": (
                 "Read-only tools for exploring the 150 Dify material store. Use search_segments and "
                 "read_document_chunks for factual answers; cite document_name and snippet. Do not claim access "
-                "outside configured storage and Dify metadata."
+                "outside configured storage and Dify metadata. For image/logo requests, use search_files and return "
+                "markdown_image when present. For Markdown files, use read_file_text and preserve Markdown rendering."
             ),
         }
 
@@ -103,7 +104,7 @@ class MaterialMCPServer:
             ),
             self._tool(
                 "search_files",
-                "Search cataloged storage files by file name, relative path, or extension.",
+                "Search cataloged storage files by file name, relative path, or extension. Image upload results include markdown_image for direct display.",
                 {
                     "query": self._string("Optional filename or path search text."),
                     "extension": self._string("Optional extension, such as pdf or .docx."),
@@ -112,7 +113,7 @@ class MaterialMCPServer:
             ),
             self._tool(
                 "read_file_text",
-                "Read safe text from a storage-relative file path. PDF/PPT should use indexed chunks first.",
+                "Read safe text from a storage-relative file path. Markdown files return render_as=markdown; PDF/PPT should use indexed chunks first.",
                 {
                     "relative_path": self._string("Path relative to /dify-app, e.g. storage/upload_files/...", required=True),
                     "max_chars": self._integer("Maximum characters to return.", 1, 50000, 12000),
@@ -165,6 +166,8 @@ class MaterialMCPServer:
             "scan_roots": self.settings.scan_roots,
             "path_boundary": "All file paths are relative to the configured Dify app storage mount.",
             "supported_direct_text_extensions": [".txt", ".md", ".markdown", ".csv", ".json", ".yaml", ".yml", ".html", ".htm", ".xml", ".docx"],
+            "renderable_image_extensions": [".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"],
+            "rendering": "search_files returns markdown_image for Dify upload images; read_file_text returns render_as=markdown for Markdown files.",
             "safety": "No delete, move, overwrite, ingest, reindex, or secret-reading tools are exposed.",
         }
 
@@ -225,12 +228,24 @@ class MaterialMCPServer:
             extension=arguments.get("extension"),
             limit=int(arguments.get("limit") or 50),
         )
-        catalog_files = [self._sanitize_asset(row) for row in catalog_result.get("files", [])]
+        catalog_files = [self._decorate_catalog_file(self._sanitize_asset(row)) for row in catalog_result.get("files", [])]
         return {
             "upload_files": upload_files,
             "catalog_files": catalog_files,
             "count": len(upload_files) + len(catalog_files),
         }
+
+    def _decorate_catalog_file(self, row: dict[str, Any]) -> dict[str, Any]:
+        extension = str(row.get("extension") or "").lower()
+        if extension in {".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}:
+            row["file_kind"] = "image"
+            row["is_renderable_image"] = False
+            row["display_hint"] = "该结果来自 storage 目录扫描，缺少 Dify upload_file_id，不能直接生成 /files/... 预览图；优先使用同名 upload_files 结果中的 markdown_image。"
+        elif extension in {".md", ".markdown"}:
+            row["file_kind"] = "markdown"
+            row["is_markdown"] = True
+            row["display_hint"] = "需要展示内容时，调用 read_file_text 并按 render_as=markdown 渲染。"
+        return row
 
     def _read_file_text(self, arguments: dict[str, Any]) -> dict[str, Any]:
         relative_path = str(arguments.get("relative_path") or "").strip()
