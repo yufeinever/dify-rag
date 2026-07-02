@@ -1368,6 +1368,27 @@ describe('useChat', () => {
       expect(result.current.isResponding).toBe(false)
     })
 
+    it('should detach running stream without stopping backend task', () => {
+      const stopChat = vi.fn()
+      const { result } = renderHook(() => useChat(undefined, undefined, undefined, stopChat))
+
+      act(() => {
+        result.current.handleSend('url', { query: 'test detach' }, {})
+      })
+
+      const callbacks = vi.mocked(ssePost).mock.calls[0]![2] as HookCallbacks
+      act(() => {
+        callbacks.onWorkflowStarted({ task_id: 'task-detach' })
+      })
+
+      act(() => {
+        result.current.detachRunningStream()
+      })
+
+      expect(stopChat).not.toHaveBeenCalled()
+      expect(result.current.isResponding).toBe(false)
+    })
+
     it('should clear chat tree and controllers on restart', () => {
       const cb = vi.fn()
       const { result } = renderHook(() => useChat())

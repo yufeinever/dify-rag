@@ -56,6 +56,8 @@ class MessageListItem(ResponseModel):
     agent_thoughts: list[AgentThought]
     message_files: list[MessageFile]
     status: str
+    workflow_run_id: str | None = None
+    workflow_run_status: str | None = None
     error: str | None = None
     extra_contents: list[ExecutionExtraContentDomainModel]
 

@@ -10,7 +10,7 @@ import { produce } from 'immer'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProcessedFilesFromResponse } from '@/app/components/base/file-uploader/utils'
-import { InputVarType } from '@/app/components/workflow/types'
+import { InputVarType, WorkflowRunningStatus } from '@/app/components/workflow/types'
 import { useWebAppStore } from '@/context/web-app-context'
 import { useAppFavicon } from '@/hooks/use-app-favicon'
 import { changeLanguage } from '@/i18n-config/client'
@@ -35,8 +35,10 @@ function getFormattedChatList(messages: any[]) {
     const answerFiles = item.message_files?.filter((file: any) => file.belongs_to === 'assistant') || []
     const humanInputFormDataList: HumanInputFormData[] = []
     const humanInputFilledFormDataList: HumanInputFilledFormData[] = []
-    let workflowRunId = ''
+    let workflowRunId = item.workflow_run_id || ''
+    let workflowProcess = item.workflow_run_status === WorkflowRunningStatus.Running ? { status: WorkflowRunningStatus.Running, tracing: [] } : undefined
     if (item.status === 'paused') {
+      workflowProcess = { status: WorkflowRunningStatus.Paused, tracing: [] }
       item.extra_contents?.forEach((content: ExtraContent) => {
         if (content.type === 'human_input' && !content.submitted) {
           humanInputFormDataList.push(content.form_definition)
@@ -63,6 +65,7 @@ function getFormattedChatList(messages: any[]) {
       humanInputFormDataList,
       humanInputFilledFormDataList,
       workflow_run_id: workflowRunId,
+      workflowProcess,
     })
   })
   return newChatList
@@ -389,16 +392,16 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
   }, [setShowNewConversationItemInList, checkInputsRequired])
   const currentChatInstanceRef = useRef<{
     handleStop: () => void
-  }>({ handleStop: noop })
+    detachRunningStream: () => void
+  }>({ handleStop: noop, detachRunningStream: noop })
   const handleChangeConversation = useCallback((conversationId: string) => {
-    currentChatInstanceRef.current.handleStop()
+    currentChatInstanceRef.current.detachRunningStream()
     setNewConversationId('')
     handleConversationIdInfoChange(conversationId)
     if (conversationId)
       setClearChatList(false)
   }, [handleConversationIdInfoChange, setClearChatList])
   const handleNewConversation = useCallback(async () => {
-    currentChatInstanceRef.current.handleStop()
     setShowNewConversationItemInList(true)
     handleChangeConversation('')
     const conversationInputs: Record<string, any> = {}

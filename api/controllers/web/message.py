@@ -4,6 +4,7 @@ from uuid import UUID
 
 from flask import request
 from pydantic import BaseModel, Field, TypeAdapter
+from sqlalchemy import select
 from werkzeug.exceptions import InternalServerError, NotFound
 
 from controllers.common.controller_schemas import MessageFeedbackPayload, MessageListQuery
@@ -25,9 +26,11 @@ from core.errors.error import ModelCurrentlyNotSupportError, ProviderTokenNotIni
 from fields.conversation_fields import ResultResponse
 from fields.message_fields import SuggestedQuestionsResponse, WebMessageInfiniteScrollPagination, WebMessageListItem
 from graphon.model_runtime.errors.invoke import InvokeError
+from extensions.ext_database import db
 from libs import helper
 from models.enums import FeedbackRating
 from models.model import AppMode
+from models.workflow import WorkflowRun
 from services.app_generate_service import AppGenerateService
 from services.errors.app import MoreLikeThisDisabledError
 from services.errors.conversation import ConversationNotExistsError
@@ -45,6 +48,20 @@ class MessageMoreLikeThisQuery(BaseModel):
     response_mode: Literal["blocking", "streaming"] = Field(
         description="Response mode",
     )
+
+
+def attach_workflow_run_status(messages, app_id: str) -> None:
+    workflow_run_ids = [message.workflow_run_id for message in messages if message.workflow_run_id]
+    if not workflow_run_ids:
+        return
+
+    rows = db.session.execute(
+        select(WorkflowRun.id, WorkflowRun.status).where(WorkflowRun.id.in_(workflow_run_ids), WorkflowRun.app_id == app_id)
+    ).all()
+    statuses = {str(run_id): status for run_id, status in rows}
+    for message in messages:
+        if message.workflow_run_id:
+            setattr(message, "workflow_run_status", statuses.get(str(message.workflow_run_id)))
 
 
 register_schema_models(web_ns, MessageListQuery, MessageFeedbackPayload, MessageMoreLikeThisQuery)
@@ -93,6 +110,7 @@ class MessageListApi(WebApiResource):
             pagination = MessageService.pagination_by_first_id(
                 app_model, end_user, query.conversation_id, query.first_id, query.limit
             )
+            attach_workflow_run_status(pagination.data, str(app_model.id))
             adapter = TypeAdapter(WebMessageListItem)
             items = [adapter.validate_python(message, from_attributes=True) for message in pagination.data]
             return WebMessageInfiniteScrollPagination(

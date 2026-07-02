@@ -50,6 +50,7 @@ type SendCallback = {
   onGetSuggestedQuestions?: (responseItemId: string, getAbortController: GetAbortController) => Promise<any>
   onConversationComplete?: (conversationId: string) => void
   isPublicAPI?: boolean
+  conversationId?: string
 }
 
 export const useChat = (
@@ -187,27 +188,31 @@ export const useChat = (
     isRespondingRef.current = isResponding
   }, [])
 
-  const handleStop = useCallback(() => {
-    hasStopRespondedRef.current = true
+  const detachRunningStream = useCallback(() => {
     handleResponding(false)
-    if (stopChat && taskIdRef.current && !pausedStateRef.current)
-      stopChat(taskIdRef.current)
     if (conversationMessagesAbortControllerRef.current)
       conversationMessagesAbortControllerRef.current.abort()
     if (suggestedQuestionsAbortControllerRef.current)
       suggestedQuestionsAbortControllerRef.current.abort()
     if (workflowEventsAbortControllerRef.current)
       workflowEventsAbortControllerRef.current.abort()
-  }, [stopChat, handleResponding])
+  }, [handleResponding])
+
+  const handleStop = useCallback(() => {
+    hasStopRespondedRef.current = true
+    if (stopChat && taskIdRef.current && !pausedStateRef.current)
+      stopChat(taskIdRef.current)
+    detachRunningStream()
+  }, [stopChat, detachRunningStream])
 
   const handleRestart = useCallback((cb?: any) => {
     conversationIdRef.current = ''
     taskIdRef.current = ''
-    handleStop()
+    detachRunningStream()
     setChatTree([])
     setSuggestedQuestions([])
     cb?.()
-  }, [handleStop])
+  }, [detachRunningStream])
 
   const createAudioPlayerManager = useCallback(() => {
     let ttsUrl = ''
@@ -239,10 +244,15 @@ export const useChat = (
     workflowRunId: string,
     {
       onGetSuggestedQuestions,
+      onGetConversationMessages,
       onConversationComplete,
       isPublicAPI,
+      conversationId,
     }: SendCallback,
   ) => {
+    handleResponding(true)
+    hasStopRespondedRef.current = false
+    pausedStateRef.current = false
     const getOrCreatePlayer = createAudioPlayerManager()
     // Re-subscribe to workflow events for the specific message
     const url = `/workflow/${workflowRunId}/events?include_state_snapshot=true`
@@ -281,6 +291,30 @@ export const useChat = (
 
         if (onConversationComplete)
           onConversationComplete(conversationIdRef.current)
+
+        const conversationIdForReload = conversationIdRef.current || conversationId
+        if (conversationIdForReload && !hasStopRespondedRef.current && onGetConversationMessages) {
+          const { data }: any = await onGetConversationMessages(
+            conversationIdForReload,
+            newAbortController => conversationMessagesAbortControllerRef.current = newAbortController,
+          )
+          const newResponseItem = data.find((item: any) => item.id === messageId)
+          if (newResponseItem) {
+            const answerFiles = newResponseItem.message_files?.filter((file: any) => file.belongs_to === 'assistant') || []
+            updateChatTreeNode(messageId, (responseItem) => {
+              responseItem.content = newResponseItem.answer || responseItem.content
+              responseItem.citation = newResponseItem.retriever_resources || responseItem.citation
+              responseItem.message_files = getProcessedFilesFromResponse(answerFiles.map((file: any) => ({ ...file, related_id: file.id, upload_file_id: file.upload_file_id })))
+              responseItem.conversationId = conversationIdForReload
+              responseItem.input = {
+                inputs: newResponseItem.inputs,
+                query: newResponseItem.query,
+              }
+              if (responseItem.workflowProcess && newResponseItem.workflow_run_status)
+                responseItem.workflowProcess.status = newResponseItem.workflow_run_status as WorkflowRunningStatus
+            })
+          }
+        }
 
         if (config?.suggested_questions_after_answer?.enabled && !hasStopRespondedRef.current && onGetSuggestedQuestions) {
           try {
@@ -1277,6 +1311,7 @@ export const useChat = (
     handleResume,
     handleSwitchSibling,
     suggestedQuestions,
+    detachRunningStream,
     handleRestart,
     handleStop,
     handleAnnotationEdited,

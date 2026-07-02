@@ -16,6 +16,7 @@ import {
   unpinConversation,
   updateFeedback,
 } from '@/service/share'
+import { WorkflowRunningStatus } from '@/app/components/workflow/types'
 import { shareQueryKeys } from '@/service/use-share'
 import { CONVERSATION_ID_INFO } from '../../constants'
 import { useChatWithHistory } from '.././hooks'
@@ -1811,6 +1812,21 @@ describe('useChatWithHistory', () => {
             ],
           },
           {
+            id: 'msg-running',
+            query: 'Question running',
+            answer: '',
+            message_files: [],
+            feedback: null,
+            retriever_resources: [],
+            agent_thoughts: null,
+            parent_message_id: null,
+            inputs: {},
+            status: 'normal',
+            workflow_run_id: 'wf-running',
+            workflow_run_status: 'running',
+            extra_contents: [],
+          },
+          {
             id: 'msg-unknown-status',
             query: 'Question unknown',
             answer: 'Answer unknown',
@@ -1835,6 +1851,9 @@ describe('useChatWithHistory', () => {
       expect(messageWithFiles?.message_files).toHaveLength(1)
       expect(messageWithFiles?.children?.[0]?.message_files).toHaveLength(1)
       expect(messageWithFiles?.children?.[0]?.agent_thoughts?.[0]?.message_files).toHaveLength(1)
+      const runningMessage = result!.current.appPrevChatTree.find(item => item.id === 'question-msg-running')
+      expect(runningMessage?.children?.[0]?.workflow_run_id).toBe('wf-running')
+      expect(runningMessage?.children?.[0]?.workflowProcess?.status).toBe(WorkflowRunningStatus.Running)
     })
   })
 

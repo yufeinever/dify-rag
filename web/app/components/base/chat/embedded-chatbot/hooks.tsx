@@ -10,7 +10,7 @@ import { produce } from 'immer'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addFileInfos, sortAgentSorts } from '@/app/components/tools/utils'
-import { InputVarType } from '@/app/components/workflow/types'
+import { InputVarType, WorkflowRunningStatus } from '@/app/components/workflow/types'
 import { useWebAppStore } from '@/context/web-app-context'
 import { changeLanguage } from '@/i18n-config/client'
 import { AppSourceType, updateFeedback } from '@/service/share'
@@ -42,6 +42,8 @@ function getFormattedChatList(messages: any[]) {
       citation: item.retriever_resources,
       message_files: getProcessedFilesFromResponse(answerFiles.map((item: any) => ({ ...item, related_id: item.id }))),
       parentMessageId: `question-${item.id}`,
+      workflow_run_id: item.workflow_run_id || '',
+      workflowProcess: item.workflow_run_status === WorkflowRunningStatus.Running ? { status: WorkflowRunningStatus.Running, tracing: [] } : undefined,
     })
   })
   return newChatList

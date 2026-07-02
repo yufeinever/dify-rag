@@ -13,9 +13,10 @@ import AppIcon from '@/app/components/base/app-icon'
 import InputsForm from '@/app/components/base/chat/chat-with-history/inputs-form'
 import SuggestedQuestions from '@/app/components/base/chat/chat/answer/suggested-questions'
 import { Markdown } from '@/app/components/base/markdown'
-import { InputVarType } from '@/app/components/workflow/types'
+import { InputVarType, WorkflowRunningStatus } from '@/app/components/workflow/types'
 import {
   AppSourceType,
+  fetchChatList,
   fetchSuggestedQuestions,
   getUrl,
   stopChatMessageResponding,
@@ -78,7 +79,8 @@ const ChatWrapper = () => {
     chatList,
     handleSend,
     handleStop,
-    handleSwitchSibling,
+    handleResume,
+    detachRunningStream,
     isResponding: respondingState,
     suggestedQuestions,
   } = useChat(
@@ -132,40 +134,50 @@ const ChatWrapper = () => {
   }, [allInputsHidden, inputsForms, chatList, inputsFormValue])
 
   useEffect(() => {
-    if (currentChatInstanceRef.current)
+    if (currentChatInstanceRef.current) {
       currentChatInstanceRef.current.handleStop = handleStop
-  }, [])
+      currentChatInstanceRef.current.detachRunningStream = detachRunningStream
+    }
+  }, [currentChatInstanceRef, handleStop, detachRunningStream])
 
   useEffect(() => {
     setIsResponding(respondingState)
   }, [respondingState, setIsResponding])
 
-  // Resume paused workflows when chat history is loaded
+  // Resume running or paused workflows when chat history is loaded. Switching conversations
+  // detaches the local stream only; the backend workflow keeps running and can be re-subscribed.
   useEffect(() => {
     if (!appPrevChatTree || appPrevChatTree.length === 0)
       return
 
-    // Find the last answer item with workflow_run_id that needs resumption (DFS - find deepest first)
+    let lastRunningNode: ChatItemInTree | undefined
     let lastPausedNode: ChatItemInTree | undefined
-    const findLastPausedWorkflow = (nodes: ChatItemInTree[]) => {
+    const findLastResumableWorkflow = (nodes: ChatItemInTree[]) => {
       nodes.forEach((node) => {
-        // DFS: recurse to children first
         if (node.children && node.children.length > 0)
-          findLastPausedWorkflow(node.children)
+          findLastResumableWorkflow(node.children)
 
-        // Track the last node with humanInputFormDataList
-        if (node.isAnswer && node.workflow_run_id && node.humanInputFormDataList && node.humanInputFormDataList.length > 0)
+        if (!node.isAnswer || !node.workflow_run_id)
+          return
+
+        if (node.workflowProcess?.status === WorkflowRunningStatus.Running)
+          lastRunningNode = node
+
+        if (node.humanInputFormDataList && node.humanInputFormDataList.length > 0)
           lastPausedNode = node
       })
     }
 
-    findLastPausedWorkflow(appPrevChatTree)
+    findLastResumableWorkflow(appPrevChatTree)
 
-    // Only resume the last paused workflow
-    if (lastPausedNode) {
-      handleSwitchSibling(
-        lastPausedNode.id,
+    const resumableNode = lastRunningNode || lastPausedNode
+    if (resumableNode) {
+      handleResume(
+        resumableNode.id,
+        resumableNode.workflow_run_id!,
         {
+          conversationId: currentConversationId,
+          onGetConversationMessages: conversationId => fetchChatList(conversationId, appSourceType, appId),
           onGetSuggestedQuestions: responseItemId => fetchSuggestedQuestions(responseItemId, appSourceType, appId),
           onConversationComplete: currentConversationId ? undefined : handleNewConversationCompleted,
           isPublicAPI: appSourceType === AppSourceType.webApp,
