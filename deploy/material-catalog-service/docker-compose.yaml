@@ -1,0 +1,37 @@
+services:
+  material-catalog-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mmbai/material-catalog-service:local
+    container_name: mmb-material-catalog-service
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MATERIAL_CATALOG_APP_ROOT: /dify-app
+      MATERIAL_CATALOG_ALLOWED_ROOTS: ${MATERIAL_CATALOG_ALLOWED_ROOTS:-storage,.}
+      MATERIAL_CATALOG_DB_PATH: /app/catalog/material_catalog.sqlite
+      MATERIAL_CATALOG_SYNC_INTERVAL_SECONDS: ${MATERIAL_CATALOG_SYNC_INTERVAL_SECONDS:-3600}
+      MATERIAL_CATALOG_MAX_HASH_BYTES: ${MATERIAL_CATALOG_MAX_HASH_BYTES:-536870912}
+      DIFY_DB_HOST: ${DIFY_DB_HOST:-db_postgres}
+      DIFY_DB_PORT: ${DIFY_DB_PORT:-5432}
+      DIFY_DB_NAME: ${DIFY_DB_NAME:-dify}
+      DIFY_DB_USER: ${DIFY_DB_USER:-postgres}
+      DIFY_DB_PASSWORD: ${DIFY_DB_PASSWORD:-}
+    ports:
+      - "${MATERIAL_CATALOG_PORT:-8091}:8091"
+    volumes:
+      - ${DIFY_APP_VOLUME_HOST:-/opt/mmb-dify/current/docker/volumes/app}:/dify-app:ro
+      - ./catalog:/app/catalog
+    networks:
+      default:
+      dify:
+        aliases:
+          - material-catalog-service
+    restart: unless-stopped
+
+networks:
+  dify:
+    external: true
+    name: ${DIFY_DOCKER_NETWORK:-mmb-dify-v010_default}

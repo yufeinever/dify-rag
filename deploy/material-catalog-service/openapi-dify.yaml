@@ -1,0 +1,131 @@
+openapi: 3.0.3
+info:
+  title: MMB Material Catalog Service
+  version: 0.1.0
+  description: Read-only Dify material catalog tools for the 资料全知agent. Use these tools to inspect material locations, dataset documents, incremental changes, and preprocessing recommendations before retrieval or ingestion.
+servers:
+  - url: http://material-catalog-service:8091
+paths:
+  /v1/roots:
+    get:
+      operationId: listMaterialRoots
+      summary: List allowed Dify material scan roots
+      responses:
+        '200':
+          description: Allowed roots with file counts and sizes
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/catalog/sync:
+    post:
+      operationId: syncMaterialCatalog
+      summary: Refresh the local read-only material catalog
+      description: Scans only the configured Dify material roots and updates the service-owned SQLite catalog. It does not write to Dify or modify source files.
+      responses:
+        '200':
+          description: Incremental scan result
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/materials/profile:
+    get:
+      operationId: profileMaterials
+      summary: Profile material files by type, status, duplicate groups, and preprocessing recommendations
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: Material profile
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/materials/changes:
+    get:
+      operationId: listMaterialChanges
+      summary: List newly discovered, modified, or missing material files
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: Material changes
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/datasets:
+    get:
+      operationId: listDifyDatasets
+      summary: List Dify knowledge bases with document and word counts
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Dify datasets
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/datasets/{dataset_id}/documents:
+    get:
+      operationId: listDifyDatasetDocuments
+      summary: List Dify documents and their original upload-file mapping for one dataset
+      parameters:
+        - in: path
+          name: dataset_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        '200':
+          description: Dify documents
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/apps:
+    get:
+      operationId: listDifyApps
+      summary: List Dify apps and their bound datasets
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Dify apps
+          content:
+            application/json:
+              schema:
+                type: object
