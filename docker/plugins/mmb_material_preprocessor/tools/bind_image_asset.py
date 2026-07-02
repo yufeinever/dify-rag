@@ -22,6 +22,18 @@ ID_KEYS = (
     "remote_id",
 )
 
+BUSINESS_TOPIC_RULES = (
+    ("business_fact", "深圳文交所战略合作事实摘要", ("深圳文交所", "深圳文化产权交易所", "深圳市文化金融服务中心", "深文所", "战略合作", "合作"), "战略合作、合作关系、合作内容、合作海报"),
+    ("business_fact", "加盟/投资合作事实摘要", ("加盟", "合伙", "代理", "投资", "合作方式", "加入方式", "分润", "费用", "收益"), "加盟方式、合作模式、投资合作、分润、门槛"),
+    ("business_fact", "品牌/IP 业务事实摘要", ("IP", "品牌", "形象", "啤酒熊", "智慧鲜啤", "小程序", "应用场景"), "品牌/IP、视觉资产、应用场景"),
+)
+LOW_INFO_TERMS = {"mmb", "瞢瞢熊", "懵懵熊", "麦乐迪", "智慧鲜啤", "麦乐迪智慧鲜啤交易所"}
+
+
+def _chunk_block(chunk_type: str, title: str, lines: list[str]) -> str:
+    body = [line.strip() for line in lines if line and line.strip()]
+    return "\n".join([f"<!-- chunk_type: {chunk_type} -->", f"### {title}", *body])
+
 
 class MmbImageAssetBinderTool(Tool):
     def _invoke(self, tool_parameters: dict[str, Any]) -> Generator[ToolInvokeMessage, None, None]:
@@ -191,7 +203,13 @@ class MmbImageAssetBinderTool(Tool):
 
     @staticmethod
     def _format_bound_text(caption_text: str, asset_binding: dict[str, Any]) -> str:
-        lines = [caption_text.rstrip(), "", "# 原图资产绑定"]
+        business_summaries = MmbImageAssetBinderTool._build_business_summaries(caption_text, asset_binding)
+        visual_summary = _chunk_block(
+            "visual_asset",
+            "图片/视觉资产说明",
+            ["该片段用于图片、Logo、海报、IP形象、配图类问题。", *MmbImageAssetBinderTool._sanitize_caption_lines(caption_text)],
+        )
+        lines = [*business_summaries, visual_summary, "", "# 原图资产绑定"]
         lines.extend(
             [
                 f"- 原图文件名: {asset_binding.get('original_filename') or ''}",
@@ -205,3 +223,61 @@ class MmbImageAssetBinderTool(Tool):
         if not asset_binding.get("original_file_id"):
             lines.append("- 绑定状态: 未获取到原始上传文件 ID，无法生成稳定原图预览路径")
         return "\n".join(lines).strip() + "\n"
+
+    @classmethod
+    def _build_business_summaries(cls, caption_text: str, asset_binding: dict[str, Any]) -> list[str]:
+        fact_lines = cls._fact_lines(caption_text)
+        filename = asset_binding.get("original_filename") or "image"
+        summaries: list[str] = []
+        for chunk_type, title, keywords, related in BUSINESS_TOPIC_RULES:
+            matched = [line for line in fact_lines if any(keyword.lower() in line.lower() for keyword in keywords)]
+            if not matched:
+                continue
+            summaries.append(
+                _chunk_block(
+                    chunk_type,
+                    title,
+                    [
+                        "相关主体：MMB、瞢瞢熊、懵懵熊、麦乐迪智慧鲜啤交易所",
+                        f"相关主题：{related}",
+                        "关键事实：" + "；".join(matched[:8]),
+                        f"来源：{filename}，图片 OCR/视觉标注自动提取。",
+                    ],
+                )
+            )
+        return summaries[:4]
+
+    @classmethod
+    def _fact_lines(cls, caption_text: str) -> list[str]:
+        lines: list[str] = []
+        for raw in caption_text.splitlines():
+            line = re.sub(r"^[#>*\-\s]+", "", raw).strip()
+            line = re.sub(r"\s+", " ", line)
+            if not line or cls._is_low_info_line(line):
+                continue
+            if len(re.sub(r"\s+", "", line)) < 8:
+                continue
+            lines.append(line[:220])
+        return lines
+
+    @classmethod
+    def _sanitize_caption_lines(cls, caption_text: str) -> list[str]:
+        lines: list[str] = []
+        for raw in caption_text.splitlines():
+            line = raw.rstrip()
+            if cls._is_low_info_line(line):
+                lines.append(_chunk_block("ocr_noise", "低信息 OCR/Logo 文本", [f"原始文本：{line.strip()}", "用途：仅作为视觉素材辅助信息，普通业务问答不应使用本段作为主要依据。"]))
+            elif line.strip():
+                lines.append(line)
+        return lines
+
+    @staticmethod
+    def _is_low_info_line(text: str) -> bool:
+        cleaned = re.sub(r"^[#>*\-\s]+", "", text).strip()
+        cleaned = re.sub(r"[\s:：,，。;；|/\\_\-]+", " ", cleaned).strip().lower()
+        if not cleaned:
+            return False
+        if cleaned in LOW_INFO_TERMS:
+            return True
+        tokens = [token for token in cleaned.split() if token]
+        return 0 < len(tokens) <= 3 and all(token in LOW_INFO_TERMS or token in {"ocr文字", "ocr", "logo"} for token in tokens)

@@ -14,6 +14,46 @@ IMAGE_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 ROLE_HEADING_RE = re.compile(r"^#{1,6}\s*(创始人|創始人|技术负责人|技術負責人|资本负责人|資本負責人|CEO|CTO|CFO|负责人|負責人)[:：]\s*(.+?)\s*$", re.I)
 
+BRAND_ALIASES = "MMB、瞢瞢熊、懵懵熊、麦乐迪智慧鲜啤交易所"
+LOW_INFO_TERMS = {
+    "mmb",
+    "瞢瞢熊",
+    "懵懵熊",
+    "麦乐迪",
+    "智慧鲜啤",
+    "麦乐迪智慧鲜啤交易所",
+}
+TOPIC_DEFINITIONS = (
+    (
+        "cooperation",
+        "business_fact",
+        "深圳文交所战略合作事实摘要",
+        ("深圳文交所", "深圳文化产权交易所", "文化产权交易所", "深圳市文化金融服务中心", "深文所", "战略合作", "合作"),
+        "战略合作、合作关系、合作内容、合作海报、深圳文交所、深圳文化产权交易所",
+    ),
+    (
+        "franchise",
+        "business_fact",
+        "加盟/投资合作事实摘要",
+        ("加盟", "合伙", "代理", "投资", "合作方式", "加入方式", "分润", "门店", "城市合伙", "区域合伙", "费用", "收益"),
+        "加盟方式、合作模式、投资合作、分润、门槛、适合对象",
+    ),
+    (
+        "financing",
+        "business_fact",
+        "融资方案事实摘要",
+        ("融资", "天使轮", "A轮", "B轮", "估值", "退出", "并购", "上市", "投资人", "资本"),
+        "融资方案、轮次、金额、估值、退出路径",
+    ),
+    (
+        "product",
+        "business_fact",
+        "产品/业务模式事实摘要",
+        ("产品", "参数", "鲜啤", "小程序", "售货机", "设备", "业务模式", "应用场景", "门店", "IP"),
+        "产品参数、业务模式、应用场景、智慧鲜啤",
+    ),
+)
+
 
 class MmbVisualDocumentStructurerTool(Tool):
     def _invoke(self, tool_parameters: dict[str, Any]) -> Generator[ToolInvokeMessage, None, None]:
@@ -38,7 +78,7 @@ class MmbVisualDocumentStructurerTool(Tool):
 
         cleaned_text = self._clean_tables(self._strip_normalize_preamble(parsed_text))
         structured_body, stats = self._structure_markdown(cleaned_text, filename)
-        key_fact_sections = self._build_key_fact_sections(cleaned_text, filename)
+        key_fact_sections = self._build_topic_fact_sections(cleaned_text, filename)
         visual_sections = self._build_visual_sections(content_list, filename)
 
         report = {
@@ -50,6 +90,8 @@ class MmbVisualDocumentStructurerTool(Tool):
             "short_heading_merges": stats["short_heading_merges"],
             "image_placeholders": stats["image_placeholders"],
             "tables_normalized": stats["tables_normalized"],
+            "noise_blocks_marked": stats["noise_blocks_marked"],
+            "topic_fact_sections": len(key_fact_sections),
             "strategy": "mineru_markdown_visual_context_binding_general_chunker_input",
         }
 
@@ -73,7 +115,7 @@ class MmbVisualDocumentStructurerTool(Tool):
         return text
 
     @classmethod
-    def _build_key_fact_sections(cls, text: str, filename: str) -> list[str]:
+    def _build_topic_fact_sections(cls, text: str, filename: str) -> list[str]:
         team_members: list[str] = []
         lines = [line.strip() for line in text.splitlines()]
         i = 0
@@ -103,22 +145,71 @@ class MmbVisualDocumentStructurerTool(Tool):
             if name:
                 team_members.append(f"{role}：{name}" + (f"，{desc}" if desc else ""))
             i = max(j, i + 1)
-        if not team_members:
-            return []
-        aliases = "MMB、瞢瞢熊、麦乐迪智慧鲜啤交易所"
-        return [
-            "核心团队成员汇总 / 创始人问答："
-            f"当用户问‘MMB的创始人是谁’、‘瞢瞢熊创始人是谁’、‘核心团队有哪些’时，"
-            f"应优先使用本段事实。相关主体：{aliases}。"
-            + "；".join(team_members)
-            + f"。来源：{filename}，核心团队页面/邻近章节。"
-        ]
+
+        sections: list[str] = []
+        if team_members:
+            sections.append(
+                cls._format_summary_block(
+                    "business_fact",
+                    "核心团队事实摘要",
+                    [
+                        f"相关主体：{BRAND_ALIASES}",
+                        "相关主题：核心团队、创始人、负责人、团队成员",
+                        "关键事实：" + "；".join(team_members),
+                        f"来源：{filename}，核心团队页面/邻近章节。",
+                    ],
+                )
+            )
+
+        normalized_lines = cls._candidate_fact_lines(text)
+        used_fingerprints: set[str] = set()
+        for _, chunk_type, title, keywords, related in TOPIC_DEFINITIONS:
+            matched = cls._collect_topic_lines(normalized_lines, keywords)
+            if not matched:
+                continue
+            fingerprint = "|".join(matched[:3])
+            if fingerprint in used_fingerprints:
+                continue
+            used_fingerprints.add(fingerprint)
+            sections.append(
+                cls._format_summary_block(
+                    chunk_type,
+                    title,
+                    [
+                        f"相关主体：{BRAND_ALIASES}",
+                        f"相关主题：{related}",
+                        "关键事实：" + "；".join(matched[:8]),
+                        f"来源：{filename}，按正文/视觉上下文自动提取。",
+                    ],
+                )
+            )
+        return sections[:8]
+
+    @classmethod
+    def _candidate_fact_lines(cls, text: str) -> list[str]:
+        candidates: list[str] = []
+        for raw in text.splitlines():
+            line = BeautifulSoup(raw.strip(), "html.parser").get_text(" ", strip=True)
+            line = re.sub(r"^[#>*\-\s]+", "", line).strip()
+            line = re.sub(r"\s+", " ", line)
+            if not line or cls._is_low_info_text(line):
+                continue
+            if IMAGE_RE.fullmatch(line) or line.lower().startswith(("http://", "https://", "/files/")):
+                continue
+            if cls._wordish_len(line) < 8:
+                continue
+            candidates.append(line[:240])
+        return candidates
+
+    @staticmethod
+    def _collect_topic_lines(lines: list[str], keywords: tuple[str, ...]) -> list[str]:
+        return [line for line in lines if any(keyword.lower() in line.lower() for keyword in keywords)][:12]
 
     @classmethod
     def _structure_markdown(cls, text: str, filename: str) -> tuple[str, dict[str, int]]:
         lines = [line.rstrip() for line in text.splitlines()]
         output: list[str] = []
-        stats = {"short_heading_merges": 0, "image_placeholders": 0, "tables_normalized": 0}
+        stats = {"short_heading_merges": 0, "image_placeholders": 0, "tables_normalized": 0, "noise_blocks_marked": 0}
         pending_images: list[str] = []
         last_heading = ""
         i = 0
@@ -126,6 +217,11 @@ class MmbVisualDocumentStructurerTool(Tool):
             raw = lines[i]
             line = raw.strip()
             if not line:
+                i += 1
+                continue
+            if cls._is_low_info_text(line):
+                output.append(cls._format_noise_block(line, filename))
+                stats["noise_blocks_marked"] += 1
                 i += 1
                 continue
 
@@ -190,7 +286,7 @@ class MmbVisualDocumentStructurerTool(Tool):
                 while j < len(lines) and "</table>" not in table_blob[-1].lower():
                     table_blob.append(lines[j].strip())
                     j += 1
-                output.append(cls._html_table_to_markdown("".join(table_blob)))
+                output.append(cls._format_summary_block("table_fact", "表格事实", [cls._html_table_to_markdown("".join(table_blob)), f"来源：{filename}"]))
                 stats["tables_normalized"] += 1
                 i = max(j, i + 1)
                 continue
@@ -243,17 +339,19 @@ class MmbVisualDocumentStructurerTool(Tool):
             if bbox:
                 lines.append(f"位置：{bbox}")
             lines.append("结构化信息：该视觉元素已绑定来源、页码/上下文和邻近正文，用于 PDF/PPT 图文检索。")
-            sections.append("\n".join(lines))
+            sections.append(cls._format_summary_block("visual_asset", "视觉元素标注", lines))
             visual_index += 1
         return sections[:80]
 
-    @staticmethod
-    def _format_fact_block(title: str, body: list[str]) -> str:
+    @classmethod
+    def _format_fact_block(cls, title: str, body: list[str]) -> str:
         role = ROLE_HEADING_RE.match(f"## {title}")
         joined = " ".join(part.strip() for part in body if part.strip())
+        if cls._is_low_info_text(" ".join([title, joined])):
+            return cls._format_noise_block(" ".join([title, joined]), "")
         if role:
-            return f"主题：{title}\n结构化信息：{title}。{joined}"
-        return f"主题：{title}\n结构化信息：{joined}"
+            return cls._format_summary_block("business_fact", f"主题：{title}", [f"结构化信息：{title}。{joined}"])
+        return cls._format_summary_block("business_fact", f"主题：{title}", [f"结构化信息：{joined}"])
 
     @staticmethod
     def _format_topic_context(title: str) -> str:
@@ -265,15 +363,16 @@ class MmbVisualDocumentStructurerTool(Tool):
         heading = heading or "邻近上下文"
         context = " ".join(part.strip() for part in body if part.strip()) or "该图片附近暂无可抽取正文。"
         preview = "; ".join(urls[:3])
-        return "\n".join(
+        return MmbVisualDocumentStructurerTool._format_summary_block(
+            "visual_asset",
+            f"图像说明｜{heading}",
             [
-                f"### 图像说明｜{heading}",
                 f"来源：{filename}，章节/邻近标题：{heading}",
                 "图像类型：PDF/PPT 内嵌图片或图示",
                 f"上下文：{context}",
                 f"图片链接：{preview}",
                 "结构化信息：图片已绑定邻近标题和正文；回答时优先使用上下文文字，不把裸图片链接作为主要证据。",
-            ]
+            ],
         )
 
     @classmethod
@@ -315,7 +414,39 @@ class MmbVisualDocumentStructurerTool(Tool):
     def _is_short_heading(title: str) -> bool:
         if ROLE_HEADING_RE.match(f"## {title}"):
             return True
-        return len(title) <= 32 and any(key in title for key in ("创始", "創始", "负责人", "負責人", "团队", "團隊", "融资", "参数", "产品"))
+        return len(title) <= 32 and any(key in title for key in ("创始", "創始", "负责人", "負責人", "团队", "團隊", "融资", "参数", "产品", "合作", "加盟", "投资"))
+
+    @classmethod
+    def _format_summary_block(cls, chunk_type: str, title: str, lines: list[str]) -> str:
+        body = [line.strip() for line in lines if line and line.strip()]
+        return "\n".join([f"<!-- chunk_type: {chunk_type} -->", f"### {title}", *body])
+
+    @classmethod
+    def _format_noise_block(cls, text: str, filename: str) -> str:
+        source = f"来源：{filename}" if filename else "来源：当前文档"
+        cleaned = re.sub(r"\s+", " ", text).strip()
+        return cls._format_summary_block(
+            "ocr_noise",
+            "低信息 OCR/Logo 文本",
+            [source, f"原始文本：{cleaned}", "用途：仅作为视觉素材辅助信息，普通业务问答不应使用本段作为主要依据。"],
+        )
+
+    @classmethod
+    def _is_low_info_text(cls, text: str) -> bool:
+        cleaned = BeautifulSoup(text, "html.parser").get_text(" ", strip=True)
+        cleaned = re.sub(r"^[#>*\-\s]+", "", cleaned).strip()
+        cleaned = re.sub(r"[\s:：,，。;；|/\\_\-]+", " ", cleaned).strip()
+        if not cleaned:
+            return False
+        lowered = cleaned.lower()
+        if lowered in LOW_INFO_TERMS:
+            return True
+        tokens = [token for token in re.split(r"\s+", lowered) if token]
+        if 0 < len(tokens) <= 3 and all(token in LOW_INFO_TERMS for token in tokens):
+            return True
+        if re.fullmatch(r"(?:ocr文字|ocr 文本|logo|品牌logo)\s*(?:mmb)?", lowered, re.I):
+            return True
+        return False
 
     @staticmethod
     def _wordish_len(text: str) -> int:
