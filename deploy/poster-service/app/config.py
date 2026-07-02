@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     image_model: str = Field("gpt-5.5", alias="POSTER_IMAGE_MODEL")
     image_mode: str = Field("responses", alias="POSTER_IMAGE_MODE")
     image_size: str = Field("1024x1536", alias="POSTER_IMAGE_SIZE")
+    image_request_timeout: float = Field(600.0, alias="POSTER_IMAGE_REQUEST_TIMEOUT")
     openai_base_url: str = Field("https://api.openai.com", alias="POSTER_OPENAI_BASE_URL")
     allow_mock_openai: bool = Field(False, alias="POSTER_ALLOW_MOCK_OPENAI")
     openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
@@ -25,4 +26,5 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     settings = Settings()
     settings.output_dir.mkdir(parents=True, exist_ok=True)
+    (settings.output_dir / "jobs").mkdir(parents=True, exist_ok=True)
     return settings

@@ -55,7 +55,7 @@ class OpenAIImageClient:
         url = item.get("url")
         if not url:
             raise RuntimeError("image response did not include b64_json or url")
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=self.settings.image_request_timeout) as client:
             response = await client.get(url)
             response.raise_for_status()
             return response.content
@@ -102,7 +102,7 @@ class OpenAIImageClient:
             "Authorization": f"Bearer {self.settings.openai_api_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=240) as client:
+        async with httpx.AsyncClient(timeout=self.settings.image_request_timeout) as client:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code >= 400:
                 detail = response.text[:1000]

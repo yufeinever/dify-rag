@@ -23,6 +23,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GeneratePosterResponse'
+  /v1/poster-jobs:
+    post:
+      operationId: createPosterJob
+      summary: Create an async poster generation job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneratePosterRequest'
+      responses:
+        '200':
+          description: Poster generation job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PosterJobResponse'
+  /v1/poster-jobs/{job_id}:
+    get:
+      operationId: getPosterJob
+      summary: Get an async poster generation job
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Poster generation job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PosterJobResponse'
 components:
   schemas:
     PosterBrief:
@@ -100,5 +134,31 @@ components:
           type: string
         request_id:
           type: string
+        error:
+          type: string
+    PosterJobResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        job_id:
+          type: string
+        request_id:
+          type: string
+        final_prompt:
+          type: string
+        size:
+          type: string
+        estimated_time_text:
+          type: string
+        poster_url:
+          type: string
+        thumbnail_url:
+          type: string
+        used_assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/PosterAsset'
         error:
           type: string

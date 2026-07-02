@@ -61,6 +61,15 @@
 ```
 
 
+
+## 异步测试流程
+
+- 新增测试应用建议命名为 `发布海报助手-异步测试`，不替换现有 `发布海报助手`。
+- 发起生图时调用 `POST /v1/poster-jobs`，立即返回优化后的生图提示词、`job_id` 和固定提示：`图片生成预计需要 5-10 分钟左右。生成期间无需重复提交；稍后输入“查看海报 {job_id}”即可获取图片。`
+- 查询结果时调用 `GET /v1/poster-jobs/{job_id}`；`queued/running` 返回生成中，`succeeded` 返回 Markdown 图片和原图链接，`failed` 返回明确错误。
+- `poster-service` 使用 `/app/output/jobs/{job_id}.json` 持久化任务状态；同一 `job_id/request_id` 已成功时直接返回已有图片，避免重复生图。
+- 旧同步接口 `/v1/posters` 保留，现有正式应用不改。
+
 ## HTTP 节点超时配置
 
 - `调用 GPT-5.5 生图服务` HTTP 节点显式设置 `timeout.connect=10`、`timeout.read=480`、`timeout.write=60`。

@@ -41,6 +41,9 @@ class GeneratePosterRequest(BaseModel):
         return f"{width}x{height}"
 
 
+PosterStatus = Literal["queued", "running", "succeeded", "failed"]
+
+
 class GeneratePosterResponse(BaseModel):
     status: Literal["succeeded", "failed"]
     poster_url: str | None = None
@@ -49,4 +52,17 @@ class GeneratePosterResponse(BaseModel):
     final_prompt: str
     size: str
     request_id: str
+    error: str | None = None
+
+
+class PosterJobResponse(BaseModel):
+    status: PosterStatus
+    job_id: str
+    request_id: str
+    final_prompt: str
+    size: str
+    estimated_time_text: str = "图片生成预计需要 5-10 分钟左右。"
+    poster_url: str | None = None
+    thumbnail_url: str | None = None
+    used_assets: list[PosterAsset] = Field(default_factory=list)
     error: str | None = None
