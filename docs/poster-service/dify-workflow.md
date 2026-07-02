@@ -16,6 +16,16 @@
 6. HTTP/OpenAPI 节点调用 `generatePoster`，默认尺寸 `1080x1440`。
 7. Code/回答节点先返回“优化后的生图提示词”，再用 Markdown 展示图片和原图链接。
 
+## MMB 小熊默认规则
+
+- `GPT-5.5 优化生图提示词` 节点默认要求：如果用户没有明确强调不需要小熊形象，则使用 MMB 小熊形象作为品牌 IP 元素。
+- 小熊应自然融入画面，默认放在角落、前景侧边或互动区域，不抢主视觉。
+- 动作由主题自动适配：促销场景招手或举牌，啤酒场景举杯，节日场景庆祝，新品发布场景指向产品或预约入口。
+- 当用户明确说不要小熊、不要 IP、不要卡通形象、纯产品图、纯背景图或纯商务风时，提示词必须排除小熊/IP/卡通/吉祥物元素。
+- `组装生图请求` Code 节点在未排除小熊时默认追加参考资产：`瞢瞢熊IP形象-捂嘴表情.png`。
+- 默认参考资产预览路径：`/files/872f19ba-fe02-47a1-97e2-097cc64c7d45/image-preview`。
+- 追加后节点会输出 `default_bear_asset_added=true`；明确排除时输出 `exclude_bear=true` 且不追加该默认资产。
+
 ## poster-service 请求示例
 
 ```json
@@ -36,6 +46,13 @@
       "description": "素材 Caption、标签、文件名和预览路径摘要",
       "url": "可选素材 URL",
       "tags": ["门店效果图", "品牌视觉素材"]
+    },
+    {
+      "title": "瞢瞢熊IP形象-捂嘴表情.png",
+      "description": "MMB 小熊品牌 IP 默认参考图。用户没有明确排除小熊/IP/卡通形象时，用作海报里的品牌角色参考。",
+      "url": "/files/872f19ba-fe02-47a1-97e2-097cc64c7d45/image-preview",
+      "tags": ["MMB", "小熊", "品牌IP", "默认参考图"],
+      "source": "default_mmb_bear"
     }
   ],
   "size": "1080x1440",
@@ -48,3 +65,7 @@
 - `poster-service /health`：`openai_configured=true`，`llm_model=gpt-5.5`，`image_mode=responses`。
 - 用例 `新品发布，科技感背景，突出预约试用`：返回优化提示词 + Markdown 图片；图片无“发布海报”硬编码和程序叠字黑框。
 - 用例 `端午节啤酒促销，清爽绿色背景，加粽子和麦芽元素`：返回优化提示词 + Markdown 图片；命中图文验证库素材 5 条，并在提示词中引用“瞢瞢熊鲜啤交易所”等素材信息。
+- 2026-07-02 小熊默认规则验证：`端午节啤酒促销，清爽绿色背景，加粽子和麦芽元素` 返回提示词包含 MMB 小熊举杯/庆祝动作，`asset_count=6`，`default_bear_asset_added=true`，payload 包含默认小熊预览路径。
+- 2026-07-02 小熊默认规则验证：`新品发布，科技感背景，突出预约试用` 返回提示词包含 MMB 小熊指向预约入口/互动装置，`asset_count=6`，`default_bear_asset_added=true`。
+- 2026-07-02 排除规则验证：`新品发布，科技感背景，不要小熊形象` 返回提示词明确排除小熊/IP/卡通/吉祥物，`asset_count=5`，`exclude_bear=true`，payload 不含默认小熊预览路径。
+
