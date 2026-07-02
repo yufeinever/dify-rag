@@ -114,6 +114,10 @@ components:
           default: true
         request_id:
           type: string
+        user_query:
+          type: string
+        optimized_prompt:
+          type: string
     GeneratePosterResponse:
       type: object
       properties:

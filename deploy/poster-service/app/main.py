@@ -72,6 +72,10 @@ def _write_job(job_id: str, data: dict[str, Any]) -> None:
     tmp_path.replace(path)
 
 
+def _display_prompt(request: GeneratePosterRequest, render_prompt: str) -> str:
+    return request.optimized_prompt or request.brief.background or render_prompt
+
+
 def _job_response(data: dict[str, Any]) -> PosterJobResponse:
     return PosterJobResponse(
         status=data.get("status", "failed"),
@@ -169,7 +173,8 @@ async def generate_poster(request: GeneratePosterRequest) -> GeneratePosterRespo
 @app.post("/v1/poster-jobs", response_model=PosterJobResponse)
 async def create_poster_job(request: GeneratePosterRequest, background_tasks: BackgroundTasks) -> PosterJobResponse:
     job_id = request.request_id or str(uuid.uuid4())
-    final_prompt = build_prompt(request, settings.llm_model)
+    render_prompt = build_prompt(request, settings.llm_model)
+    display_prompt = _display_prompt(request, render_prompt)
     existing = _read_job(job_id)
     if existing:
         if existing.get("status") == "succeeded":
@@ -182,7 +187,8 @@ async def create_poster_job(request: GeneratePosterRequest, background_tasks: Ba
         "status": "queued",
         "job_id": job_id,
         "request_id": job_id,
-        "final_prompt": final_prompt,
+        "final_prompt": display_prompt,
+        "render_prompt": render_prompt,
         "size": request.size,
         "poster_url": poster_url if (settings.output_dir / f"poster-{job_id}.png").exists() else None,
         "thumbnail_url": thumbnail_url if (settings.output_dir / f"poster-{job_id}-thumb.jpg").exists() else None,
@@ -195,7 +201,7 @@ async def create_poster_job(request: GeneratePosterRequest, background_tasks: Ba
         _write_job(job_id, data)
         return _job_response(data)
     _write_job(job_id, data)
-    background_tasks.add_task(_run_job, job_id, request, final_prompt)
+    background_tasks.add_task(_run_job, job_id, request, render_prompt)
     return _job_response(data)
 
 

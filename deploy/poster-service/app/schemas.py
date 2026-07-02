@@ -28,6 +28,8 @@ class GeneratePosterRequest(BaseModel):
     size: str = Field("1080x1440", description="Final output size in WIDTHxHEIGHT format")
     overlay_text: bool = Field(True, description="Overlay Chinese title/copy with deterministic layout")
     request_id: str | None = Field(None, description="Caller-provided trace id")
+    user_query: str | None = Field(None, description="Original user request from Dify")
+    optimized_prompt: str | None = Field(None, description="Display-ready optimized image prompt from Dify")
 
     @field_validator("size")
     @classmethod
