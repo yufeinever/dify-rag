@@ -156,6 +156,8 @@ def _build_from_local_file(
             transfer_method=transfer_method,
             remote_url=row.source_url,
             reference=build_file_reference(record_id=str(row.id)),
+            related_id=str(row.id),
+            upload_file_id=str(row.id),
             size=row.size,
             storage_key=row.key,
         )

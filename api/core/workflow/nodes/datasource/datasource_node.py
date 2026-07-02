@@ -147,6 +147,7 @@ class DatasourceNode(Node[DatasourceNodeData]):
                         file_id=file_id, tenant_id=dify_ctx.tenant_id
                     )
                     variable_pool.add([self._node_id, "file"], file_info)
+                    variable_pool.add([self._node_id, "upload_file_id"], file_id)
                     # variable_pool.add([self.node_id, "file"], file_info.to_dict())
                     yield StreamCompletedEvent(
                         node_run_result=NodeRunResult(
@@ -155,6 +156,7 @@ class DatasourceNode(Node[DatasourceNodeData]):
                             metadata={WorkflowNodeExecutionMetadataKey.DATASOURCE_INFO: datasource_info},
                             outputs={
                                 "file": file_info,
+                                "upload_file_id": file_id,
                                 "datasource_type": datasource_type,
                             },
                         )

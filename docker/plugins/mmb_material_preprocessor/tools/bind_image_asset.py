@@ -56,7 +56,11 @@ class MmbImageAssetBinderTool(Tool):
             "image/jpeg" if extension in {".jpg", ".jpeg"} else "image/png",
         )
 
-        file_id, id_source = self._extract_upload_file_id(source_file)
+        explicit_file_id = self._normalize_id(tool_parameters.get("upload_file_id"))
+        if explicit_file_id:
+            file_id, id_source = explicit_file_id, "upload_file_id_parameter"
+        else:
+            file_id, id_source = self._extract_upload_file_id(source_file)
         preprocess_metadata = self._parse_metadata(tool_parameters.get("preprocess_metadata"))
 
         asset_binding = {
@@ -79,10 +83,9 @@ class MmbImageAssetBinderTool(Tool):
             "warnings": [] if file_id else ["original upload file id is unavailable; preview path was not generated"],
         }
 
-        yield self.create_variable_message("text", text)
+        yield self.create_text_message(text)
         yield self.create_variable_message("asset_binding", asset_binding)
         yield self.create_variable_message("asset_binding_report", report)
-        yield self.create_text_message(text)
         yield self.create_json_message({"text": text, "asset_binding": asset_binding, "asset_binding_report": report})
 
     @classmethod
