@@ -14,9 +14,10 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app /app/app
+COPY assets /app/assets
 COPY openapi-dify.yaml /app/openapi-dify.yaml
 
-RUN mkdir -p /app/output
+RUN mkdir -p /app/output /app/assets
 
 EXPOSE 8088
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8088"]

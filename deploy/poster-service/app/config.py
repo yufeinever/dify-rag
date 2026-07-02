@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     openai_base_url: str = Field("https://api.openai.com", alias="POSTER_OPENAI_BASE_URL")
     allow_mock_openai: bool = Field(False, alias="POSTER_ALLOW_MOCK_OPENAI")
     openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
+    default_bear_reference_enabled: bool = Field(True, alias="POSTER_DEFAULT_BEAR_REFERENCE_ENABLED")
+    default_bear_reference_path: Path = Field(
+        Path("/app/assets/mmb-bear-reference.jpg"),
+        alias="POSTER_DEFAULT_BEAR_REFERENCE_PATH",
+    )
 
 
 @lru_cache(maxsize=1)

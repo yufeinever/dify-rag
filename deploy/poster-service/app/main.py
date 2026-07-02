@@ -25,6 +25,8 @@ app = FastAPI(
 )
 settings = get_settings()
 app.mount("/files", StaticFiles(directory=settings.output_dir), name="files")
+if settings.default_bear_reference_path.parent.exists():
+    app.mount("/assets", StaticFiles(directory=settings.default_bear_reference_path.parent), name="assets")
 _running_jobs: set[str] = set()
 _job_lock = asyncio.Lock()
 
@@ -37,6 +39,8 @@ def health() -> dict[str, object]:
         "image_model": settings.image_model,
         "image_mode": settings.image_mode,
         "openai_configured": bool(settings.openai_api_key),
+        "default_bear_reference_enabled": settings.default_bear_reference_enabled,
+        "default_bear_reference_exists": settings.default_bear_reference_path.exists(),
     }
 
 

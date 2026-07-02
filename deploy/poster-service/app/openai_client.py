@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 from .config import Settings
+from .prompting import should_use_default_bear
 from .schemas import GeneratePosterRequest
 
 
@@ -27,7 +29,7 @@ class OpenAIImageClient:
             raise ValueError("OPENAI_API_KEY is not configured")
         mode = self.settings.image_mode.lower().strip()
         if mode == "responses":
-            image_bytes = await self._generate_with_responses(prompt)
+            image_bytes = await self._generate_with_responses(request, prompt)
         elif mode == "images":
             image_bytes = await self._generate_with_images(prompt)
         else:
@@ -60,10 +62,34 @@ class OpenAIImageClient:
             response.raise_for_status()
             return response.content
 
-    async def _generate_with_responses(self, prompt: str) -> bytes:
+    async def _generate_with_responses(self, request: GeneratePosterRequest, prompt: str) -> bytes:
+        input_value: str | list[dict[str, Any]] = prompt
+        reference_image = self._default_bear_reference_data_url(request)
+        if reference_image:
+            input_value = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                f"{prompt}\n\n"
+                                "Attached image reference: use this MMB bear as the fixed character identity reference. "
+                                "Keep the same orange plush body, rounded big eyes, black nose, light belly, friendly proportions, "
+                                "and brand mascot feel. You may change pose, gesture, clothing accessories, and scene interaction "
+                                "to match the poster theme, but the character should still clearly be the same MMB bear."
+                            ),
+                        },
+                        {
+                            "type": "input_image",
+                            "image_url": reference_image,
+                        },
+                    ],
+                }
+            ]
         payload: dict[str, Any] = {
             "model": self.settings.llm_model,
-            "input": prompt,
+            "input": input_value,
             "tools": [{"type": "image_generation"}],
         }
         data = await self._post_json(self._api_url("/v1/responses"), payload)
@@ -96,6 +122,29 @@ class OpenAIImageClient:
         if value.startswith("data:image/"):
             return True
         return len(value) > 1000 and value[:16].startswith(("iVBOR", "/9j/", "R0lGOD"))
+
+    def _default_bear_reference_data_url(self, request: GeneratePosterRequest) -> str | None:
+        if not self.settings.default_bear_reference_enabled:
+            return None
+        if not should_use_default_bear(request):
+            return None
+        path = self.settings.default_bear_reference_path
+        if not path.exists() or not path.is_file():
+            return None
+        mime_type = self._image_mime_type(path)
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        return f"data:{mime_type};base64,{encoded}"
+
+    @staticmethod
+    def _image_mime_type(path: Path) -> str:
+        suffix = path.suffix.lower()
+        if suffix in {".jpg", ".jpeg"}:
+            return "image/jpeg"
+        if suffix == ".webp":
+            return "image/webp"
+        if suffix == ".gif":
+            return "image/gif"
+        return "image/png"
 
     async def _post_json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {
