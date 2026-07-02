@@ -38,6 +38,7 @@ class MmbVisualDocumentStructurerTool(Tool):
 
         cleaned_text = self._clean_tables(self._strip_normalize_preamble(parsed_text))
         structured_body, stats = self._structure_markdown(cleaned_text, filename)
+        key_fact_sections = self._build_key_fact_sections(cleaned_text, filename)
         visual_sections = self._build_visual_sections(content_list, filename)
 
         report = {
@@ -61,6 +62,8 @@ class MmbVisualDocumentStructurerTool(Tool):
             "",
         ]
         output_parts = header
+        if key_fact_sections:
+            output_parts.extend(["关键事实摘要：以下高价值事实已合并为问答友好的完整段落。", "", *key_fact_sections, ""])
         if visual_sections:
             output_parts.extend(["视觉元素标注：以下图像/图表说明已绑定页码、标题和邻近上下文。", "", *visual_sections, ""])
         output_parts.extend(["结构化正文：以下正文已合并短标题、清洗表格并保留来源上下文。", "", structured_body.strip(), ""])
@@ -76,6 +79,43 @@ class MmbVisualDocumentStructurerTool(Tool):
         if marker in text:
             return text.split(marker, 1)[1].strip()
         return text
+
+    @classmethod
+    def _build_key_fact_sections(cls, text: str, filename: str) -> list[str]:
+        team_members: list[str] = []
+        lines = [line.strip() for line in text.splitlines()]
+        i = 0
+        while i < len(lines):
+            match = ROLE_HEADING_RE.match(lines[i])
+            if not match:
+                i += 1
+                continue
+            role = match.group(1).replace("創始人", "创始人").replace("技術負責人", "技术负责人").replace("資本負責人", "资本负责人")
+            name = match.group(2).strip()
+            body: list[str] = []
+            j = i + 1
+            while j < len(lines):
+                nxt = lines[j]
+                if not nxt:
+                    j += 1
+                    if body:
+                        break
+                    continue
+                if HEADING_RE.match(nxt) or IMAGE_RE.fullmatch(nxt) or "<table" in nxt.lower():
+                    break
+                body.append(nxt)
+                j += 1
+                if cls._wordish_len("".join(body)) >= 120:
+                    break
+            desc = " ".join(part for part in body if part).strip()
+            if name:
+                team_members.append(f"{role}：{name}" + (f"，{desc}" if desc else ""))
+            i = max(j, i + 1)
+        if not team_members:
+            return []
+        return [
+            "核心团队成员汇总：" + "；".join(team_members) + f"。来源：{filename}，核心团队页面/邻近章节。"
+        ]
 
     @classmethod
     def _structure_markdown(cls, text: str, filename: str) -> tuple[str, dict[str, int]]:

@@ -19,7 +19,7 @@ NEW_NAME = "MMB统一材料知识库-v3-pdf增强"
 STRUCTURER_NODE_ID = "1752498800000"
 NORMALIZE_NODE_ID = "1752480460682"
 AGGREGATOR_NODE_ID = "1752482022496"
-PLUGIN_IDENTIFIER = "mmb/mmb_material_preprocessor:0.1.9@aef81307f3e688e3abafe1724c8539bcca942c1714279177193b987764ab6421"
+PLUGIN_IDENTIFIER = "mmb/mmb_material_preprocessor:0.1.10@e3763e83cf045513ad7e9edeb8be3964ad9a01b0bba858c3ad8cdef4ea7550e3"
 
 
 def clone_json(value):
