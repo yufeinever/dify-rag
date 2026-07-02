@@ -60,6 +60,13 @@
 }
 ```
 
+
+## HTTP 节点超时配置
+
+- `调用 GPT-5.5 生图服务` HTTP 节点显式设置 `timeout.connect=10`、`timeout.read=480`、`timeout.write=60`。
+- 关闭该 HTTP 节点重试：`retry_enabled=false`、`max_retries=0`。生图请求可能超过 2 分钟，如果 Dify 先超时但 poster-service 后台仍在生成，重试会造成重复生图。
+- 2026-07-02 验证：`节日活动海报，温暖氛围，突出品牌和限时优惠` 在超时配置更新后成功返回优化提示词和图片，HTTP 节点 `status=succeeded`。
+
 ## 生产验证记录
 
 - `poster-service /health`：`openai_configured=true`，`llm_model=gpt-5.5`，`image_mode=responses`。
