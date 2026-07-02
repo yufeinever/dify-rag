@@ -53,20 +53,12 @@ class MmbVisualDocumentStructurerTool(Tool):
             "strategy": "mineru_markdown_visual_context_binding_general_chunker_input",
         }
 
-        header = [
-            "MMB PDF/PPT 图文结构化增强：以下内容已完成视觉元素标注、页码来源绑定和结构化正文整理。",
-            f"- source_file_name: {filename}",
-            f"- parser: {report['parser']}",
-            "- chunking_target: text_model_general_chunker",
-            "- rule: 内嵌图片/图表必须绑定页码、标题和邻近上下文；禁止裸图片链接作为主要入库内容。",
-            "",
-        ]
-        output_parts = header
+        output_parts: list[str] = []
         if key_fact_sections:
-            output_parts.extend(["关键事实摘要：以下高价值事实已合并为问答友好的完整段落。", "", *key_fact_sections, ""])
+            output_parts.extend(key_fact_sections + [""])
         if visual_sections:
-            output_parts.extend(["视觉元素标注：以下图像/图表说明已绑定页码、标题和邻近上下文。", "", *visual_sections, ""])
-        output_parts.extend(["结构化正文：以下正文已合并短标题、清洗表格并保留来源上下文。", "", structured_body.strip(), ""])
+            output_parts.extend(visual_sections + [""])
+        output_parts.extend([structured_body.strip(), ""])
         output = "\n".join(output_parts).strip() + "\n"
 
         yield self.create_variable_message("structure_report", report)
@@ -113,8 +105,13 @@ class MmbVisualDocumentStructurerTool(Tool):
             i = max(j, i + 1)
         if not team_members:
             return []
+        aliases = "MMB、瞢瞢熊、麦乐迪智慧鲜啤交易所"
         return [
-            "核心团队成员汇总：" + "；".join(team_members) + f"。来源：{filename}，核心团队页面/邻近章节。"
+            "核心团队成员汇总 / 创始人问答："
+            f"当用户问‘MMB的创始人是谁’、‘瞢瞢熊创始人是谁’、‘核心团队有哪些’时，"
+            f"应优先使用本段事实。相关主体：{aliases}。"
+            + "；".join(team_members)
+            + f"。来源：{filename}，核心团队页面/邻近章节。"
         ]
 
     @classmethod
