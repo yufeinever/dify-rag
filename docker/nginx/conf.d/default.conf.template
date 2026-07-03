@@ -59,6 +59,7 @@ server {
       resolver 127.0.0.11 valid=30s ipv6=off;
       set $material_agent_upstream material-catalog-service:8091;
       proxy_pass http://$material_agent_upstream/mcp;
+      proxy_set_header X-Material-Public-MCP "1";
       include proxy.conf;
     }
 

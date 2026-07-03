@@ -25,7 +25,7 @@ class MaterialMCPAuthTests(unittest.TestCase):
                 if authorization is not None:
                     self.headers["authorization"] = authorization
                 if forwarded:
-                    self.headers["x-forwarded-for"] = "203.0.113.10"
+                    self.headers["x-material-public-mcp"] = "1"
 
             async def json(self):
                 return {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}

@@ -71,7 +71,7 @@ def health() -> dict[str, object]:
 
 
 def _is_public_mcp_request(request: Request) -> bool:
-    return bool(request.headers.get("x-forwarded-for"))
+    return request.headers.get("x-material-public-mcp") == "1"
 
 
 @app.post("/mcp")
