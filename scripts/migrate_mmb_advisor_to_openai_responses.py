@@ -81,6 +81,15 @@ def _build_new_credentials(old: dict[str, Any]) -> dict[str, Any]:
         "enable_code_interpreter": os.environ.get("ENABLE_CODE_INTERPRETER", "disabled"),
         "enable_file_search": os.environ.get("ENABLE_FILE_SEARCH", "disabled"),
         "openai_vector_store_ids": os.environ.get("OPENAI_VECTOR_STORE_IDS", ""),
+        "enable_material_mcp": os.environ.get("ENABLE_MATERIAL_MCP", "disabled"),
+        "material_mcp_server_url": os.environ.get("MATERIAL_MCP_SERVER_URL", ""),
+        "material_mcp_auth_token": os.environ.get("MATERIAL_MCP_AUTH_TOKEN", ""),
+        "material_mcp_allowed_tools": os.environ.get(
+            "MATERIAL_MCP_ALLOWED_TOOLS",
+            "server_info,list_material_roots,list_datasets,list_documents,search_segments,"
+            "read_document_chunks,search_files,search_visual_assets,find_person_visual_candidates,"
+            "read_file_text,profile_materials,list_material_changes",
+        ),
     }
 
 
@@ -195,6 +204,9 @@ def main() -> None:
             "enable_web_search": new_credentials.get("enable_web_search"),
             "enable_code_interpreter": new_credentials.get("enable_code_interpreter"),
             "enable_file_search": new_credentials.get("enable_file_search"),
+            "enable_material_mcp": new_credentials.get("enable_material_mcp"),
+            "material_mcp_server_url": new_credentials.get("material_mcp_server_url"),
+            "material_mcp_auth_token": _masked(new_credentials.get("material_mcp_auth_token")),
         }
         print(json.dumps({"action": "validate_new_provider", "safe_credentials": safe}, ensure_ascii=False), flush=True)
         _upsert_provider_credential(new_credentials)
