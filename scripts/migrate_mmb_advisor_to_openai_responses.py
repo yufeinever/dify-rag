@@ -66,12 +66,12 @@ def _decrypt_old_credentials(record: ProviderModel) -> dict[str, Any]:
 
 
 def _build_new_credentials(old: dict[str, Any]) -> dict[str, Any]:
-    endpoint = os.environ.get("OPENAI_API_BASE") or old.get("endpoint_url") or old.get("api_base")
-    api_key = os.environ.get("OPENAI_API_KEY") or old.get("api_key")
+    endpoint = os.environ.get("MMB_OPENAI_RESPONSES_API_BASE") or old.get("endpoint_url") or old.get("api_base")
+    api_key = os.environ.get("MMB_OPENAI_RESPONSES_API_KEY") or old.get("api_key")
     if not endpoint:
-        raise RuntimeError("OPENAI_API_BASE is missing and old endpoint_url is empty")
+        raise RuntimeError("MMB_OPENAI_RESPONSES_API_BASE is missing and old endpoint_url is empty")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is missing and old api_key is empty")
+        raise RuntimeError("MMB_OPENAI_RESPONSES_API_KEY is missing and old api_key is empty")
     return {
         "openai_api_key": api_key,
         "openai_api_base": endpoint,
