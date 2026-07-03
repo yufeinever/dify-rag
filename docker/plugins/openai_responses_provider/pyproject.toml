@@ -1,5 +1,5 @@
 [project]
-name = "mmb-openai-responses-provider"
+name = "dify-openai"
 version = "0.1.0"
 description = "MMB private OpenAI Responses provider for Dify"
 readme = "README.md"
