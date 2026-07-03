@@ -1421,6 +1421,67 @@ describe('useChat', () => {
       expect(result.current.isResponding).toBe(false)
     })
 
+    it('should detach message-based stream without aborting the underlying SSE', () => {
+      const stopChat = vi.fn()
+      const abortController = createAbortControllerMock()
+      const { result } = renderHook(() => useChat(undefined, undefined, undefined, stopChat, undefined, undefined, {
+        streamKeyPrefix: 'installed:agent-app-detach',
+      }))
+
+      act(() => {
+        result.current.handleSend('url', { query: 'agent detach' }, {})
+      })
+
+      const callbacks = vi.mocked(ssePost).mock.calls[0]![2] as HookCallbacks
+      act(() => {
+        callbacks.getAbortController(abortController)
+        callbacks.onData('partial answer', true, { conversationId: 'conversation-detach', messageId: 'message-detach', taskId: 'task-detach' })
+      })
+
+      act(() => {
+        result.current.detachRunningStream()
+      })
+
+      expect(stopChat).not.toHaveBeenCalled()
+      expect(abortController.abort).not.toHaveBeenCalled()
+      expect(result.current.isResponding).toBe(false)
+    })
+
+    it('should restore a running message-based stream when the matching conversation remounts', () => {
+      const prefix = 'installed:agent-app-restore'
+      const first = renderHook(() => useChat(undefined, undefined, undefined, undefined, undefined, undefined, {
+        streamKeyPrefix: prefix,
+      }))
+
+      act(() => {
+        first.result.current.handleSend('url', { query: 'agent restore' }, {})
+      })
+
+      const callbacks = vi.mocked(ssePost).mock.calls[0]![2] as HookCallbacks
+      act(() => {
+        callbacks.onData('restored partial', true, { conversationId: 'conversation-restore', messageId: 'message-restore', taskId: 'task-restore' })
+      })
+
+      act(() => {
+        first.result.current.detachRunningStream()
+      })
+      first.unmount()
+
+      const second = renderHook(() => useChat(undefined, undefined, undefined, undefined, undefined, undefined, {
+        streamKeyPrefix: prefix,
+        conversationId: 'conversation-restore',
+      }))
+
+      expect(second.result.current.isResponding).toBe(true)
+      expect(second.result.current.chatList.at(-1)?.content).toBe('restored partial')
+
+      act(() => {
+        callbacks.onData(' answer', false, { conversationId: 'conversation-restore', messageId: 'message-restore', taskId: 'task-restore' })
+      })
+
+      expect(second.result.current.chatList.at(-1)?.content).toBe('restored partial answer')
+    })
+
     it('should clear chat tree and controllers on restart', () => {
       const cb = vi.fn()
       const { result } = renderHook(() => useChat())

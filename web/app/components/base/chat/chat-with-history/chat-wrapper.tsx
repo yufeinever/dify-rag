@@ -95,6 +95,10 @@ const ChatWrapper = () => {
     taskId => stopChatMessageResponding('', taskId, appSourceType, appId),
     clearChatList,
     setClearChatList,
+    {
+      streamKeyPrefix: `${appSourceType}:${appId || ''}`,
+      conversationId: currentConversationId,
+    },
   )
   const inputsFormValue = currentConversationId ? currentConversationInputs : newConversationInputsRef?.current
   const inputDisabled = useMemo(() => {
@@ -217,6 +221,7 @@ const ChatWrapper = () => {
       getUrl('chat-messages', appSourceType, appId || ''),
       data,
       {
+        onGetConversationMessages: conversationId => fetchChatList(conversationId, appSourceType, appId),
         onGetSuggestedQuestions: responseItemId => fetchSuggestedQuestions(responseItemId, appSourceType, appId),
         onConversationComplete: isHistoryConversation ? undefined : handleNewConversationCompleted,
         onConversationStarted: isHistoryConversation ? undefined : handleConversationStarted,

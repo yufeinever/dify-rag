@@ -54,6 +54,59 @@ type SendCallback = {
   conversationId?: string
 }
 
+type RuntimeOptions = {
+  streamKeyPrefix?: string
+  conversationId?: string
+}
+
+type RunningMessageStreamEntry = {
+  key?: string
+  streamKeyPrefix: string
+  conversationId?: string
+  taskId?: string
+  messageId?: string
+  isWorkflow: boolean
+  isResponding: boolean
+  isCompleted: boolean
+  isStopped: boolean
+  hasError: boolean
+  chatTree: ChatItemInTree[]
+  createdAt: number
+  abortController?: AbortController
+  cleanupTimer?: ReturnType<typeof setTimeout>
+  subscribers: Set<(entry: RunningMessageStreamEntry) => void>
+}
+
+const runningMessageStreams = new Map<string, RunningMessageStreamEntry>()
+
+const getRunningMessageStreamKey = (streamKeyPrefix: string, conversationId: string, messageId: string) => `${streamKeyPrefix}:${conversationId}:${messageId}`
+
+const findRunningMessageStream = (streamKeyPrefix: string, conversationId: string) => {
+  return [...runningMessageStreams.values()]
+    .filter(entry => entry.streamKeyPrefix === streamKeyPrefix
+      && entry.conversationId === conversationId
+      && entry.isResponding
+      && !entry.isWorkflow
+      && !entry.isCompleted
+      && !entry.hasError
+      && !entry.isStopped)
+    .sort((a, b) => b.createdAt - a.createdAt)[0]
+}
+
+const notifyRunningMessageStream = (entry: RunningMessageStreamEntry) => {
+  entry.subscribers.forEach(subscriber => subscriber(entry))
+}
+
+const scheduleRunningMessageStreamCleanup = (entry: RunningMessageStreamEntry) => {
+  if (entry.cleanupTimer)
+    clearTimeout(entry.cleanupTimer)
+
+  entry.cleanupTimer = setTimeout(() => {
+    if (entry.key)
+      runningMessageStreams.delete(entry.key)
+  }, 5 * 60 * 1000)
+}
+
 export const useChat = (
   config?: ChatConfig,
   formSettings?: {
@@ -64,6 +117,7 @@ export const useChat = (
   stopChat?: (taskId: string) => void,
   clearChatList?: boolean,
   clearChatListCallback?: (state: boolean) => void,
+  runtimeOptions?: RuntimeOptions,
 ) => {
   const { t } = useTranslation()
   const { formatTime } = useTimestamp()
@@ -77,6 +131,7 @@ export const useChat = (
   const conversationMessagesAbortControllerRef = useRef<AbortController | null>(null)
   const suggestedQuestionsAbortControllerRef = useRef<AbortController | null>(null)
   const workflowEventsAbortControllerRef = useRef<AbortController | null>(null)
+  const runningMessageStreamRef = useRef<RunningMessageStreamEntry | null>(null)
   const params = useParams()
   const pathname = usePathname()
 
@@ -184,12 +239,95 @@ export const useChat = (
     chatTreeRef.current = nextState
   }, [produceChatTreeNode])
 
-  const handleResponding = useCallback((isResponding: boolean) => {
+  const setRespondingState = useCallback((isResponding: boolean) => {
     setIsResponding(isResponding)
     isRespondingRef.current = isResponding
   }, [])
 
+  const publishRunningMessageStreamSnapshot = useCallback(() => {
+    const entry = runningMessageStreamRef.current
+    if (!entry || entry.isWorkflow)
+      return
+
+    entry.chatTree = chatTreeRef.current
+    entry.isResponding = isRespondingRef.current
+    notifyRunningMessageStream(entry)
+  }, [])
+
+  const handleResponding = useCallback((isResponding: boolean) => {
+    setRespondingState(isResponding)
+    const entry = runningMessageStreamRef.current
+    if (entry && !entry.isWorkflow) {
+      entry.isResponding = isResponding
+      notifyRunningMessageStream(entry)
+    }
+  }, [setRespondingState])
+
+  const attachRunningMessageStreamToConversation = useCallback((conversationId?: string) => {
+    const entry = runningMessageStreamRef.current
+    const streamKeyPrefix = runtimeOptions?.streamKeyPrefix
+    if (!entry || entry.isWorkflow || !streamKeyPrefix || !conversationId)
+      return
+
+    if (entry.key)
+      runningMessageStreams.delete(entry.key)
+
+    entry.conversationId = conversationId
+    entry.key = getRunningMessageStreamKey(streamKeyPrefix, conversationId, entry.messageId || 'pending')
+    runningMessageStreams.set(entry.key, entry)
+    if (entry.cleanupTimer) {
+      clearTimeout(entry.cleanupTimer)
+      entry.cleanupTimer = undefined
+    }
+    notifyRunningMessageStream(entry)
+  }, [runtimeOptions?.streamKeyPrefix])
+
+  const markRunningMessageStreamDone = useCallback((hasError = false) => {
+    const entry = runningMessageStreamRef.current
+    if (!entry || entry.isWorkflow)
+      return
+
+    entry.chatTree = chatTreeRef.current
+    entry.isResponding = false
+    entry.isCompleted = !hasError
+    entry.hasError = hasError
+    notifyRunningMessageStream(entry)
+    scheduleRunningMessageStreamCleanup(entry)
+  }, [])
+
+  useEffect(() => {
+    const streamKeyPrefix = runtimeOptions?.streamKeyPrefix
+    const conversationId = runtimeOptions?.conversationId
+    if (!streamKeyPrefix || !conversationId)
+      return
+
+    const entry = findRunningMessageStream(streamKeyPrefix, conversationId)
+    if (!entry)
+      return
+
+    const syncEntry = (nextEntry: RunningMessageStreamEntry) => {
+      chatTreeRef.current = nextEntry.chatTree
+      setChatTree(nextEntry.chatTree)
+      setRespondingState(nextEntry.isResponding && !nextEntry.isCompleted && !nextEntry.hasError)
+      taskIdRef.current = nextEntry.taskId || ''
+      conversationIdRef.current = nextEntry.conversationId || ''
+      runningMessageStreamRef.current = nextEntry
+    }
+
+    syncEntry(entry)
+    entry.subscribers.add(syncEntry)
+    return () => {
+      entry.subscribers.delete(syncEntry)
+    }
+  }, [runtimeOptions?.streamKeyPrefix, runtimeOptions?.conversationId, setRespondingState])
+
   const detachRunningStream = useCallback(() => {
+    const entry = runningMessageStreamRef.current
+    if (entry && !entry.isWorkflow && entry.isResponding && !entry.isCompleted && !entry.hasError && !entry.isStopped) {
+      setRespondingState(false)
+      return
+    }
+
     handleResponding(false)
     if (conversationMessagesAbortControllerRef.current)
       conversationMessagesAbortControllerRef.current.abort()
@@ -197,12 +335,21 @@ export const useChat = (
       suggestedQuestionsAbortControllerRef.current.abort()
     if (workflowEventsAbortControllerRef.current)
       workflowEventsAbortControllerRef.current.abort()
-  }, [handleResponding])
+  }, [handleResponding, setRespondingState])
 
   const handleStop = useCallback(() => {
     hasStopRespondedRef.current = true
     if (stopChat && taskIdRef.current && !pausedStateRef.current)
       stopChat(taskIdRef.current)
+    const entry = runningMessageStreamRef.current
+    if (entry && !entry.isWorkflow) {
+      entry.isResponding = false
+      entry.isStopped = true
+      entry.isCompleted = false
+      entry.abortController?.abort()
+      notifyRunningMessageStream(entry)
+      scheduleRunningMessageStreamCleanup(entry)
+    }
     detachRunningStream()
   }, [stopChat, detachRunningStream])
 
@@ -664,7 +811,8 @@ export const useChat = (
     }
     setChatTree(nextState)
     chatTreeRef.current = nextState
-  }, [chatTree, produceChatTreeNode])
+    publishRunningMessageStreamSnapshot()
+  }, [chatTree, produceChatTreeNode, publishRunningMessageStreamSnapshot])
 
   const handleSend = useCallback(async (
     url: string,
@@ -728,6 +876,20 @@ export const useChat = (
       siblingIndex: parentMessage?.children?.length ?? chatTree.length,
     }
 
+    if (runtimeOptions?.streamKeyPrefix) {
+      runningMessageStreamRef.current = {
+        streamKeyPrefix: runtimeOptions.streamKeyPrefix,
+        isWorkflow: false,
+        isResponding: true,
+        isCompleted: false,
+        isStopped: false,
+        hasError: false,
+        chatTree: chatTreeRef.current,
+        createdAt: Date.now(),
+        subscribers: new Set(),
+      }
+    }
+
     handleResponding(true)
     hasStopRespondedRef.current = false
 
@@ -771,6 +933,9 @@ export const useChat = (
       isPublicAPI,
       getAbortController: (abortController) => {
         workflowEventsAbortControllerRef.current = abortController
+        const entry = runningMessageStreamRef.current
+        if (entry && !entry.isWorkflow)
+          entry.abortController = abortController
       },
       onData: (message: string, isFirstMessage: boolean, { conversationId: newConversationId, messageId, taskId }: any) => {
         if (!isAgentMode) {
@@ -788,13 +953,19 @@ export const useChat = (
           responseItem.parentMessageId = questionItem.id
           hasSetResponseId = true
         }
+        const entry = runningMessageStreamRef.current
+        if (entry && !entry.isWorkflow && messageId)
+          entry.messageId = messageId
 
         if (isFirstMessage && newConversationId) {
           conversationIdRef.current = newConversationId
           notifyConversationStarted(newConversationId)
+          attachRunningMessageStreamToConversation(newConversationId)
         }
 
         taskIdRef.current = taskId
+        if (entry && !entry.isWorkflow && taskId)
+          entry.taskId = taskId
         if (messageId)
           responseItem.id = messageId
 
@@ -807,6 +978,7 @@ export const useChat = (
       },
       async onCompleted(hasError?: boolean) {
         handleResponding(false)
+        markRunningMessageStreamDone(hasError)
 
         if (hasError)
           return
@@ -915,6 +1087,9 @@ export const useChat = (
           response.id = thought.message_id
         if (thought.conversation_id)
           response.conversationId = thought.conversation_id
+        const entry = runningMessageStreamRef.current
+        if (entry && !entry.isWorkflow && thought.message_id)
+          entry.messageId = thought.message_id
 
         if (response.agent_thoughts.length === 0) {
           response.agent_thoughts.push(thought)
@@ -937,6 +1112,11 @@ export const useChat = (
           responseItem,
           parentId: data.parent_message_id,
         })
+        if (thought.conversation_id) {
+          conversationIdRef.current = thought.conversation_id
+          notifyConversationStarted(thought.conversation_id)
+          attachRunningMessageStreamToConversation(thought.conversation_id)
+        }
       },
       onMessageEnd: (messageEnd) => {
         if (messageEnd.metadata?.annotation_reply) {
@@ -970,6 +1150,7 @@ export const useChat = (
       },
       onError() {
         handleResponding(false)
+        markRunningMessageStreamDone(true)
         updateCurrentQAOnTree({
           placeholderQuestionId,
           questionItem,
@@ -982,6 +1163,12 @@ export const useChat = (
         if (conversation_id) {
           conversationIdRef.current = conversation_id
           notifyConversationStarted(conversation_id)
+        }
+        const entry = runningMessageStreamRef.current
+        if (entry && !entry.isWorkflow) {
+          entry.isWorkflow = true
+          if (entry.key)
+            runningMessageStreams.delete(entry.key)
         }
         if (message_id && !hasSetResponseId) {
           questionItem.id = `question-${message_id}`
@@ -1237,9 +1424,12 @@ export const useChat = (
     updateCurrentQAOnTree,
     updateChatTreeNode,
     handleResponding,
+    attachRunningMessageStreamToConversation,
+    markRunningMessageStreamDone,
     formatTime,
     createAudioPlayerManager,
     formSettings,
+    runtimeOptions?.streamKeyPrefix,
   ])
 
   const handleAnnotationEdited = useCallback((query: string, answer: string, index: number) => {
