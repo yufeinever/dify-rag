@@ -54,6 +54,14 @@ server {
       include proxy.conf;
     }
 
+
+    location = /material-agent/mcp {
+      resolver 127.0.0.11 valid=30s ipv6=off;
+      set $material_agent_upstream material-catalog-service:8091;
+      proxy_pass http://$material_agent_upstream/mcp;
+      include proxy.conf;
+    }
+
     location /explore {
       proxy_pass http://web:3000;
       include proxy.conf;

@@ -46,6 +46,7 @@ External advisor tools:
 - Optional image rendering secret: `DIFY_FILE_PREVIEW_SECRET_KEY`, set to the same value as the Dify API `SECRET_KEY` so `markdown_image` URLs can be opened by the Dify frontend.
 - Thumbnail public prefix: `/material-agent/media`, reverse-proxied by Dify nginx to this service's `/media` endpoint.
 - Thumbnail defaults: longest side `1024px`, WebP quality `78`, signature TTL `300s`.
+- Public remote MCP endpoint: `/material-agent/mcp`, reverse-proxied by Dify nginx to this service's `/mcp` endpoint. Set `MATERIAL_MCP_AUTH_TOKEN` and call it with `Authorization: Bearer <token>` before exposing it outside the host.
 
 ## Run
 
@@ -61,6 +62,7 @@ curl http://127.0.0.1:8091/health
 ```bash
 curl -s -X POST http://127.0.0.1:8091/mcp \
   -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <MATERIAL_MCP_AUTH_TOKEN>' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 

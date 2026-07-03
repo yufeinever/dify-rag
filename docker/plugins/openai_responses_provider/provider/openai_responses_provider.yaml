@@ -145,6 +145,53 @@ model_credential_schema:
       placeholder:
         zh_Hans: 多个 ID 用英文逗号分隔，如 vs_xxx,vs_yyy
         en_US: Comma-separated ids, e.g. vs_xxx,vs_yyy
+    - variable: enable_material_mcp
+      label:
+        zh_Hans: 启用 MMB 材料 MCP
+        en_US: Enable MMB Material MCP
+      type: select
+      required: false
+      default: disabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后把资料全知 MCP 作为 OpenAI Responses remote MCP 工具传入。
+        en_US: Effective only with Responses API. Adds the material catalog as a remote MCP tool for OpenAI Responses.
+    - variable: material_mcp_server_url
+      label:
+        zh_Hans: MMB 材料 MCP URL
+        en_US: MMB Material MCP URL
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: https://ai.meinmalzebier.shop/material-agent/mcp
+        en_US: https://ai.meinmalzebier.shop/material-agent/mcp
+    - variable: material_mcp_auth_token
+      label:
+        zh_Hans: MMB 材料 MCP Token
+        en_US: MMB Material MCP Token
+      type: secret-input
+      required: false
+      placeholder:
+        zh_Hans: MATERIAL_MCP_AUTH_TOKEN
+        en_US: MATERIAL_MCP_AUTH_TOKEN
+    - variable: material_mcp_allowed_tools
+      label:
+        zh_Hans: MMB 材料 MCP 允许工具
+        en_US: MMB Material MCP Allowed Tools
+      type: text-input
+      required: false
+      default: server_info,list_material_roots,list_datasets,list_documents,search_segments,read_document_chunks,search_files,search_visual_assets,find_person_visual_candidates,read_file_text,profile_materials,list_material_changes
+      placeholder:
+        zh_Hans: 逗号分隔的只读材料工具名
+        en_US: Comma-separated read-only material tool names
 provider_credential_schema:
   credential_form_schemas:
     - variable: openai_api_key
@@ -267,6 +314,53 @@ provider_credential_schema:
       placeholder:
         zh_Hans: 多个 ID 用英文逗号分隔，如 vs_xxx,vs_yyy
         en_US: Comma-separated ids, e.g. vs_xxx,vs_yyy
+    - variable: enable_material_mcp
+      label:
+        zh_Hans: 启用 MMB 材料 MCP
+        en_US: Enable MMB Material MCP
+      type: select
+      required: false
+      default: disabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后把资料全知 MCP 作为 OpenAI Responses remote MCP 工具传入。
+        en_US: Effective only with Responses API. Adds the material catalog as a remote MCP tool for OpenAI Responses.
+    - variable: material_mcp_server_url
+      label:
+        zh_Hans: MMB 材料 MCP URL
+        en_US: MMB Material MCP URL
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: https://ai.meinmalzebier.shop/material-agent/mcp
+        en_US: https://ai.meinmalzebier.shop/material-agent/mcp
+    - variable: material_mcp_auth_token
+      label:
+        zh_Hans: MMB 材料 MCP Token
+        en_US: MMB Material MCP Token
+      type: secret-input
+      required: false
+      placeholder:
+        zh_Hans: MATERIAL_MCP_AUTH_TOKEN
+        en_US: MATERIAL_MCP_AUTH_TOKEN
+    - variable: material_mcp_allowed_tools
+      label:
+        zh_Hans: MMB 材料 MCP 允许工具
+        en_US: MMB Material MCP Allowed Tools
+      type: text-input
+      required: false
+      default: server_info,list_material_roots,list_datasets,list_documents,search_segments,read_document_chunks,search_files,search_visual_assets,find_person_visual_candidates,read_file_text,profile_materials,list_material_changes
+      placeholder:
+        zh_Hans: 逗号分隔的只读材料工具名
+        en_US: Comma-separated read-only material tool names
 models:
   llm:
     predefined:

@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     thumbnail_default_width: int = Field(1024, alias="MATERIAL_CATALOG_THUMBNAIL_DEFAULT_WIDTH")
     thumbnail_default_quality: int = Field(78, alias="MATERIAL_CATALOG_THUMBNAIL_DEFAULT_QUALITY")
     thumbnail_max_width: int = Field(2048, alias="MATERIAL_CATALOG_THUMBNAIL_MAX_WIDTH")
+    mcp_auth_token: str = Field("", alias="MATERIAL_MCP_AUTH_TOKEN")
 
     external_http_timeout_seconds: int = Field(15, alias="EXTERNAL_HTTP_TIMEOUT_SECONDS")
     external_max_page_bytes: int = Field(2000000, alias="EXTERNAL_MAX_PAGE_BYTES")

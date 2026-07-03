@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 
 from .catalog import MaterialCatalog
@@ -72,6 +72,10 @@ def health() -> dict[str, object]:
 
 @app.post("/mcp")
 async def mcp_endpoint(request: Request) -> dict[str, Any]:
+    if settings.mcp_auth_token:
+        expected = f"Bearer {settings.mcp_auth_token}"
+        if request.headers.get("authorization") != expected:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MCP authorization required")
     payload = await request.json()
     if not isinstance(payload, dict):
         return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid MCP request"}}

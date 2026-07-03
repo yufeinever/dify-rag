@@ -11,6 +11,35 @@ from app.media import MediaAccessError, MediaThumbnailService, sign_material_thu
 from app.mcp import MaterialMCPServer
 
 
+class MaterialMCPAuthTests(unittest.TestCase):
+    def test_mcp_endpoint_requires_bearer_token_when_configured(self):
+        import asyncio
+
+        from fastapi import HTTPException
+
+        import app.main as main_module
+
+        class FakeRequest:
+            def __init__(self, authorization=None):
+                self.headers = {} if authorization is None else {"authorization": authorization}
+
+            async def json(self):
+                return {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+
+        old_token = main_module.settings.mcp_auth_token
+        main_module.settings.mcp_auth_token = "test-token"
+        try:
+            with self.assertRaises(HTTPException) as exc:
+                asyncio.run(main_module.mcp_endpoint(FakeRequest()))
+            self.assertEqual(exc.exception.status_code, 401)
+
+            ok_response = asyncio.run(main_module.mcp_endpoint(FakeRequest("Bearer test-token")))
+            self.assertEqual(ok_response["result"]["serverInfo"]["name"], "material-catalog-mcp")
+            self.assertEqual(main_module.health()["status"], "ok")
+        finally:
+            main_module.settings.mcp_auth_token = old_token
+
+
 class FakeMetadataRepository:
     def list_datasets(self, limit: int = 50):
         return [{"id": "dataset-1", "name": "资料库", "document_count": 2, "limit": limit}]

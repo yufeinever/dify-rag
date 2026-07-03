@@ -965,6 +965,35 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
             return [str(item).strip() for item in value if str(item).strip()]
         return [item.strip() for item in str(value).split(",") if item.strip()]
 
+    @staticmethod
+    def _parse_allowed_tools(value: Any) -> list[str]:
+        if not value:
+            return []
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return [item.strip() for item in str(value).replace("\n", ",").split(",") if item.strip()]
+
+    def _build_material_mcp_tool(self, credentials: dict) -> Optional[dict]:
+        if not self._is_enabled(credentials.get("enable_material_mcp"), default=False):
+            return None
+        server_url = str(credentials.get("material_mcp_server_url") or "").strip()
+        auth_token = str(credentials.get("material_mcp_auth_token") or "").strip()
+        if not server_url or not auth_token:
+            logger.warning("Material MCP is enabled but server URL or auth token is missing")
+            return None
+
+        tool_payload: dict[str, Any] = {
+            "type": "mcp",
+            "server_label": str(credentials.get("material_mcp_server_label") or "mmb_materials"),
+            "server_url": server_url,
+            "authorization": auth_token if auth_token.lower().startswith("bearer ") else f"Bearer {auth_token}",
+            "require_approval": "never",
+        }
+        allowed_tools = self._parse_allowed_tools(credentials.get("material_mcp_allowed_tools"))
+        if allowed_tools:
+            tool_payload["allowed_tools"] = allowed_tools
+        return tool_payload
+
     def _build_responses_api_tools(
         self,
         tools: Optional[list[PromptMessageTool]],
@@ -997,6 +1026,10 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                     api_tools.append({"type": "file_search", "vector_store_ids": vector_store_ids})
                 else:
                     logger.warning("OpenAI file_search is enabled but no vector store ids were configured")
+
+            material_mcp_tool = self._build_material_mcp_tool(credentials)
+            if material_mcp_tool:
+                api_tools.append(material_mcp_tool)
 
         return api_tools or None
 

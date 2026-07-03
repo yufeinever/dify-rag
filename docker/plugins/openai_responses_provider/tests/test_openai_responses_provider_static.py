@@ -38,6 +38,10 @@ class OpenAIResponsesProviderStaticTests(unittest.TestCase):
             "enable_code_interpreter",
             "enable_file_search",
             "openai_vector_store_ids",
+            "enable_material_mcp",
+            "material_mcp_server_url",
+            "material_mcp_auth_token",
+            "material_mcp_allowed_tools",
         }
         self.assertTrue(expected.issubset(model_vars))
         self.assertTrue(expected.issubset(provider_vars))
@@ -49,6 +53,9 @@ class OpenAIResponsesProviderStaticTests(unittest.TestCase):
         self.assertIn('{"type": "web_search"}', source)
         self.assertIn('"type": "code_interpreter", "container": {"type": "auto"}', source)
         self.assertIn('"type": "file_search", "vector_store_ids": vector_store_ids', source)
+        self.assertIn('"type": "mcp"', source)
+        self.assertIn('"server_label": str(credentials.get("material_mcp_server_label") or "mmb_materials")', source)
+        self.assertIn('"authorization": auth_token if auth_token.lower().startswith("bearer ") else f"Bearer {auth_token}"', source)
         self.assertIn('"type": "function"', source)
 
     def test_responses_stream_parser_guards_blank_tool_names(self):

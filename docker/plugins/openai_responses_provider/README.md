@@ -7,5 +7,6 @@ It defaults to the OpenAI Responses API and can append OpenAI native hosted tool
 - `web_search`, enabled by default
 - `code_interpreter`, disabled by default
 - `file_search`, disabled by default and only enabled when OpenAI vector store ids are configured
+- remote MCP `mmb_materials`, disabled by default and enabled by configuring the public material MCP URL plus bearer token
 
 This plugin is intentionally separate from the official OpenAI plugin and from `langgenius/openai_api_compatible`.
