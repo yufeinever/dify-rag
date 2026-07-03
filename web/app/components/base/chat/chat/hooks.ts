@@ -877,8 +877,10 @@ export const useChat = (
     }
 
     if (runtimeOptions?.streamKeyPrefix) {
+      const initialConversationId = data.conversation_id || runtimeOptions.conversationId || conversationIdRef.current
       runningMessageStreamRef.current = {
         streamKeyPrefix: runtimeOptions.streamKeyPrefix,
+        conversationId: initialConversationId,
         isWorkflow: false,
         isResponding: true,
         isCompleted: false,
@@ -887,6 +889,10 @@ export const useChat = (
         chatTree: chatTreeRef.current,
         createdAt: Date.now(),
         subscribers: new Set(),
+      }
+      if (initialConversationId) {
+        conversationIdRef.current = initialConversationId
+        attachRunningMessageStreamToConversation(initialConversationId)
       }
     }
 
@@ -1425,6 +1431,7 @@ export const useChat = (
     updateChatTreeNode,
     handleResponding,
     attachRunningMessageStreamToConversation,
+    runtimeOptions?.conversationId,
     markRunningMessageStreamDone,
     formatTime,
     createAudioPlayerManager,

@@ -1482,6 +1482,31 @@ describe('useChat', () => {
       expect(second.result.current.chatList.at(-1)?.content).toBe('restored partial answer')
     })
 
+    it('should restore a message-based stream in an existing conversation before the first SSE chunk', () => {
+      const prefix = 'installed:agent-app-existing-conversation'
+      const first = renderHook(() => useChat(undefined, undefined, undefined, undefined, undefined, undefined, {
+        streamKeyPrefix: prefix,
+        conversationId: 'conversation-existing',
+      }))
+
+      act(() => {
+        first.result.current.handleSend('url', { query: 'agent pending', conversation_id: 'conversation-existing' }, {})
+      })
+
+      act(() => {
+        first.result.current.detachRunningStream()
+      })
+      first.unmount()
+
+      const second = renderHook(() => useChat(undefined, undefined, undefined, undefined, undefined, undefined, {
+        streamKeyPrefix: prefix,
+        conversationId: 'conversation-existing',
+      }))
+
+      expect(second.result.current.isResponding).toBe(true)
+      expect(second.result.current.chatList.some(item => item.content === 'agent pending')).toBe(true)
+    })
+
     it('should clear chat tree and controllers on restart', () => {
       const cb = vi.fn()
       const { result } = renderHook(() => useChat())
