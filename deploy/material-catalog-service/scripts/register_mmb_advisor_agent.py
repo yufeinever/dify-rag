@@ -20,8 +20,8 @@ from services.tools.mcp_tools_manage_service import MCPToolManageService
 
 APP_NAME = "MMB智囊"
 LEGACY_APP_NAME = "MMB智囊 legacy workflow"
-MCP_NAME = "MMB智囊内外研究工具"
-MCP_IDENTIFIER = "mmb_advisor_mcp"
+MCP_NAME = "资料全知材料探索"
+MCP_IDENTIFIER = "material_catalog_mcp"
 MCP_URL = "http://material-catalog-service:8091/mcp"
 TOOL_NAMES = [
     "server_info",

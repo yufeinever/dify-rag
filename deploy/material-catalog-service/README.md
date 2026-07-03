@@ -82,4 +82,4 @@ docker exec docker-api-1 bash -lc \
 
 This registers the MCP provider `资料全知材料探索`, configures `资料全知agent` as an `agent-chat` app, enables the internal material tools, and installs the app in Explore.
 
-For the advisor app, run `scripts/register_mmb_advisor_agent.py` inside the Dify API container. It registers a separate MCP provider identifier `mmb_advisor_mcp`, configures `MMB智囊` with internal + external advisor tools, and leaves `资料全知agent` / `超级内脑` behavior unchanged.
+For the advisor app, run `scripts/register_mmb_advisor_agent.py` inside the Dify API container. It reuses the existing MCP provider identifier `material_catalog_mcp` because this Dify version does not allow registering the same MCP server URL twice. It configures only `MMB智囊` with internal + external advisor tools and leaves `资料全知agent` / `超级内脑` app tool selections unchanged.
