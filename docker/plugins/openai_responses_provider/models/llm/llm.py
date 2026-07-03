@@ -2,7 +2,7 @@ from decimal import Decimal
 import json
 import logging
 from collections.abc import Generator
-from typing import Optional, Union, cast, Any
+from typing import Optional, Union, cast, Any, Iterable
 import tiktoken
 
 from openai import OpenAI
@@ -20,6 +20,14 @@ from openai.types.chat.chat_completion_chunk import (
 from openai.types.chat.chat_completion_message import FunctionCall
 
 from ..common_openai import _CommonOpenAI
+from .responses_tool_parser import (
+    append_function_call_arguments_delta,
+    collect_response_output_function_calls,
+    finalize_function_call_arguments,
+    item_to_function_call_data,
+    merge_function_call_data,
+    valid_function_call_data,
+)
 
 from dify_plugin import LargeLanguageModel
 from dify_plugin.entities import I18nObject
@@ -992,6 +1000,36 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
 
         return api_tools or None
 
+    @staticmethod
+    def _responses_function_tool_names(tools: Optional[list[PromptMessageTool]]) -> set[str]:
+        return {tool.name for tool in tools or [] if getattr(tool, "name", None)}
+
+    @staticmethod
+    def _to_assistant_tool_call(tool_call: dict[str, str]) -> AssistantPromptMessage.ToolCall:
+        return AssistantPromptMessage.ToolCall(
+            id=tool_call["call_id"],
+            type="function",
+            function=AssistantPromptMessage.ToolCall.ToolCallFunction(
+                name=tool_call["name"],
+                arguments=tool_call["arguments"],
+            ),
+        )
+
+    def _to_assistant_tool_calls(
+        self,
+        raw_tool_calls: Iterable[dict[str, str]],
+        function_tool_names: set[str],
+    ) -> list[AssistantPromptMessage.ToolCall]:
+        raw_calls = list(raw_tool_calls)
+        valid_calls = valid_function_call_data(raw_calls, function_tool_names)
+        skipped_count = len(raw_calls) - len(valid_calls)
+        if skipped_count > 0:
+            logger.warning(
+                "Skipped %s Responses function call(s) that were blank or not declared as Dify tools",
+                skipped_count,
+            )
+        return [self._to_assistant_tool_call(call) for call in valid_calls]
+
     def _chat_generate_responses_api(
         self,
         model: str,
@@ -1025,19 +1063,9 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         text_content = resp_obj.output_text or ""
 
         # Extract tool calls from output items
-        tool_calls: list[AssistantPromptMessage.ToolCall] = []
-        for item in resp_obj.output:
-            if item.type == "function_call":
-                tool_calls.append(
-                    AssistantPromptMessage.ToolCall(
-                        id=item.call_id,
-                        type="function",
-                        function=AssistantPromptMessage.ToolCall.ToolCallFunction(
-                            name=item.name,
-                            arguments=item.arguments,
-                        ),
-                    )
-                )
+        function_tool_names = self._responses_function_tool_names(tools)
+        raw_tool_calls = collect_response_output_function_calls(resp_obj.output)
+        tool_calls = self._to_assistant_tool_calls(raw_tool_calls.values(), function_tool_names)
 
         assistant_prompt_message = AssistantPromptMessage(
             content=text_content,
@@ -1093,8 +1121,9 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         full_text = ""
         prompt_tokens = 0
         completion_tokens = 0
-        # track function calls being built: output_index -> {call_id, name, arguments}
-        pending_tool_calls: dict[int, dict] = {}
+        # track Dify function calls being built: output_index -> {call_id, name, arguments}
+        pending_tool_calls: dict[int, dict[str, str]] = {}
+        function_tool_names = self._responses_function_tool_names(tools)
         final_model = model
 
         final_chunk = LLMResultChunk(
@@ -1107,7 +1136,7 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         )
 
         for event in stream:
-            event_type = event.type
+            event_type = getattr(event, "type", "")
             logger.info(f"Responses API stream event: {event_type}")
 
             if event_type == "response.output_text.delta":
@@ -1125,24 +1154,40 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                     )
 
             elif event_type == "response.output_item.added":
-                item = event.item
-                if item.type == "function_call":
-                    pending_tool_calls[event.output_index] = {
-                        "call_id": item.call_id,
-                        "name": item.name,
-                        "arguments": "",
-                    }
+                output_index = getattr(event, "output_index", 0)
+                item = getattr(event, "item", None)
+                fallback_call_id = getattr(item, "id", "") if item is not None else ""
+                merge_function_call_data(
+                    pending_tool_calls,
+                    output_index,
+                    item_to_function_call_data(item, fallback_call_id=fallback_call_id or f"call_{output_index}"),
+                )
 
             elif event_type == "response.function_call_arguments.delta":
-                idx = event.output_index
-                if idx in pending_tool_calls:
-                    pending_tool_calls[idx]["arguments"] += event.delta
+                append_function_call_arguments_delta(
+                    pending_tool_calls,
+                    getattr(event, "output_index", 0),
+                    getattr(event, "delta", "") or "",
+                    getattr(event, "item_id", "") or "",
+                )
 
             elif event_type == "response.function_call_arguments.done":
-                idx = event.output_index
-                if idx in pending_tool_calls:
-                    pending_tool_calls[idx]["arguments"] = event.arguments
-                    pending_tool_calls[idx]["name"] = event.name
+                finalize_function_call_arguments(
+                    pending_tool_calls,
+                    getattr(event, "output_index", 0),
+                    getattr(event, "arguments", "") or "",
+                    getattr(event, "name", "") or "",
+                    getattr(event, "item_id", "") or "",
+                )
+
+            elif event_type == "response.output_item.done":
+                output_index = getattr(event, "output_index", 0)
+                item = getattr(event, "item", None)
+                merge_function_call_data(
+                    pending_tool_calls,
+                    output_index,
+                    item_to_function_call_data(item, fallback_call_id=f"call_{output_index}"),
+                )
 
             elif event_type == "response.completed":
                 resp = event.response
@@ -1150,9 +1195,11 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                 if resp.usage:
                     prompt_tokens = resp.usage.input_tokens
                     completion_tokens = resp.usage.output_tokens
+                for idx, tool_call_data in collect_response_output_function_calls(getattr(resp, "output", [])).items():
+                    merge_function_call_data(pending_tool_calls, idx, tool_call_data)
                 # if stream produced no text, extract from completed response
                 if not full_text and not pending_tool_calls:
-                    full_text = resp.output_text or ""
+                    full_text = getattr(resp, "output_text", "") or ""
                     if full_text:
                         yield LLMResultChunk(
                             model=final_model,
@@ -1164,18 +1211,8 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                         )
 
                 # emit tool calls if any
-                if pending_tool_calls:
-                    tool_calls = [
-                        AssistantPromptMessage.ToolCall(
-                            id=tc["call_id"],
-                            type="function",
-                            function=AssistantPromptMessage.ToolCall.ToolCallFunction(
-                                name=tc["name"],
-                                arguments=tc["arguments"],
-                            ),
-                        )
-                        for tc in pending_tool_calls.values()
-                    ]
+                tool_calls = self._to_assistant_tool_calls(pending_tool_calls.values(), function_tool_names)
+                if tool_calls:
                     yield LLMResultChunk(
                         model=final_model,
                         prompt_messages=prompt_messages,

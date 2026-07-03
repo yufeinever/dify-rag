@@ -51,6 +51,16 @@ class OpenAIResponsesProviderStaticTests(unittest.TestCase):
         self.assertIn('"type": "file_search", "vector_store_ids": vector_store_ids', source)
         self.assertIn('"type": "function"', source)
 
+    def test_responses_stream_parser_guards_blank_tool_names(self):
+        source = (ROOT / "models" / "llm" / "llm.py").read_text()
+        parser_source = (ROOT / "models" / "llm" / "responses_tool_parser.py").read_text()
+        ast.parse(source)
+        ast.parse(parser_source)
+        self.assertIn('event_type == "response.output_item.done"', source)
+        self.assertIn("valid_function_call_data", source)
+        self.assertIn("if not name", parser_source)
+        self.assertIn("name not in allowed_names", parser_source)
+
     def test_base_url_accepts_root_or_v1_endpoint(self):
         source = (ROOT / "models" / "common_openai.py").read_text()
         ast.parse(source)
