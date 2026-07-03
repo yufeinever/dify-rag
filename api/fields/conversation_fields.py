@@ -39,6 +39,9 @@ class SimpleConversation(ResponseModel):
     introduction: str | None = None
     created_at: int | None = None
     updated_at: int | None = None
+    latest_message_id: str | None = None
+    latest_workflow_run_id: str | None = None
+    latest_workflow_run_status: str | None = None
 
     @field_validator("inputs", mode="before")
     @classmethod

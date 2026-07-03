@@ -307,11 +307,31 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
     refetchOnWindowFocus: false,
     enabled: !!newConversationId,
   })
+  const pendingConversationMapRef = useRef<Record<string, ConversationItem>>({})
   const [originConversationList, setOriginConversationList] = useState<ConversationItem[]>([])
+  const mergePendingConversations = useCallback((conversations: ConversationItem[]) => {
+    const pendingConversations = Object.values(pendingConversationMapRef.current)
+      .filter(pendingConversation => !conversations.some(conversation => conversation.id === pendingConversation.id))
+    return [...pendingConversations, ...conversations]
+  }, [])
   useEffect(() => {
-    if (appConversationData?.data && !appConversationDataLoading)
-      setOriginConversationList(appConversationData?.data)
-  }, [appConversationData, appConversationDataLoading])
+    if (appConversationData?.data && !appConversationDataLoading) {
+      appConversationData.data.forEach((conversation) => {
+        if (pendingConversationMapRef.current[conversation.id])
+          delete pendingConversationMapRef.current[conversation.id]
+      })
+      setOriginConversationList(mergePendingConversations(appConversationData.data))
+    }
+  }, [appConversationData, appConversationDataLoading, mergePendingConversations])
+  const upsertConversationInList = useCallback((conversation: ConversationItem) => {
+    setOriginConversationList(produce((draft) => {
+      const index = draft.findIndex(item => item.id === conversation.id)
+      if (index > -1)
+        draft[index] = { ...draft[index], ...conversation }
+      else
+        draft.unshift(conversation)
+    }))
+  }, [])
   const conversationList = useMemo(() => {
     const data = originConversationList.slice()
     if (showNewConversationItemInList && data[0]?.id !== '') {
@@ -326,15 +346,30 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
   }, [originConversationList, showNewConversationItemInList, t])
   useEffect(() => {
     if (newConversation) {
-      setOriginConversationList(produce((draft) => {
-        const index = draft.findIndex(item => item.id === newConversation.id)
-        if (index > -1)
-          draft[index] = newConversation
-        else
-          draft.unshift(newConversation)
-      }))
+      delete pendingConversationMapRef.current[newConversation.id]
+      upsertConversationInList(newConversation)
     }
-  }, [newConversation])
+  }, [newConversation, upsertConversationInList])
+  const handleConversationStarted = useCallback((conversationId: string, query?: string) => {
+    if (!conversationId)
+      return
+
+    const fallbackName = t('chat.newChatDefaultName', { ns: 'share' })
+    const name = query?.trim() ? query.trim().slice(0, 30) : fallbackName
+    const pendingConversation: ConversationItem = {
+      id: conversationId,
+      name,
+      inputs: newConversationInputsRef.current || {},
+      introduction: '',
+    }
+
+    pendingConversationMapRef.current[conversationId] = pendingConversation
+    setNewConversationId(conversationId)
+    handleConversationIdInfoChange(conversationId)
+    setShowNewConversationItemInList(false)
+    upsertConversationInList(pendingConversation)
+    invalidateShareConversations()
+  }, [handleConversationIdInfoChange, invalidateShareConversations, t, upsertConversationInList])
   const currentConversationItem = useMemo(() => {
     let conversationItem = conversationList.find(item => item.id === currentConversationId)
     if (!conversationItem && pinnedConversationList.length)
@@ -470,6 +505,7 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
   const handleNewConversationCompleted = useCallback((newConversationId: string) => {
     setNewConversationId(newConversationId)
     handleConversationIdInfoChange(newConversationId)
+    delete pendingConversationMapRef.current[newConversationId]
     setShowNewConversationItemInList(false)
     invalidateShareConversations()
   }, [handleConversationIdInfoChange, invalidateShareConversations])
@@ -509,6 +545,7 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
     conversationRenaming,
     handleRenameConversation,
     handleNewConversationCompleted,
+    handleConversationStarted,
     newConversationId,
     chatShouldReloadKey,
     handleFeedback,

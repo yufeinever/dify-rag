@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from core.app.entities.app_invoke_entities import InvokeFrom
@@ -6,8 +6,9 @@ from extensions.ext_database import db
 from libs.infinite_scroll_pagination import InfiniteScrollPagination
 from models import Account
 from models.enums import CreatorUserRole
-from models.model import App, EndUser
+from models.model import App, EndUser, Message
 from models.web import PinnedConversation
+from models.workflow import WorkflowRun
 from services.conversation_service import ConversationService
 
 
@@ -57,6 +58,52 @@ class WebConversationService:
             exclude_ids=exclude_ids,
             sort_by=sort_by,
         )
+
+    @classmethod
+    def attach_latest_workflow_run_status(cls, *, session: Session, conversations: list, app_id: str) -> None:
+        conversation_ids = [conversation.id for conversation in conversations]
+        if not conversation_ids:
+            return
+
+        latest_message_query = (
+            select(
+                Message.conversation_id.label("conversation_id"),
+                Message.id.label("message_id"),
+                Message.workflow_run_id.label("workflow_run_id"),
+                func.row_number()
+                .over(
+                    partition_by=Message.conversation_id,
+                    order_by=(Message.created_at.desc(), Message.id.desc()),
+                )
+                .label("row_number"),
+            )
+            .where(
+                Message.app_id == app_id,
+                Message.conversation_id.in_(conversation_ids),
+                Message.workflow_run_id.isnot(None),
+            )
+            .subquery()
+        )
+
+        rows = session.execute(
+            select(
+                latest_message_query.c.conversation_id,
+                latest_message_query.c.message_id,
+                latest_message_query.c.workflow_run_id,
+                WorkflowRun.status,
+            )
+            .outerjoin(WorkflowRun, WorkflowRun.id == latest_message_query.c.workflow_run_id)
+            .where(latest_message_query.c.row_number == 1)
+        ).all()
+        latest_by_conversation_id = {str(row.conversation_id): row for row in rows}
+
+        for conversation in conversations:
+            latest = latest_by_conversation_id.get(str(conversation.id))
+            if not latest:
+                continue
+            setattr(conversation, "latest_message_id", str(latest.message_id) if latest.message_id else None)
+            setattr(conversation, "latest_workflow_run_id", str(latest.workflow_run_id) if latest.workflow_run_id else None)
+            setattr(conversation, "latest_workflow_run_status", latest.status)
 
     @classmethod
     def pin(cls, app_model: App, conversation_id: str, user: Account | EndUser | None):

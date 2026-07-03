@@ -528,6 +528,38 @@ describe('useChat', () => {
       expect(result.current.suggestedQuestions).toEqual(['Suggested 1', 'Suggested 2'])
     })
 
+    it('should notify when a new conversation starts before completion', async () => {
+      let callbacks: HookCallbacks
+
+      vi.mocked(ssePost).mockImplementation(async (url, params, options) => {
+        callbacks = options as HookCallbacks
+      })
+
+      const onConversationStarted = vi.fn()
+      const onConversationComplete = vi.fn()
+      const { result } = renderHook(() => useChat())
+
+      act(() => {
+        result.current.handleSend('test-url', { query: 'running question' }, {
+          onConversationStarted,
+          onConversationComplete,
+        })
+      })
+
+      act(() => {
+        callbacks.onData('partial', true, { conversationId: 'conversation-running', messageId: 'message-running' })
+      })
+
+      expect(onConversationStarted).toHaveBeenCalledWith('conversation-running', 'running question')
+      expect(onConversationComplete).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await callbacks.onCompleted()
+      })
+
+      expect(onConversationComplete).toHaveBeenCalledWith('conversation-running')
+    })
+
     it('should early return onCompleted if hasError is true', async () => {
       let callbacks: HookCallbacks
 

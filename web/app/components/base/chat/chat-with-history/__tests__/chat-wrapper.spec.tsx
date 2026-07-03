@@ -92,7 +92,7 @@ const defaultContextValue: ChatWithHistoryContextValue = {
   newConversationInputsRef: { current: {} } as ChatWithHistoryContextValue['newConversationInputsRef'],
   inputsForms: [],
   isInstalledApp: false,
-  currentChatInstanceRef: { current: { handleStop: vi.fn() } } as ChatWithHistoryContextValue['currentChatInstanceRef'],
+  currentChatInstanceRef: { current: { handleStop: vi.fn(), detachRunningStream: vi.fn() } } as ChatWithHistoryContextValue['currentChatInstanceRef'],
   setIsResponding: vi.fn(),
   setClearChatList: vi.fn(),
   appChatListDataLoading: false,
@@ -109,6 +109,7 @@ const defaultContextValue: ChatWithHistoryContextValue = {
   handleStartChat: vi.fn(),
   handleChangeConversation: vi.fn(),
   handleNewConversationCompleted: vi.fn(),
+  handleConversationStarted: vi.fn(),
   handleFeedback: vi.fn(),
   pinnedConversationList: [],
   chatShouldReloadKey: '',
@@ -123,7 +124,9 @@ const defaultContextValue: ChatWithHistoryContextValue = {
 const defaultChatHookReturn: Partial<ChatHookReturn> = {
   chatList: [],
   handleSend: vi.fn(),
+  handleResume: vi.fn(),
   handleStop: vi.fn(),
+  detachRunningStream: vi.fn(),
   handleSwitchSibling: vi.fn(),
   isResponding: false,
   suggestedQuestions: [],
@@ -477,11 +480,11 @@ describe('ChatWrapper', () => {
   })
 
   it('should handle workflow resumption with simple structure', () => {
-    const handleSwitchSibling = vi.fn()
+    const handleResume = vi.fn()
     vi.mocked(useChat).mockReturnValue({
       ...defaultChatHookReturn,
       chatList: [],
-      handleSwitchSibling,
+      handleResume,
     } as unknown as ChatHookReturn)
 
     vi.mocked(useChatWithHistoryContext).mockReturnValue({
@@ -497,15 +500,15 @@ describe('ChatWrapper', () => {
     })
 
     render(<ChatWrapper />)
-    expect(handleSwitchSibling).toHaveBeenCalledWith('1', expect.any(Object))
+    expect(handleResume).toHaveBeenCalledWith('1', 'w1', expect.any(Object))
   })
 
   it('should call fetchSuggestedQuestions from workflow resumption options callback', () => {
-    const handleSwitchSibling = vi.fn()
+    const handleResume = vi.fn()
     vi.mocked(useChat).mockReturnValue({
       ...defaultChatHookReturn,
       chatList: [],
-      handleSwitchSibling,
+      handleResume,
     } as unknown as ChatHookReturn)
 
     vi.mocked(useChatWithHistoryContext).mockReturnValue({
@@ -522,18 +525,18 @@ describe('ChatWrapper', () => {
 
     render(<ChatWrapper />)
 
-    expect(handleSwitchSibling).toHaveBeenCalledWith('resume-node', expect.any(Object))
-    const resumeOptions = handleSwitchSibling.mock.calls[0]![1]
+    expect(handleResume).toHaveBeenCalledWith('resume-node', 'workflow-1', expect.any(Object))
+    const resumeOptions = handleResume.mock.calls[0]![2]
     resumeOptions.onGetSuggestedQuestions('response-from-resume')
     expect(fetchSuggestedQuestions).toHaveBeenCalledWith('response-from-resume', 'webApp', 'test-app-id')
   })
 
   it('should handle workflow resumption with nested children (DFS)', () => {
-    const handleSwitchSibling = vi.fn()
+    const handleResume = vi.fn()
     vi.mocked(useChat).mockReturnValue({
       ...defaultChatHookReturn,
       chatList: [],
-      handleSwitchSibling,
+      handleResume,
     } as unknown as ChatHookReturn)
 
     vi.mocked(useChatWithHistoryContext).mockReturnValue({
@@ -563,7 +566,7 @@ describe('ChatWrapper', () => {
     })
 
     render(<ChatWrapper />)
-    expect(handleSwitchSibling).toHaveBeenCalledWith('3', expect.any(Object))
+    expect(handleResume).toHaveBeenCalledWith('3', 'w2', expect.any(Object))
   })
 
   it('should not resume workflow if no paused workflows exist', () => {
@@ -1018,7 +1021,7 @@ describe('ChatWrapper', () => {
 
   it('should set handleStop on currentChatInstanceRef', () => {
     const handleStop = vi.fn()
-    const currentChatInstanceRef = { current: { handleStop: vi.fn() } } as ChatWithHistoryContextValue['currentChatInstanceRef']
+    const currentChatInstanceRef = { current: { handleStop: vi.fn(), detachRunningStream: vi.fn() } } as ChatWithHistoryContextValue['currentChatInstanceRef']
 
     vi.mocked(useChatWithHistoryContext).mockReturnValue({
       ...defaultContextValue,
@@ -1470,7 +1473,7 @@ describe('ChatWrapper', () => {
   })
 
   it('should handle workflow resumption in new conversation', () => {
-    const handleSwitchSibling = vi.fn()
+    const handleResume = vi.fn()
     const handleNewConversationCompleted = vi.fn()
 
     vi.mocked(useChatWithHistoryContext).mockReturnValue({
@@ -1489,18 +1492,18 @@ describe('ChatWrapper', () => {
 
     vi.mocked(useChat).mockReturnValue({
       ...defaultChatHookReturn,
-      handleSwitchSibling,
+      handleResume,
     } as unknown as ChatHookReturn)
 
     render(<ChatWrapper />)
 
-    expect(handleSwitchSibling).toHaveBeenCalledWith('1', expect.objectContaining({
+    expect(handleResume).toHaveBeenCalledWith('1', 'w1', expect.objectContaining({
       onConversationComplete: handleNewConversationCompleted,
     }))
   })
 
   it('should handle workflow resumption in existing conversation', () => {
-    const handleSwitchSibling = vi.fn()
+    const handleResume = vi.fn()
     const handleNewConversationCompleted = vi.fn()
 
     vi.mocked(useChatWithHistoryContext).mockReturnValue({
@@ -1519,12 +1522,12 @@ describe('ChatWrapper', () => {
 
     vi.mocked(useChat).mockReturnValue({
       ...defaultChatHookReturn,
-      handleSwitchSibling,
+      handleResume,
     } as unknown as ChatHookReturn)
 
     render(<ChatWrapper />)
 
-    expect(handleSwitchSibling).toHaveBeenCalledWith('1', expect.objectContaining({
+    expect(handleResume).toHaveBeenCalledWith('1', 'w1', expect.objectContaining({
       onConversationComplete: undefined,
     }))
   })

@@ -48,6 +48,7 @@ type GetAbortController = (abortController: AbortController) => void
 type SendCallback = {
   onGetConversationMessages?: (conversationId: string, getAbortController: GetAbortController) => Promise<any>
   onGetSuggestedQuestions?: (responseItemId: string, getAbortController: GetAbortController) => Promise<any>
+  onConversationStarted?: (conversationId: string, query?: string) => void
   onConversationComplete?: (conversationId: string) => void
   isPublicAPI?: boolean
   conversationId?: string
@@ -246,6 +247,7 @@ export const useChat = (
       onGetSuggestedQuestions,
       onGetConversationMessages,
       onConversationComplete,
+      onConversationStarted,
       isPublicAPI,
       conversationId,
     }: SendCallback,
@@ -253,14 +255,19 @@ export const useChat = (
     handleResponding(true)
     hasStopRespondedRef.current = false
     pausedStateRef.current = false
-    let hasNotifiedConversationCreated = false
-    const notifyConversationCreated = (conversationId?: string) => {
-      if (!conversationId || hasNotifiedConversationCreated)
+    let hasNotifiedConversationStarted = false
+    const notifyConversationStarted = (conversationId?: string) => {
+      if (!conversationId || hasNotifiedConversationStarted)
         return
-      hasNotifiedConversationCreated = true
-      onConversationComplete?.(conversationId)
+      hasNotifiedConversationStarted = true
+      if (onConversationStarted)
+        onConversationStarted(conversationId)
+      else
+        onConversationComplete?.(conversationId)
     }
     const getOrCreatePlayer = createAudioPlayerManager()
+
+    notifyConversationStarted(conversationId)
     // Re-subscribe to workflow events for the specific message
     const url = `/workflow/${workflowRunId}/events?include_state_snapshot=true`
 
@@ -286,7 +293,7 @@ export const useChat = (
 
         if (isFirstMessage && newConversationId) {
           conversationIdRef.current = newConversationId
-          notifyConversationCreated(newConversationId)
+          notifyConversationStarted(newConversationId)
         }
 
         if (taskId)
@@ -298,7 +305,7 @@ export const useChat = (
         if (hasError)
           return
 
-        notifyConversationCreated(conversationIdRef.current)
+        onConversationComplete?.(conversationIdRef.current || conversationId || '')
 
         const conversationIdForReload = conversationIdRef.current || conversationId
         if (conversationIdForReload && !hasStopRespondedRef.current && onGetConversationMessages) {
@@ -671,6 +678,7 @@ export const useChat = (
       onGetConversationMessages,
       onGetSuggestedQuestions,
       onConversationComplete,
+      onConversationStarted,
       isPublicAPI,
     }: SendCallback,
   ) => {
@@ -746,12 +754,15 @@ export const useChat = (
 
     let isAgentMode = false
     let hasSetResponseId = false
-    let hasNotifiedConversationCreated = false
-    const notifyConversationCreated = (conversationId?: string) => {
-      if (!conversationId || hasNotifiedConversationCreated)
+    let hasNotifiedConversationStarted = false
+    const notifyConversationStarted = (conversationId?: string) => {
+      if (!conversationId || hasNotifiedConversationStarted)
         return
-      hasNotifiedConversationCreated = true
-      onConversationComplete?.(conversationId)
+      hasNotifiedConversationStarted = true
+      if (onConversationStarted)
+        onConversationStarted(conversationId, data.query)
+      else
+        onConversationComplete?.(conversationId)
     }
 
     const getOrCreatePlayer = createAudioPlayerManager()
@@ -778,8 +789,10 @@ export const useChat = (
           hasSetResponseId = true
         }
 
-        if (isFirstMessage && newConversationId)
+        if (isFirstMessage && newConversationId) {
           conversationIdRef.current = newConversationId
+          notifyConversationStarted(newConversationId)
+        }
 
         taskIdRef.current = taskId
         if (messageId)
@@ -798,8 +811,7 @@ export const useChat = (
         if (hasError)
           return
 
-        if (onConversationComplete)
-          onConversationComplete(conversationIdRef.current)
+        onConversationComplete?.(conversationIdRef.current)
 
         if (conversationIdRef.current && !hasStopRespondedRef.current && onGetConversationMessages) {
           const { data }: any = await onGetConversationMessages(
@@ -969,7 +981,7 @@ export const useChat = (
         // If there are no streaming messages, we still need to set the conversation_id to avoid create a new conversation when regeneration in chat-flow.
         if (conversation_id) {
           conversationIdRef.current = conversation_id
-          notifyConversationCreated(conversation_id)
+          notifyConversationStarted(conversation_id)
         }
         if (message_id && !hasSetResponseId) {
           questionItem.id = `question-${message_id}`

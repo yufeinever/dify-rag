@@ -75,6 +75,11 @@ class ConversationListApi(InstalledAppResource):
                     invoke_from=InvokeFrom.EXPLORE,
                     pinned=args.pinned,
                 )
+                WebConversationService.attach_latest_workflow_run_status(
+                    session=session,
+                    conversations=pagination.data,
+                    app_id=str(app_model.id),
+                )
                 adapter = TypeAdapter(SimpleConversation)
                 conversations = [adapter.validate_python(item, from_attributes=True) for item in pagination.data]
                 return ConversationInfiniteScrollPagination(

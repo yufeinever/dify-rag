@@ -41,6 +41,7 @@ const ChatWrapper = () => {
     newConversationInputs,
     newConversationInputsRef,
     handleNewConversationCompleted,
+    handleConversationStarted,
     isMobile,
     isInstalledApp,
     appId,
@@ -147,7 +148,7 @@ const ChatWrapper = () => {
 
   // Resume running or paused workflows when chat history is loaded. Switching conversations
   // detaches the local stream only; the backend workflow keeps running and can be re-subscribed.
-  const resumedWorkflowRunIdRef = useRef<string>()
+  const resumedWorkflowRunIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     resumedWorkflowRunIdRef.current = undefined
@@ -189,6 +190,7 @@ const ChatWrapper = () => {
           onGetConversationMessages: conversationId => fetchChatList(conversationId, appSourceType, appId),
           onGetSuggestedQuestions: responseItemId => fetchSuggestedQuestions(responseItemId, appSourceType, appId),
           onConversationComplete: currentConversationId ? undefined : handleNewConversationCompleted,
+          onConversationStarted: currentConversationId ? undefined : handleConversationStarted,
           isPublicAPI: appSourceType === AppSourceType.webApp,
         },
       )
@@ -217,10 +219,11 @@ const ChatWrapper = () => {
       {
         onGetSuggestedQuestions: responseItemId => fetchSuggestedQuestions(responseItemId, appSourceType, appId),
         onConversationComplete: isHistoryConversation ? undefined : handleNewConversationCompleted,
+        onConversationStarted: isHistoryConversation ? undefined : handleConversationStarted,
         isPublicAPI: appSourceType === AppSourceType.webApp,
       },
     )
-  }, [inputsForms, currentConversationId, currentConversationInputs, newConversationInputs, chatList, handleSend, appSourceType, appId, isHistoryConversation, handleNewConversationCompleted])
+  }, [inputsForms, currentConversationId, currentConversationInputs, newConversationInputs, chatList, handleSend, appSourceType, appId, isHistoryConversation, handleNewConversationCompleted, handleConversationStarted])
 
   const doRegenerate = useCallback((chatItem: ChatItem, editedQuestion?: { message: string, files?: FileEntity[] }) => {
     const question = editedQuestion ? chatItem : chatList.find(item => item.id === chatItem.parentMessageId)!
@@ -234,7 +237,7 @@ const ChatWrapper = () => {
       onConversationComplete: currentConversationId ? undefined : handleNewConversationCompleted,
       isPublicAPI: appSourceType === AppSourceType.webApp,
     })
-  }, [handleSwitchSibling, currentConversationId, handleNewConversationCompleted, appSourceType, appId])
+  }, [handleSwitchSibling, currentConversationId, handleNewConversationCompleted, handleConversationStarted, appSourceType, appId])
 
   const messageList = useMemo(() => {
     if (currentConversationId || chatList.length > 1)

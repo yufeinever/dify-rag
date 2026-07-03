@@ -103,6 +103,7 @@ const createHookReturn = (overrides: Partial<EmbeddedChatbotHookReturn> = {}): E
     handleStartChat: vi.fn(),
     handleChangeConversation: vi.fn(),
     handleNewConversationCompleted: vi.fn(),
+    handleConversationStarted: vi.fn(),
     newConversationId: '',
     chatShouldReloadKey: 'reload-key',
     allowResetChat: true,

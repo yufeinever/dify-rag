@@ -6,6 +6,9 @@ export type ConversationItem = {
   name: string
   inputs: Record<string, any> | null
   introduction: string
+  latest_message_id?: string | null
+  latest_workflow_run_id?: string | null
+  latest_workflow_run_status?: string | null
 }
 
 export type SiteInfo = {
