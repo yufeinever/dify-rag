@@ -9,7 +9,7 @@ from core.helper import encrypter
 from extensions.ext_database import db
 from graphon.model_runtime.entities.model_entities import ModelType
 from models.model import App
-from models.provider import ProviderModel, ProviderModelCredential
+from models.provider import Provider, ProviderCredential, ProviderModel, ProviderModelCredential, ProviderType
 from services.model_provider_service import ModelProviderService
 from sqlalchemy import select
 
@@ -75,12 +75,61 @@ def _build_new_credentials(old: dict[str, Any]) -> dict[str, Any]:
     return {
         "openai_api_key": api_key,
         "openai_api_base": endpoint,
+        "validate_model": MODEL_NAME,
         "api_protocol": "responses",
         "enable_web_search": os.environ.get("ENABLE_WEB_SEARCH", "enabled"),
         "enable_code_interpreter": os.environ.get("ENABLE_CODE_INTERPRETER", "disabled"),
         "enable_file_search": os.environ.get("ENABLE_FILE_SEARCH", "disabled"),
         "openai_vector_store_ids": os.environ.get("OPENAI_VECTOR_STORE_IDS", ""),
     }
+
+
+def _upsert_provider_credential(credentials: dict[str, Any]) -> None:
+    """Configure provider-level credentials for predefined OpenAI models.
+
+    The private plugin exposes gpt-5.5 as a predefined model, so Dify marks the
+    model active only when provider-level credentials exist. Model-level
+    credentials are still useful for customizable models, but they do not change
+    predefined model status.
+    """
+    service = ModelProviderService()
+    credential_name = "remote-gpt-5.5-responses"
+    provider_record = db.session.scalar(
+        select(Provider).where(
+            Provider.tenant_id == TENANT_ID,
+            Provider.provider_name == NEW_PROVIDER,
+            Provider.provider_type == ProviderType.CUSTOM,
+        )
+    )
+    if provider_record and provider_record.credential_id:
+        service.update_provider_credential(
+            TENANT_ID,
+            NEW_PROVIDER,
+            credentials,
+            provider_record.credential_id,
+            credential_name,
+        )
+        return
+
+    existing_credential = db.session.scalar(
+        select(ProviderCredential).where(
+            ProviderCredential.tenant_id == TENANT_ID,
+            ProviderCredential.provider_name == NEW_PROVIDER,
+            ProviderCredential.credential_name == credential_name,
+        )
+    )
+    if existing_credential:
+        service.update_provider_credential(
+            TENANT_ID,
+            NEW_PROVIDER,
+            credentials,
+            existing_credential.id,
+            credential_name,
+        )
+        service.switch_active_provider_credential(TENANT_ID, NEW_PROVIDER, existing_credential.id)
+        return
+
+    service.create_provider_credential(TENANT_ID, NEW_PROVIDER, credentials, credential_name)
 
 
 def _upsert_model_credential(credentials: dict[str, Any]) -> None:
@@ -148,6 +197,7 @@ def main() -> None:
             "enable_file_search": new_credentials.get("enable_file_search"),
         }
         print(json.dumps({"action": "validate_new_provider", "safe_credentials": safe}, ensure_ascii=False), flush=True)
+        _upsert_provider_credential(new_credentials)
         _upsert_model_credential(new_credentials)
         switched = _switch_app_model()
         print(json.dumps({"configured": True, **switched}, ensure_ascii=False), flush=True)
