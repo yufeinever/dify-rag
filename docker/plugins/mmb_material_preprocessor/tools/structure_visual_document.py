@@ -115,7 +115,7 @@ class MmbVisualDocumentStructurerTool(Tool):
 
         report = {
             "parser": "mmb-visual-document-structurer",
-            "version": "0.1.15",
+            "version": "0.1.16",
             "source_file_name": filename,
             "file_extension": extension,
             "content_items": len(content_list),
@@ -860,9 +860,21 @@ class MmbVisualDocumentStructurerTool(Tool):
     def _force_type_short_fragments(cls, output: str, filename: str) -> str:
         fixed: list[str] = []
         loose: list[str] = []
+        in_typed_block = False
         for line in output.splitlines():
             stripped = line.strip()
-            if stripped and not TYPED_CHUNK_RE.search(stripped) and cls._wordish_len(stripped) < 30 and cls._is_standalone_noise_line(stripped):
+            if TYPED_CHUNK_RE.search(stripped):
+                in_typed_block = True
+            elif not stripped:
+                in_typed_block = False
+            if (
+                stripped
+                and not in_typed_block
+                and not stripped.startswith("|")
+                and not TYPED_CHUNK_RE.search(stripped)
+                and cls._wordish_len(stripped) < 30
+                and cls._is_standalone_noise_line(stripped)
+            ):
                 loose.append(stripped)
                 continue
             if loose:

@@ -70,6 +70,12 @@ def patch_v41_graph(value: Any) -> Any:
                 config["top_k"] = int(os.getenv("V41_TOP_K", "12"))
                 config["score_threshold"] = 0
                 config["reranking_enable"] = True
+        if data and data.get("type") == "knowledge-index":
+            retrieval_model = data.get("retrieval_model")
+            if isinstance(retrieval_model, dict):
+                retrieval_model["top_k"] = int(os.getenv("V41_TOP_K", "12"))
+                retrieval_model["score_threshold"] = 0
+                retrieval_model["score_threshold_enabled"] = False
         if data and data.get("type") == "code" and "检索后过滤" in str(data.get("title", "")):
             code = data.get("code") or ""
             if "narrative_context" not in code:

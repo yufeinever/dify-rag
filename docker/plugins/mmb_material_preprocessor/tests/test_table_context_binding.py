@@ -87,3 +87,17 @@ def test_table_context_uses_raw_context_not_enriched_visual_metadata():
     assert "会议明确小程序开发团队分工" in block
     assert "150.5.132.104" not in block
     assert "图片链接" not in block
+
+
+def test_force_clean_does_not_wrap_markdown_table_separator():
+    module = load_module()
+    tool = module.MmbVisualDocumentStructurerTool
+    block = """<!-- chunk_type: table_fact -->
+### 表格事实｜团队组织架构
+| 岗位 | 姓名 | 备注 |
+| --- | --- | --- |
+| 产品负责人 | 陆乘播 | 开发需求对接 |
+"""
+    fixed = tool._force_type_short_fragments(block, "sample.docx")
+    assert "低信息 OCR/Logo 文本" not in fixed
+    assert "| --- | --- | --- |" in fixed
