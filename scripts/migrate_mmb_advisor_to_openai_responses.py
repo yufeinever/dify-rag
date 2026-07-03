@@ -141,6 +141,67 @@ def _upsert_provider_credential(credentials: dict[str, Any]) -> None:
     service.create_provider_credential(TENANT_ID, NEW_PROVIDER, credentials, credential_name)
 
 
+def _merge_private_response_credentials(existing: dict[str, Any], credentials: dict[str, Any]) -> dict[str, Any]:
+    patched = dict(existing)
+    for key in (
+        "enable_material_mcp",
+        "material_mcp_server_url",
+        "material_mcp_allowed_tools",
+    ):
+        if key in credentials:
+            patched[key] = credentials.get(key, "")
+    token = credentials.get("material_mcp_auth_token")
+    if token:
+        patched["material_mcp_auth_token"] = encrypter.encrypt_token(TENANT_ID, token)
+    return patched
+
+
+def _force_patch_private_response_credentials(credentials: dict[str, Any]) -> None:
+    provider_record = db.session.scalar(
+        select(Provider).where(
+            Provider.tenant_id == TENANT_ID,
+            Provider.provider_name == NEW_PROVIDER,
+            Provider.provider_type == ProviderType.CUSTOM,
+        )
+    )
+    if provider_record and provider_record.credential_id:
+        provider_credential = db.session.scalar(
+            select(ProviderCredential).where(
+                ProviderCredential.id == provider_record.credential_id,
+                ProviderCredential.tenant_id == TENANT_ID,
+            )
+        )
+        if provider_credential:
+            raw = json.loads(provider_credential.encrypted_config or "{}")
+            provider_credential.encrypted_config = json.dumps(
+                _merge_private_response_credentials(raw, credentials),
+                ensure_ascii=False,
+            )
+
+    model_record = db.session.scalar(
+        select(ProviderModel).where(
+            ProviderModel.tenant_id == TENANT_ID,
+            ProviderModel.provider_name == NEW_PROVIDER,
+            ProviderModel.model_name == MODEL_NAME,
+            ProviderModel.model_type == ModelType.LLM,
+        )
+    )
+    if model_record and model_record.credential_id:
+        model_credential = db.session.scalar(
+            select(ProviderModelCredential).where(
+                ProviderModelCredential.id == model_record.credential_id,
+                ProviderModelCredential.tenant_id == TENANT_ID,
+            )
+        )
+        if model_credential:
+            raw = json.loads(model_credential.encrypted_config or "{}")
+            model_credential.encrypted_config = json.dumps(
+                _merge_private_response_credentials(raw, credentials),
+                ensure_ascii=False,
+            )
+    db.session.commit()
+
+
 def _upsert_model_credential(credentials: dict[str, Any]) -> None:
     service = ModelProviderService()
     existing = db.session.scalar(
@@ -211,6 +272,7 @@ def main() -> None:
         print(json.dumps({"action": "validate_new_provider", "safe_credentials": safe}, ensure_ascii=False), flush=True)
         _upsert_provider_credential(new_credentials)
         _upsert_model_credential(new_credentials)
+        _force_patch_private_response_credentials(new_credentials)
         switched = _switch_app_model()
         print(json.dumps({"configured": True, **switched}, ensure_ascii=False), flush=True)
 
