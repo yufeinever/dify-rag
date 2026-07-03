@@ -2,13 +2,13 @@ identity:
   name: structure-visual-document
   author: mmb
   label:
-    en_US: PDF/PPT Visual Enricher + Structurer
-    zh_Hans: PDF/PPT 图文增强结构化
+    en_US: PDF/PPT/DOC One-shot Quality Enricher
+    zh_Hans: PDF/PPT/DOC 一次导入质量增强
 description:
   human:
-    en_US: Bind embedded PDF/PPT visual elements to source, page, title, and nearby context, then emit clean Markdown for general chunking.
-    zh_Hans: 将 PDF/PPT 内嵌图片、图表绑定来源、页码、标题和邻近上下文，并输出适合通用分段的干净 Markdown。
-  llm: Structure MinerU Markdown/content_list into self-contained visual-aware Markdown before General Chunker.
+    en_US: Bind layout, tables, visual elements, headings, and noise controls before emitting quality-gated Markdown for general chunking.
+    zh_Hans: 将 PDF/PPT/DOC 的版面、表格、图片、标题和噪声治理前置处理，并输出适合通用分段的一次导入增强 Markdown。
+  llm: Structure MinerU Markdown/content_list into typed, self-contained, noise-controlled Markdown before General Chunker.
 parameters:
 - name: parsed_text
   type: string

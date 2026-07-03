@@ -52,3 +52,38 @@ def test_table_context_block_binds_heading_topics_markdown_and_facts():
     assert "产品负责人：陆乘播 / Mange，开发需求对接。" in block
     assert "全站工程师：沈豪杰，程序整体方案。" in block
     assert "硬件 / 外部：李俊乐，对接及机器落地。" in block
+
+
+
+def test_structure_markdown_types_narrative_and_groups_noise():
+    module = load_module()
+    tool = module.MmbVisualDocumentStructurerTool
+    text = """# PREFACE
+→
+今天
+## 深圳文交所合作
+MMB 与深圳文交所建立战略合作，围绕文化产权、品牌资产和交易场景开展协同。
+双方计划共同推动鲜啤交易所业务落地。
+"""
+    body, stats = tool._structure_markdown(text, "合作方案.pdf", [])
+    assert "<!-- chunk_type: business_fact -->" in body
+    assert "<!-- chunk_type: ocr_noise -->" in body
+    assert "主题：深圳文交所合作" in body
+    assert "MMB 与深圳文交所建立战略合作" in body
+    assert stats["noise_items_grouped"] >= 2
+
+
+def test_table_context_uses_raw_context_not_enriched_visual_metadata():
+    module = load_module()
+    tool = module.MmbVisualDocumentStructurerTool
+    html = """<table><tr><td>岗位</td><td>姓名</td></tr><tr><td>产品负责人</td><td>陆乘播</td></tr></table>"""
+    block = tool._format_table_context_block(
+        "技术部碰头会_会议记录.docx",
+        "三、团队组织架构及职责分工",
+        html,
+        ["图像说明｜三级店型模型验证 来源：http://150.5.132.104/files/tools/demo.png", "会议明确小程序开发团队分工。"],
+        [],
+    )
+    assert "会议明确小程序开发团队分工" in block
+    assert "150.5.132.104" not in block
+    assert "图片链接" not in block
