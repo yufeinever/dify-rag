@@ -81,6 +81,15 @@ def patch_v41_graph(value: Any) -> Any:
             if "narrative_context" not in code:
                 code = code.replace('if "<!-- chunk_type: visual_asset -->" in lower:\n            return "visual_asset"', 'if "<!-- chunk_type: visual_asset -->" in lower:\n            return "visual_asset"\n        if "<!-- chunk_type: narrative_context -->" in lower:\n            return "narrative_context"')
                 code = code.replace('{"business_fact": 0, "table_fact": 1, "text": 2, "visual_asset": 3}', '{"business_fact": 0, "table_fact": 1, "narrative_context": 2, "text": 3, "visual_asset": 4}')
+                if "table_intent" not in code:
+                    code = code.replace(
+                        'business_terms = ("合作", "战略", "深圳文交所", "深圳文化产权交易所", "加盟", "投资", "融资", "团队", "创始", "负责人", "方案", "模式", "分润", "费用", "收益")',
+                        'business_terms = ("合作", "战略", "深圳文交所", "深圳文化产权交易所", "加盟", "投资", "融资", "团队", "创始", "负责人", "方案", "模式", "分润", "费用", "收益")\n    table_terms = ("哪些人", "有哪些人", "人员", "参与", "组织架构", "职责分工", "岗位", "名单", "表格")\n    table_intent = any(term in query for term in table_terms)',
+                    )
+                    code = code.replace(
+                        'rank = {"business_fact": 0, "table_fact": 1, "narrative_context": 2, "text": 3, "visual_asset": 4}.get(ctype, 2)',
+                        'rank_map = {"business_fact": 0, "table_fact": 1, "narrative_context": 2, "text": 3, "visual_asset": 4}\n        if table_intent:\n            rank_map = {"table_fact": 0, "business_fact": 1, "narrative_context": 2, "text": 3, "visual_asset": 4}\n        rank = rank_map.get(ctype, 2)',
+                    )
                 data["code"] = code
         if data and data.get("type") == "llm":
             templates = data.get("prompt_template")
