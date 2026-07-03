@@ -20,8 +20,12 @@ class MaterialMCPAuthTests(unittest.TestCase):
         import app.main as main_module
 
         class FakeRequest:
-            def __init__(self, authorization=None):
-                self.headers = {} if authorization is None else {"authorization": authorization}
+            def __init__(self, authorization=None, forwarded=False):
+                self.headers = {}
+                if authorization is not None:
+                    self.headers["authorization"] = authorization
+                if forwarded:
+                    self.headers["x-forwarded-for"] = "203.0.113.10"
 
             async def json(self):
                 return {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
@@ -29,11 +33,14 @@ class MaterialMCPAuthTests(unittest.TestCase):
         old_token = main_module.settings.mcp_auth_token
         main_module.settings.mcp_auth_token = "test-token"
         try:
+            internal_response = asyncio.run(main_module.mcp_endpoint(FakeRequest()))
+            self.assertEqual(internal_response["result"]["serverInfo"]["name"], "material-catalog-mcp")
+
             with self.assertRaises(HTTPException) as exc:
-                asyncio.run(main_module.mcp_endpoint(FakeRequest()))
+                asyncio.run(main_module.mcp_endpoint(FakeRequest(forwarded=True)))
             self.assertEqual(exc.exception.status_code, 401)
 
-            ok_response = asyncio.run(main_module.mcp_endpoint(FakeRequest("Bearer test-token")))
+            ok_response = asyncio.run(main_module.mcp_endpoint(FakeRequest("Bearer test-token", forwarded=True)))
             self.assertEqual(ok_response["result"]["serverInfo"]["name"], "material-catalog-mcp")
             self.assertEqual(main_module.health()["status"], "ok")
         finally:

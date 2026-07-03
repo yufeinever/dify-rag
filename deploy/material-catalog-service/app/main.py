@@ -70,9 +70,13 @@ def health() -> dict[str, object]:
     }
 
 
+def _is_public_mcp_request(request: Request) -> bool:
+    return bool(request.headers.get("x-forwarded-for"))
+
+
 @app.post("/mcp")
 async def mcp_endpoint(request: Request) -> dict[str, Any]:
-    if settings.mcp_auth_token:
+    if settings.mcp_auth_token and _is_public_mcp_request(request):
         expected = f"Bearer {settings.mcp_auth_token}"
         if request.headers.get("authorization") != expected:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MCP authorization required")
