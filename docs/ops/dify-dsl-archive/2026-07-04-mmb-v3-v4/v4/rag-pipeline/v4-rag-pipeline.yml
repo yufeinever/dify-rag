@@ -1,0 +1,1348 @@
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/general_chunker:0.0.13@3bec8834edc003becaa37439ce1bb1ac9f71898c6b9cd96acaaaa1a39705ba71
+    version: null
+- current_identifier: null
+  type: package
+  value:
+    plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.16@192b93bdd23fdf4cda7328f8366431d3b3c85e37226118b865b906f476aca688
+    version: null
+kind: rag_pipeline
+rag_pipeline:
+  description: 统一材料知识库 V4：保持通用分段，新增 DOC/DOCX/PDF/PPT 表格上下文绑定和行级事实展开。
+  icon: 📗
+  icon_background: '#E8F7EE'
+  icon_type: emoji
+  icon_url: null
+  name: MMB统一材料知识库-v4-表格增强
+version: 0.1.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features: {}
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: datasource
+        targetType: if-else
+      id: 1752479895761-source-1752481129417-target
+      source: '1752479895761'
+      sourceHandle: source
+      target: '1752481129417'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: tool
+      id: 1752481129417-24e47cad-f1e2-4f74-9884-3f49d5bb37b7-1752480460682-target
+      source: '1752481129417'
+      sourceHandle: 24e47cad-f1e2-4f74-9884-3f49d5bb37b7
+      target: '1752480460682'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: document-extractor
+      id: 1752481129417-false-1752481112180-target
+      source: '1752481129417'
+      sourceHandle: 'false'
+      target: '1752481112180'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: document-extractor
+        targetType: variable-aggregator
+      id: 1752481112180-source-1752482022496-target
+      source: '1752481112180'
+      sourceHandle: source
+      target: '1752482022496'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: knowledge-index
+      id: 1752482151668-source-1752477924228-target
+      source: '1752482151668'
+      sourceHandle: source
+      target: '1752477924228'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: tool
+      id: 1752481129417-table-files-1752481519000-target
+      source: '1752481129417'
+      sourceHandle: table-files
+      target: '1752481519000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: variable-aggregator
+      id: 1752481519000-source-1752482022496-target
+      source: '1752481519000'
+      sourceHandle: source
+      target: '1752482022496'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: tool
+      id: 1752481129417-image-files-1752493000000-target
+      source: '1752481129417'
+      sourceHandle: image-files
+      target: '1752493000000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: tool
+        targetType: llm
+      id: 1752493000000-source-1752481719000-target
+      source: '1752493000000'
+      sourceHandle: source
+      target: '1752481719000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: variable-aggregator
+        targetType: document-chunker
+      id: 1752482022496-source-1752482151668-target
+      source: '1752482022496'
+      sourceHandle: source
+      target: '1752482151668'
+      targetHandle: target
+      type: custom
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: tool
+      id: 1752481719000-source-1752493600000-target
+      source: '1752481719000'
+      sourceHandle: source
+      target: '1752493600000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: tool
+        targetType: variable-aggregator
+      id: 1752493600000-source-1752482022496-target
+      source: '1752493600000'
+      sourceHandle: source
+      target: '1752482022496'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: tool
+      id: 1752480460682-source-1752498800000-target
+      source: '1752480460682'
+      sourceHandle: source
+      target: '1752498800000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: variable-aggregator
+      id: 1752498800000-source-1752482022496-target
+      source: '1752498800000'
+      sourceHandle: source
+      target: '1752482022496'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        chunk_structure: text_model
+        embedding_model: bge-m3
+        embedding_model_provider: langgenius/xinference/xinference
+        index_chunk_variable_selector:
+        - '1752482151668'
+        - result
+        indexing_technique: high_quality
+        keyword_number: 10
+        retrieval_model:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            reranking_model_name: bge-reranker-v2-m3
+            reranking_provider_name: langgenius/xinference/xinference
+          score_threshold: 0
+          score_threshold_enabled: false
+          search_method: hybrid_search
+          top_k: 5
+          weights:
+            keyword_setting:
+              keyword_weight: 0.3
+            vector_setting:
+              embedding_model_name: bge-m3
+              embedding_provider_name: langgenius/xinference/xinference
+              vector_weight: 0.7
+        selected: true
+        summary_index_setting: null
+        title: Knowledge Base
+        type: knowledge-index
+      height: 165
+      id: '1752477924228'
+      position:
+        x: 1076.4656678451215
+        y: 281.3910724383104
+      positionAbsolute:
+        x: 1076.4656678451215
+        y: 281.3910724383104
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        datasource_configurations: {}
+        datasource_label: File
+        datasource_name: upload-file
+        datasource_parameters: {}
+        fileExtensions:
+        - pdf
+        - ppt
+        - pptx
+        - doc
+        - docx
+        - png
+        - jpg
+        - jpeg
+        - xls
+        - xlsx
+        - csv
+        - txt
+        - md
+        - markdown
+        - mdx
+        - json
+        - yaml
+        - yml
+        - xml
+        - html
+        - htm
+        plugin_id: langgenius/file
+        provider_name: file
+        provider_type: local_file
+        selected: false
+        title: File
+        type: datasource
+      height: 51
+      id: '1752479895761'
+      position:
+        x: -839.8603427660498
+        y: 251.3910724383104
+      positionAbsolute:
+        x: -839.8603427660498
+        y: 251.3910724383104
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        is_team_authorization: true
+        output_schema:
+          properties:
+            compression_report:
+              type: object
+            content_list:
+              items:
+                type: object
+              type: array
+            content_list_text:
+              type: string
+            file_metadata:
+              type: object
+            json:
+              type: object
+            text:
+              type: string
+          type: object
+        paramSchemas:
+        - form: llm
+          human_description:
+            en_US: Supports pdf, doc, docx, ppt, and pptx.
+            zh_Hans: 支持 pdf、doc、docx、ppt、pptx。
+          label:
+            en_US: File
+            zh_Hans: 文件
+          llm_description: 'Original material file. Supported: pdf, doc, docx, ppt,
+            pptx.'
+          name: file
+          required: true
+          type: file
+        - default: auto
+          form: form
+          label:
+            en_US: Parse Method
+            zh_Hans: 解析模式
+          name: parse_method
+          options:
+          - label:
+              en_US: Auto
+              zh_Hans: 自动
+            value: auto
+          - label:
+              en_US: OCR
+              zh_Hans: OCR
+            value: ocr
+          - label:
+              en_US: Text
+              zh_Hans: 文本
+            value: txt
+          required: false
+          type: select
+        - default: ch
+          form: form
+          label:
+            en_US: OCR Language
+            zh_Hans: OCR 语言
+          name: language
+          required: false
+          type: string
+        - default: 1800
+          form: form
+          label:
+            en_US: Max Long Edge
+            zh_Hans: 图片最长边
+          max: 4000
+          min: 800
+          name: max_long_edge
+          required: false
+          type: number
+        - default: 82
+          form: form
+          label:
+            en_US: JPEG Quality
+            zh_Hans: JPEG 质量
+          max: 95
+          min: 50
+          name: jpeg_quality
+          required: false
+          type: number
+        - default: 30
+          form: form
+          label:
+            en_US: Large File Threshold MB
+            zh_Hans: 大文件阈值 MB
+          max: 500
+          min: 1
+          name: large_file_mb
+          required: false
+          type: number
+        plugin_id: mmb/mmb_material_preprocessor
+        plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.14@a4e32a2efe5947cefbfe2d058cbc2c34c688d7e4c5c590114feb3b9d06306fd6
+        provider_id: mmb/mmb_material_preprocessor/mmb_material_preprocessor
+        provider_name: mmb_material_preprocessor
+        provider_type: builtin
+        selected: false
+        title: MMB Normalize + MinerU Parse
+        tool_configurations:
+          jpeg_quality:
+            type: constant
+            value: 82
+          language:
+            type: constant
+            value: ch
+          large_file_mb:
+            type: constant
+            value: 30
+          max_long_edge:
+            type: constant
+            value: 1800
+          parse_method:
+            type: constant
+            value: auto
+        tool_description: Normalize large office/PDF materials, preserve original
+          files, and parse them with MinerU.
+        tool_label: Normalize and Parse File
+        tool_name: normalize-file
+        tool_node_version: '2'
+        tool_parameters:
+          file:
+            type: variable
+            value:
+            - '1752479895761'
+            - file
+        type: tool
+      height: 191
+      id: '1752480460682'
+      position:
+        x: -108.28652292656551
+        y: 281.3910724383104
+      positionAbsolute:
+        x: -108.28652292656551
+        y: 281.3910724383104
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        is_array_file: false
+        selected: false
+        title: 文本/HTML 提取器
+        type: document-extractor
+        variable_selector:
+        - '1752479895761'
+        - file
+      height: 104
+      id: '1752481112180'
+      position:
+        x: -176.2917316544851
+        y: 1124.4485049510947
+      positionAbsolute:
+        x: -176.2917316544851
+        y: 1124.4485049510947
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 24e47cad-f1e2-4f74-9884-3f49d5bb37b7
+          conditions:
+          - comparison_operator: is
+            id: visual-pdf
+            value: .pdf
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: visual-ppt
+            value: .ppt
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: visual-pptx
+            value: .pptx
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: visual-doc
+            value: .doc
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: visual-docx
+            value: .docx
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          id: 24e47cad-f1e2-4f74-9884-3f49d5bb37b7
+          logical_operator: or
+        - case_id: table-files
+          conditions:
+          - comparison_operator: is
+            id: table-xls
+            value: .xls
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: table-xlsx
+            value: .xlsx
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: table-csv
+            value: .csv
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          id: table-files
+          logical_operator: or
+        - case_id: image-files
+          conditions:
+          - comparison_operator: is
+            id: image-png
+            value: .png
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: image-jpg
+            value: .jpg
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          - comparison_operator: is
+            id: image-jpeg
+            value: .jpeg
+            varType: file
+            variable_selector:
+            - '1752479895761'
+            - file
+            - extension
+          id: image-files
+          logical_operator: or
+        selected: false
+        title: IF/ELSE
+        type: if-else
+      height: 427
+      id: '1752481129417'
+      position:
+        x: -489.57009543377865
+        y: 251.3910724383104
+      positionAbsolute:
+        x: -489.57009543377865
+        y: 251.3910724383104
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        advanced_settings:
+          group_enabled: false
+          groups:
+          - groupId: f4cf07b4-914d-4544-8ef8-0c5d9e4f21a7
+            group_name: Group1
+            output_type: string
+            variables:
+            - - '1752481112180'
+              - text
+            - - '1752498800000'
+              - text
+            - - '1752481519000'
+              - text
+            - - '1752493600000'
+              - text
+        output_type: string
+        selected: false
+        title: Variable Aggregator
+        type: variable-aggregator
+        variables:
+        - - '1752481112180'
+          - text
+        - - '1752498800000'
+          - text
+        - - '1752481519000'
+          - text
+        - - '1752493600000'
+          - text
+      height: 185
+      id: '1752482022496'
+      position:
+        x: 319.441649575055
+        y: 281.3910724383104
+      positionAbsolute:
+        x: 319.441649575055
+        y: 281.3910724383104
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        is_team_authorization: true
+        output_schema:
+          properties:
+            result:
+              description: The result of the general chunk tool.
+              properties:
+                general_chunks:
+                  items:
+                    description: The chunk of the text.
+                    type: string
+                  type: array
+              type: object
+          type: object
+        paramSchemas:
+        - auto_generate: null
+          default: null
+          form: llm
+          human_description:
+            en_US: The text you want to chunk.
+            ja_JP: チャンク化したいテキスト。
+            pt_BR: O texto que você deseja dividir.
+            zh_Hans: 你想要分块的文本。
+          label:
+            en_US: Input Variable
+            ja_JP: 入力変数
+            pt_BR: Variável de entrada
+            zh_Hans: 输入变量
+          llm_description: The text you want to chunk.
+          max: null
+          min: null
+          name: input_variable
+          options: []
+          placeholder: null
+          precision: null
+          required: true
+          scope: null
+          template: null
+          type: string
+        - auto_generate: null
+          default: null
+          form: llm
+          human_description:
+            en_US: The delimiter of the chunks.
+            ja_JP: チャンクの区切り記号。
+            pt_BR: O delimitador dos pedaços.
+            zh_Hans: 块的分隔符。
+          label:
+            en_US: Delimiter
+            ja_JP: 区切り記号
+            pt_BR: Delimitador
+            zh_Hans: 分隔符
+          llm_description: The delimiter of the chunks, the format of the delimiter
+            must be a string.
+          max: null
+          min: null
+          name: delimiter
+          options: []
+          placeholder: null
+          precision: null
+          required: true
+          scope: null
+          template: null
+          type: string
+        - auto_generate: null
+          default: null
+          form: llm
+          human_description:
+            en_US: The maximum chunk length.
+            ja_JP: 最大長のチャンク。
+            pt_BR: O comprimento máximo do bloco
+            zh_Hans: 最大块的长度。
+          label:
+            en_US: Maximum Chunk Length
+            ja_JP: チャンク最大長
+            pt_BR: O comprimento máximo do bloco
+            zh_Hans: 最大块的长度
+          llm_description: The maximum chunk length, the format of the chunk size
+            must be an integer.
+          max: null
+          min: null
+          name: max_chunk_length
+          options: []
+          placeholder: null
+          precision: null
+          required: true
+          scope: null
+          template: null
+          type: number
+        - auto_generate: null
+          default: null
+          form: llm
+          human_description:
+            en_US: The chunk overlap length.
+            ja_JP: チャンクの重複長
+            pt_BR: The chunk overlap length.
+            zh_Hans: 块的重叠长度。
+          label:
+            en_US: Chunk Overlap Length
+            ja_JP: チャンク重複長
+            pt_BR: Chunk Overlap Length
+            zh_Hans: 块的重叠长度
+          llm_description: The chunk overlap length, the format of the chunk overlap
+            length must be an integer.
+          max: null
+          min: null
+          name: chunk_overlap_length
+          options: []
+          placeholder: null
+          precision: null
+          required: false
+          scope: null
+          template: null
+          type: number
+        - auto_generate: null
+          default: null
+          form: llm
+          human_description:
+            en_US: Replace consecutive spaces, newlines and tabs
+            ja_JP: 連続のスペース、改行、まだはタブを置換する
+            pt_BR: Replace consecutive spaces, newlines and tabs
+            zh_Hans: 替换连续的空格、换行符和制表符
+          label:
+            en_US: Replace Consecutive Spaces, Newlines and Tabs
+            ja_JP: 連続のスペース、改行、まだはタブを置換する
+            pt_BR: Replace Consecutive Spaces, Newlines and Tabs
+            zh_Hans: 替换连续的空格、换行符和制表符
+          llm_description: Replace consecutive spaces, newlines and tabs, the format
+            of the replace must be a boolean.
+          max: null
+          min: null
+          name: replace_consecutive_spaces_newlines_tabs
+          options: []
+          placeholder: null
+          precision: null
+          required: false
+          scope: null
+          template: null
+          type: boolean
+        - auto_generate: null
+          default: null
+          form: llm
+          human_description:
+            en_US: Delete all URLs and email addresses
+            ja_JP: すべてのURLとメールアドレスを削除する
+            pt_BR: Delete all URLs and email addresses
+            zh_Hans: 删除所有URL和电子邮件地址
+          label:
+            en_US: Delete All URLs and Email Addresses
+            ja_JP: すべてのURLとメールアドレスを削除する
+            pt_BR: Delete All URLs and Email Addresses
+            zh_Hans: 删除所有URL和电子邮件地址
+          llm_description: Delete all URLs and email addresses, the format of the
+            delete must be a boolean.
+          max: null
+          min: null
+          name: delete_all_urls_and_email_addresses
+          options: []
+          placeholder: null
+          precision: null
+          required: false
+          scope: null
+          template: null
+          type: boolean
+        params:
+          chunk_overlap_length: ''
+          delete_all_urls_and_email_addresses: ''
+          delimiter: ''
+          input_variable: ''
+          max_chunk_length: ''
+          replace_consecutive_spaces_newlines_tabs: ''
+        provider_id: langgenius/general_chunker/general_chunker
+        provider_name: langgenius/general_chunker/general_chunker
+        provider_type: builtin
+        selected: false
+        title: General Chunker
+        tool_configurations: {}
+        tool_description: A tool for general text chunking mode, the chunks retrieved
+          and recalled are the same.
+        tool_label: General Chunker
+        tool_name: general_chunker
+        tool_node_version: '2'
+        tool_parameters:
+          chunk_overlap_length:
+            type: variable
+            value:
+            - rag
+            - shared
+            - chunk_overlap
+          delete_all_urls_and_email_addresses:
+            type: mixed
+            value: '{{#rag.shared.delete_urls_email#}}'
+          delimiter:
+            type: mixed
+            value: '{{#rag.shared.delimiter#}}'
+          input_variable:
+            type: mixed
+            value: '{{#1752482022496.output#}}'
+          max_chunk_length:
+            type: variable
+            value:
+            - rag
+            - shared
+            - max_chunk_length
+          replace_consecutive_spaces_newlines_tabs:
+            type: mixed
+            value: '{{#rag.shared.replace_consecutive_spaces#}}'
+        type: tool
+        variable_selector:
+        - '1752482022496'
+        - output
+      height: 51
+      id: '1752482151668'
+      position:
+        x: 693.5300771507484
+        y: 281.3910724383104
+      positionAbsolute:
+        x: 693.5300771507484
+        y: 281.3910724383104
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        is_team_authorization: true
+        output_schema:
+          properties:
+            json:
+              type: object
+            parse_report:
+              type: object
+            table_metadata:
+              type: object
+            text:
+              type: string
+          type: object
+        paramSchemas:
+        - form: llm
+          human_description:
+            en_US: Excel or CSV table file to parse.
+            zh_Hans: 需要解析的 Excel 或 CSV 表格文件。
+          label:
+            en_US: File
+            zh_Hans: 文件
+          llm_description: 'Excel or CSV table file. Supported: xlsx, xls, csv.'
+          name: file
+          required: true
+          type: file
+        plugin_id: mmb/mmb_material_preprocessor
+        plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.14@a4e32a2efe5947cefbfe2d058cbc2c34c688d7e4c5c590114feb3b9d06306fd6
+        provider_id: mmb/mmb_material_preprocessor/mmb_material_preprocessor
+        provider_name: mmb_material_preprocessor
+        provider_type: builtin
+        selected: false
+        title: MMB Excel/CSV 表格解析器
+        tool_configurations: {}
+        tool_description: Parse Excel/CSV files into table-aware row text with sheet,
+          row, column, and source metadata.
+        tool_label: Excel/CSV Table Parser
+        tool_name: parse-table
+        tool_node_version: '2'
+        tool_parameters:
+          file:
+            type: variable
+            value:
+            - '1752479895761'
+            - file
+        type: tool
+      height: 51
+      id: '1752481519000'
+      position:
+        x: -108.28652292656551
+        y: 539.2568222553252
+      positionAbsolute:
+        x: -108.28652292656551
+        y: 539.2568222553252
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 调用 gpt-5.5 视觉能力，为图片生成适合知识库检索的结构化 Caption。
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: gpt-5.5
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: mmb-image-caption-system
+          role: system
+          text: '你是 MMB 知识库的图片视觉解析器。请只根据输入图片生成适合 RAG 入库和检索的中文结构化文本，不要编造图片中看不到的信息。
+
+
+            请严格按以下 Markdown 结构输出：
+
+
+            # 图片解析元数据
+
+            - 文件名: {{#1752479895761.file.name#}}
+
+            - 文件类型: {{#1752479895761.file.extension#}}
+
+            - parser: mmb_image_caption_parser
+
+            - model: gpt-5.5
+
+
+            # 图片类型
+
+            从以下类别中选择最贴近的一类或多类：Logo/标识、海报/宣传图、门店/空间效果图、现场活动图、人物/IP形象、产品图、表格截图、其他。
+
+
+            # 视觉描述
+
+            用 2-4 句话描述画面主体、场景、氛围、人物/空间/物品、品牌元素和可能用途。
+
+
+            # OCR文字
+
+            列出图片中可识别的主要文字；如果没有可辨认文字，写“无明显可识别文字”。
+
+
+            # 品牌/主体/场景元素
+
+            用短语列出画面中的品牌、主体对象、空间场景、颜色/风格、标识元素。
+
+
+            # 检索关键词
+
+            给出不少于 8 个中文关键词，覆盖品牌、场景、用途、画面元素、素材类型。
+
+
+            # 入库标签
+
+            给出 3-8 个适合知识库筛选和检索的标签。'
+        selected: false
+        title: MMB Image Caption Parser
+        type: llm
+        vision:
+          configs:
+            detail: high
+            variable_selector:
+            - '1752493000000'
+            - files
+          enabled: true
+      height: 131
+      id: '1752481719000'
+      position:
+        x: 95.46022658026106
+        y: 686.5515800769836
+      positionAbsolute:
+        x: 95.46022658026106
+        y: 686.5515800769836
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: 图片过滤/压缩预处理：保留原图，生成给视觉模型使用的解析副本。
+        is_team_authorization: true
+        output_schema:
+          properties:
+            file_metadata:
+              type: object
+            files:
+              type: array
+            json:
+              type: object
+            preprocess_report:
+              type: object
+            text:
+              type: string
+          type: object
+        paramSchemas:
+        - form: llm
+          human_description:
+            en_US: Image file to preprocess.
+            zh_Hans: 需要过滤/压缩的图片文件。
+          label:
+            en_US: Image File
+            zh_Hans: 图片文件
+          llm_description: 'Image file. Supported: png, jpg, jpeg.'
+          name: file
+          required: true
+          type: file
+        - default: 1600
+          form: form
+          label:
+            en_US: Max Long Edge
+            zh_Hans: 最长边限制
+          name: max_long_edge
+          required: false
+          type: number
+        - default: 82
+          form: form
+          label:
+            en_US: JPEG Quality
+            zh_Hans: JPEG 质量
+          name: jpeg_quality
+          required: false
+          type: number
+        - default: 512
+          form: form
+          label:
+            en_US: Small Passthrough KB
+            zh_Hans: 小图直通阈值 KB
+          name: small_passthrough_kb
+          required: false
+          type: number
+        - default: true
+          form: form
+          label:
+            en_US: Force JPEG Copy
+            zh_Hans: 强制 JPEG 副本
+          name: force_jpeg
+          required: false
+          type: boolean
+        plugin_id: mmb/mmb_material_preprocessor
+        plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.14@a4e32a2efe5947cefbfe2d058cbc2c34c688d7e4c5c590114feb3b9d06306fd6
+        provider_id: mmb/mmb_material_preprocessor/mmb_material_preprocessor
+        provider_name: mmb_material_preprocessor
+        provider_type: builtin
+        selected: false
+        title: MMB Image Preprocess
+        tool_configurations:
+          force_jpeg:
+            type: constant
+            value: true
+          jpeg_quality:
+            type: constant
+            value: 82
+          max_long_edge:
+            type: constant
+            value: 1600
+          small_passthrough_kb:
+            type: constant
+            value: 512
+        tool_description: Create a compressed image copy for vision captioning while
+          preserving the original uploaded image.
+        tool_label: Image Preprocess
+        tool_name: preprocess-image
+        tool_node_version: '2'
+        tool_parameters:
+          file:
+            type: variable
+            value:
+            - '1752479895761'
+            - file
+        type: tool
+      height: 209
+      id: '1752493000000'
+      position:
+        x: -164.63640179938642
+        y: 676.7016452169709
+      positionAbsolute:
+        x: -164.63640179938642
+        y: 676.7016452169709
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        desc: 原图资产绑定：把 Caption 与原始上传图片 ID、稳定预览路径和文件元数据合并为入库文本。
+        is_team_authorization: true
+        output_schema:
+          properties:
+            asset_binding:
+              type: object
+            asset_binding_report:
+              type: object
+            json:
+              type: object
+            text:
+              type: string
+          type: object
+        paramSchemas:
+        - form: llm
+          human_description:
+            en_US: The original uploaded png/jpg/jpeg file.
+            zh_Hans: 原始上传的 png/jpg/jpeg 图片。
+          label:
+            en_US: Original Image File
+            zh_Hans: 原始图片文件
+          llm_description: Original uploaded image file for stable asset binding.
+          name: file
+          required: true
+          type: file
+        - form: llm
+          human_description:
+            en_US: Text generated by the image caption parser.
+            zh_Hans: 图片 Caption 解析器生成的文本。
+          label:
+            en_US: Caption Text
+            zh_Hans: Caption 文本
+          llm_description: Caption text generated by upstream vision parser.
+          name: caption_text
+          required: true
+          type: string
+        - form: llm
+          human_description:
+            en_US: Optional original Dify upload file ID from datasource node.
+            zh_Hans: 来自数据源节点的可选 Dify 原始上传文件 ID。
+          label:
+            en_US: Upload File ID
+            zh_Hans: 原始上传文件 ID
+          llm_description: Optional original Dify upload file id for stable preview
+            path binding.
+          name: upload_file_id
+          required: false
+          type: string
+        - form: llm
+          human_description:
+            en_US: Optional metadata from image preprocess tool.
+            zh_Hans: 图片预处理工具输出的可选元数据。
+          label:
+            en_US: Preprocess Metadata
+            zh_Hans: 图片预处理元数据
+          llm_description: Optional JSON metadata from image preprocessing.
+          name: preprocess_metadata
+          required: false
+          type: string
+        plugin_id: mmb/mmb_material_preprocessor
+        plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.14@a4e32a2efe5947cefbfe2d058cbc2c34c688d7e4c5c590114feb3b9d06306fd6
+        provider_id: mmb/mmb_material_preprocessor/mmb_material_preprocessor
+        provider_name: mmb_material_preprocessor
+        provider_type: builtin
+        selected: false
+        title: MMB Image Asset Binder
+        tool_configurations: {}
+        tool_description: Bind original uploaded image metadata and stable preview
+          path to caption text.
+        tool_label: Image Asset Binder
+        tool_name: bind-image-asset
+        tool_node_version: '2'
+        tool_parameters:
+          caption_text:
+            type: variable
+            value:
+            - '1752481719000'
+            - text
+          file:
+            type: variable
+            value:
+            - '1752479895761'
+            - file
+          preprocess_metadata:
+            type: variable
+            value:
+            - '1752493000000'
+            - file_metadata
+          upload_file_id:
+            type: variable
+            value:
+            - '1752479895761'
+            - upload_file_id
+        type: tool
+      height: 177
+      id: '1752493600000'
+      position:
+        x: 349.441649575055
+        y: 686.5515800769836
+      positionAbsolute:
+        x: 349.441649575055
+        y: 686.5515800769836
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        is_team_authorization: true
+        output_schema:
+          properties:
+            json:
+              type: object
+            structure_report:
+              type: object
+            text:
+              type: string
+          type: object
+        paramSchemas:
+        - form: llm
+          human_description:
+            en_US: Markdown text from MMB Normalize + MinerU Parse.
+            zh_Hans: 来自 MMB Normalize + MinerU Parse 的 Markdown 文本。
+          label:
+            en_US: Parsed Markdown
+            zh_Hans: 解析 Markdown
+          llm_description: Parsed Markdown text from upstream MinerU normalization
+            node.
+          name: parsed_text
+          required: true
+          type: string
+        - form: llm
+          human_description:
+            en_US: Optional MinerU content list JSON.
+            zh_Hans: 可选的 MinerU 内容列表 JSON。
+          label:
+            en_US: MinerU Content List
+            zh_Hans: MinerU 内容列表
+          llm_description: Optional MinerU content_list JSON for visual context binding.
+          name: content_list
+          required: false
+          type: string
+        - form: llm
+          human_description:
+            en_US: Optional file metadata.
+            zh_Hans: 可选的文件元数据。
+          label:
+            en_US: File Metadata
+            zh_Hans: 文件元数据
+          llm_description: Optional source file metadata JSON.
+          name: file_metadata
+          required: false
+          type: string
+        plugin_id: mmb/mmb_material_preprocessor
+        plugin_unique_identifier: mmb/mmb_material_preprocessor:0.1.14@a4e32a2efe5947cefbfe2d058cbc2c34c688d7e4c5c590114feb3b9d06306fd6
+        provider_id: mmb/mmb_material_preprocessor/mmb_material_preprocessor
+        provider_name: mmb_material_preprocessor
+        provider_type: builtin
+        selected: false
+        title: PDF/PPT/DOC Visual + Table Enricher
+        tool_configurations: {}
+        tool_description: Bind visual elements and tables to source, headings, surrounding
+          context, Markdown rows, and row-level facts before General Chunker.
+        tool_label: PDF/PPT/DOC Visual + Table Enricher
+        tool_name: structure-visual-document
+        tool_node_version: '2'
+        tool_parameters:
+          content_list:
+            type: variable
+            value:
+            - '1752480460682'
+            - content_list_text
+          file_metadata:
+            type: mixed
+            value: '{{#1752480460682.json.file_metadata#}}'
+          parsed_text:
+            type: variable
+            value:
+            - '1752480460682'
+            - text
+        type: tool
+      height: 180
+      id: '1752498800000'
+      position:
+        x: 92
+        y: 281
+      positionAbsolute:
+        x: 92
+        y: 281
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 620
+      y: 160
+      zoom: 0.72
+  rag_pipeline_variables:
+  - allowed_file_extensions: []
+    allowed_file_types: null
+    allowed_file_upload_methods: []
+    belong_to_node_id: shared
+    default_value: \n\n
+    description: ''
+    label: Delimiter
+    max_length: 100
+    options: []
+    placeholder: null
+    required: true
+    tooltips: A delimiter is the character used to separate text. \n\n is recommended
+      for splitting the original document into large parent chunks. You can also use
+      special delimiters defined by yourself.
+    type: text-input
+    unit: null
+    variable: delimiter
+  - allowed_file_extensions: []
+    allowed_file_types: null
+    allowed_file_upload_methods: []
+    belong_to_node_id: shared
+    default_value: null
+    description: ''
+    label: Maximum chunk length
+    max_length: 48
+    options: []
+    placeholder: null
+    required: true
+    tooltips: null
+    type: number
+    unit: characters
+    variable: max_chunk_length
+  - allowed_file_extensions: []
+    allowed_file_types: null
+    allowed_file_upload_methods: []
+    belong_to_node_id: shared
+    default_value: null
+    description: ''
+    label: Chunk overlap
+    max_length: 48
+    options: []
+    placeholder: null
+    required: false
+    tooltips: null
+    type: number
+    unit: characters
+    variable: chunk_overlap
+  - allowed_file_extensions: []
+    allowed_file_types: null
+    allowed_file_upload_methods: []
+    belong_to_node_id: shared
+    default_value: null
+    description: ''
+    label: Replace consecutive spaces, newlines and tabs
+    max_length: 48
+    options: []
+    placeholder: null
+    required: false
+    tooltips: null
+    type: checkbox
+    unit: null
+    variable: replace_consecutive_spaces
+  - allowed_file_extensions: []
+    allowed_file_types: null
+    allowed_file_upload_methods: []
+    belong_to_node_id: shared
+    default_value: null
+    description: ''
+    label: Delete all URLs and email addresses
+    max_length: 48
+    options: []
+    placeholder: null
+    required: false
+    tooltips: null
+    type: checkbox
+    unit: null
+    variable: delete_urls_email

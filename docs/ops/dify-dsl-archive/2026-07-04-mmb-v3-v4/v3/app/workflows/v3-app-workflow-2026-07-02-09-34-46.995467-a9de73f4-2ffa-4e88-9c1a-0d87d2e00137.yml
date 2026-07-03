@@ -1,0 +1,455 @@
+app:
+  description: V3 PDF增强 App：问题改写、意图判断、结构化回答，绑定 MMB统一材料知识库-v3-pdf增强。
+  icon: /custom-bear-icons/06-chatbot-bear.png
+  icon_background: ''
+  icon_type: image
+  mode: advanced-chat
+  name: MMB业务助手-v3-pdf增强
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 100
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: '👋 你好！我是 MMB 业务助手，你可以向我了解：
+
+
+      - MMB 是做什么的
+
+      - MMB 的品牌、IP 形象和应用场景
+
+      - MMB 与深圳文交所的合作内容
+
+      - MMB 的加盟、投资、合作相关问题
+
+      - 需要配图说明的品牌或项目资料'
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions:
+    - MMB是做什么的，配图说明
+    - MMB的熊是什么样子的，发给我看下
+    - 深圳文交所和MMB是什么合作
+    - MMB加盟方式有哪些，用表格说明
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: start_001-source-rewrite_001-target
+      source: start_001
+      sourceHandle: source
+      target: rewrite_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: question-classifier
+      id: rewrite_001-source-classify_001-target
+      source: rewrite_001
+      sourceHandle: source
+      target: classify_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: knowledge-retrieval
+      id: classify_001-normal-retrieve_001-target
+      source: classify_001
+      sourceHandle: normal
+      target: retrieve_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: knowledge-retrieval
+      id: classify_001-business_plan-retrieve_001-target
+      source: classify_001
+      sourceHandle: business_plan
+      target: retrieve_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: knowledge-retrieval
+      id: classify_001-image_show-retrieve_001-target
+      source: classify_001
+      sourceHandle: image_show
+      target: retrieve_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: question-classifier
+        targetType: knowledge-retrieval
+      id: classify_001-mixed-retrieve_001-target
+      source: classify_001
+      sourceHandle: mixed
+      target: retrieve_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: retrieve_001-source-answer_llm_001-target
+      source: retrieve_001
+      sourceHandle: source
+      target: answer_llm_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: answer_llm_001-source-answer_001-target
+      source: answer_llm_001
+      sourceHandle: source
+      target: answer_001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 用户问题入口。
+        selected: false
+        title: 开始
+        type: start
+        variables: []
+      height: 100
+      id: start_001
+      position:
+        x: 0
+        y: 260
+      positionAbsolute:
+        x: 0
+        y: 260
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 结合多轮上下文，把追问改写成完整检索问题。
+        memory:
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 14
+        model:
+          completion_params:
+            frequency_penalty: 0
+            max_tokens: 512
+            presence_penalty: 0
+            temperature: 0.1
+            top_p: 1
+          mode: chat
+          name: gpt-5.5
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 5e6a8c2f-b36e-46b8-84d3-21704f1c02c4
+          role: system
+          text: 'MMB = 懵懵熊 或者相近意思的词语，都是指它。
+
+            把用户当前问题改写成适合知识库检索的独立问题。
+
+            - 如果是追问，结合最近对话补全指代对象。
+
+            - 如果用户要求发图/看图，保留图片意图和对象。
+
+            - 只输出改写后的问题，不要解释。
+
+
+            当前问题：{{#sys.query#}}'
+        selected: true
+        title: 问题改写
+        type: llm
+        variables: []
+        vision:
+          configs:
+            detail: high
+            variable_selector: []
+          enabled: false
+      height: 131
+      id: rewrite_001
+      position:
+        x: 320
+        y: 250
+      positionAbsolute:
+        x: 320
+        y: 250
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        classes:
+        - id: normal
+          name: 普通知识问答
+        - id: business_plan
+          name: 加盟投资合作类
+        - id: image_show
+          name: 图片展示类
+        - id: mixed
+          name: 图文混合回答
+        desc: 区分普通问答、加盟投资合作、图片展示和图文混合。
+        instructions: 根据改写后的问题选择最合适类别。看图、发图、展示、配图、图片属于图片展示或图文混合。加盟、投资、合伙人、分润、门槛、合作模式属于加盟投资合作类。
+        model:
+          completion_params:
+            frequency_penalty: 0
+            max_tokens: 256
+            presence_penalty: 0
+            temperature: 0
+            top_p: 1
+          mode: chat
+          name: gpt-5.5
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        query_variable_selector:
+        - rewrite_001
+        - text
+        selected: false
+        title: 意图判断
+        topics: []
+        type: question-classifier
+      height: 305
+      id: classify_001
+      position:
+        x: 640
+        y: 235
+      positionAbsolute:
+        x: 640
+        y: 235
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - tn5vfd77JyWe2Zg5w2hEcYo55AzE4WidK8GurNQANGa4C4oswTlA371FyaHFvg5w
+        desc: 基于改写问题检索图文结构化验证库。
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-v2-m3
+            provider: langgenius/xinference/xinference
+          score_threshold: 0
+          top_k: 10
+        query_attachment_selector: []
+        query_variable_selector:
+        - sys
+        - query
+        retrieval_mode: multiple
+        selected: false
+        single_retrieval_config:
+          model:
+            completion_params:
+              frequency_penalty: 0
+              max_tokens: 512
+              presence_penalty: 0
+              temperature: 0
+              top_p: 1
+            mode: chat
+            name: gpt-5.5
+            provider: langgenius/openai_api_compatible/openai_api_compatible
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 117
+      id: retrieve_001
+      position:
+        x: 960
+        y: 250
+      positionAbsolute:
+        x: 960
+        y: 250
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieve_001
+          - result
+        desc: 生成结构化、可表格化、可图文说明的回答。
+        memory:
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 12
+        model:
+          completion_params:
+            frequency_penalty: 0
+            max_tokens: 2048
+            presence_penalty: 0
+            temperature: 0.25
+            top_p: 1
+          mode: chat
+          name: gpt-5.5
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 5bfb829d-d017-4a52-a035-8d9f8e145d06
+          role: system
+          text: '角色：你是 MMB 业务知识助手。
+
+
+            知识库上下文：
+
+            {{#context#}}
+
+
+            检索问题：{{#rewrite_001.text#}}
+
+            用户原始问题：{{#sys.query#}}
+
+
+            回答规则：
+
+            - 只基于知识库上下文回答，不编造。
+
+            - 先给直接结论，再分点说明。
+
+            - 普通问题要给出清晰定义、业务定位、关键能力和来源文档名。
+
+            - 加盟/投资/合作类问题必须覆盖：加入方式、适合对象、门槛/金额、收益/分润、风险或待确认事项；适合用表格时输出 Markdown 表格。
+
+            - 如果用户要求“发图、看图、配图、图片、图文”，并且上下文中存在“原图预览路径: http...”或“原图预览路径: /files/...”，必须返回
+            1-3 张最相关图片。
+
+            - 返回图片时使用 Markdown 图片格式：![原图文件名](原图预览路径)。图片路径必须逐字复制上下文中的“原图预览路径”，不要改写、不要省略
+            query 参数。
+
+            - 图片下方用一句话说明图片内容和适合用途。
+
+            - 不要复用 /files/tools/ 临时链接；但可以使用 /files/{id}/image-preview 链接。
+
+            - 图文混合问题：先回答文字，再插入最相关图片。
+
+            - 关键结论后用括号标注文档名。
+
+            - 如果上下文确实没有依据，回答：这个问题我暂时没有把握，能否换个方式描述一下？'
+        selected: false
+        title: 结构化回答
+        type: llm
+        variables: []
+        vision:
+          configs:
+            detail: high
+            variable_selector:
+            - sys
+            - files
+          enabled: true
+      height: 131
+      id: answer_llm_001
+      position:
+        x: 1280
+        y: 250
+      positionAbsolute:
+        x: 1280
+        y: 250
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#answer_llm_001.text#}}'
+        desc: 输出最终回答。
+        selected: false
+        title: Answer
+        type: answer
+        variables: []
+      height: 130
+      id: answer_001
+      position:
+        x: 1600
+        y: 250
+      positionAbsolute:
+        x: 1600
+        y: 250
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 86
+      y: 32
+      zoom: 0.8
+  rag_pipeline_variables: []

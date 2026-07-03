@@ -1,0 +1,139 @@
+{
+  "exported_at": "2026-07-03T17:43:18.333888+00:00",
+  "source": "production 150.5.132.104 / Dify API container",
+  "include_secret": false,
+  "note": "Official Dify DSL exports for V3/V4 APPs and RAG pipelines. Secrets are intentionally excluded.",
+  "apps": [
+    {
+      "version": "v3",
+      "name": "MMB业务助手-v3-pdf增强",
+      "app_id": "77c61f8f-dfd0-413e-9a33-5b2e332c0aca",
+      "mode": "advanced-chat",
+      "default_file": "v3/app/v3-app-default-draft.yml",
+      "workflows": [
+        {
+          "workflow_id": "9e0d6c86-9192-4cf7-8b2e-6cb3f26c4661",
+          "type": "chat",
+          "version": "draft",
+          "created_at": "2026-07-02T11:36:47.297453",
+          "file": "v3/app/v3-app-default-draft.yml",
+          "note": "draft is exported by default_file because Dify export_dsl rejects draft workflow_id"
+        },
+        {
+          "workflow_id": "01b1c239-65dd-4f1f-96b0-d9c5221bd462",
+          "type": "chat",
+          "version": "2026-07-01 18:52:19.596958",
+          "created_at": "2026-07-02T11:36:47.297453",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-01-18-52-19.596958-01b1c239-65dd-4f1f-96b0-d9c5221bd462.yml"
+        },
+        {
+          "workflow_id": "a9de73f4-2ffa-4e88-9c1a-0d87d2e00137",
+          "type": "chat",
+          "version": "2026-07-02 09:34:46.995467",
+          "created_at": "2026-07-02T11:36:47.297453",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-09-34-46.995467-a9de73f4-2ffa-4e88-9c1a-0d87d2e00137.yml"
+        },
+        {
+          "workflow_id": "f57110c3-88f3-4282-84ba-ec086b119ec2",
+          "type": "chat",
+          "version": "2026-07-02 09:38:44.196243",
+          "created_at": "2026-07-02T11:36:47.297453",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-09-38-44.196243-f57110c3-88f3-4282-84ba-ec086b119ec2.yml"
+        },
+        {
+          "workflow_id": "33ceb88b-74f3-49bd-8f27-a8fcfdde3a90",
+          "type": "chat",
+          "version": "2026-07-01 18:01:16.481216",
+          "created_at": "2026-07-02T11:36:47.297453",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-01-18-01-16.481216-33ceb88b-74f3-49bd-8f27-a8fcfdde3a90.yml"
+        },
+        {
+          "workflow_id": "feef605a-4c3e-400c-9164-add324c733be",
+          "type": "chat",
+          "version": "2026-07-02 11:38:08.098228",
+          "created_at": "2026-07-02T11:38:08.098390",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-11-38-08.098228-feef605a-4c3e-400c-9164-add324c733be.yml"
+        },
+        {
+          "workflow_id": "d65e3168-e94a-4a99-ad70-4946f06532ff",
+          "type": "chat",
+          "version": "2026-07-02 13:21:02.555336",
+          "created_at": "2026-07-02T13:21:02.552148",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-13-21-02.555336-d65e3168-e94a-4a99-ad70-4946f06532ff.yml"
+        },
+        {
+          "workflow_id": "9610b32b-8864-4888-8c36-51326ca05f4a",
+          "type": "chat",
+          "version": "2026-07-02 13:49:53.768580",
+          "created_at": "2026-07-02T13:49:53.765462",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-13-49-53.768580-9610b32b-8864-4888-8c36-51326ca05f4a.yml"
+        },
+        {
+          "workflow_id": "09cbfe27-5886-443d-ad6d-a5ff95eb9d72",
+          "type": "chat",
+          "version": "2026-07-02 13:53:01.157341",
+          "created_at": "2026-07-02T13:53:00.668290",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-13-53-01.157341-09cbfe27-5886-443d-ad6d-a5ff95eb9d72.yml"
+        },
+        {
+          "workflow_id": "7bfcd723-fc6d-4950-9515-071c7d803407",
+          "type": "chat",
+          "version": "2026-07-02 14:05:37.902569",
+          "created_at": "2026-07-02T14:05:37.902569",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-14-05-37.902569-7bfcd723-fc6d-4950-9515-071c7d803407.yml"
+        },
+        {
+          "workflow_id": "5aafd541-64a2-4ec3-8ef5-6e0605f8e91c",
+          "type": "chat",
+          "version": "2026-07-02 14:36:59.898804",
+          "created_at": "2026-07-02T14:36:59.898804",
+          "file": "v3/app/workflows/v3-app-workflow-2026-07-02-14-36-59.898804-5aafd541-64a2-4ec3-8ef5-6e0605f8e91c.yml"
+        }
+      ]
+    },
+    {
+      "version": "v4",
+      "name": "MMB业务助手-v4-表格增强",
+      "app_id": "ed54b33c-7203-46c7-b127-8486e5e9f696",
+      "mode": "advanced-chat",
+      "default_file": "v4/app/v4-app-default-draft.yml",
+      "workflows": [
+        {
+          "workflow_id": "7a007b6d-abb4-4641-b19d-7221026ff28e",
+          "type": "chat",
+          "version": "2026-07-03 14:54:28.342071",
+          "created_at": "2026-07-03T14:54:28.342322",
+          "file": "v4/app/workflows/v4-app-workflow-2026-07-03-14-54-28.342071-7a007b6d-abb4-4641-b19d-7221026ff28e.yml"
+        },
+        {
+          "workflow_id": "d1ed7135-1d12-42b0-ba2e-0e91e1f86eb2",
+          "type": "chat",
+          "version": "draft",
+          "created_at": "2026-07-03T14:54:28.342516",
+          "file": "v4/app/v4-app-default-draft.yml",
+          "note": "draft is exported by default_file because Dify export_dsl rejects draft workflow_id"
+        }
+      ]
+    }
+  ],
+  "rag_pipelines": [
+    {
+      "version": "v3",
+      "dataset_name": "MMB统一材料知识库-v3-pdf增强",
+      "dataset_id": "f09dd86b-c92a-43ba-ab4a-209c6dcf807a",
+      "pipeline_name": "MMB统一材料知识库-v3-pdf增强",
+      "pipeline_id": "b39705b0-26f2-4746-8371-4794c233ec0b",
+      "pipeline_workflow_id": "c2fd79c3-1f76-4bca-842d-335263e94286",
+      "file": "v3/rag-pipeline/v3-rag-pipeline.yml"
+    },
+    {
+      "version": "v4",
+      "dataset_name": "MMB统一材料知识库-v4-表格增强",
+      "dataset_id": "ef5223a2-30cc-424e-a89a-8dd259d08cf5",
+      "pipeline_name": "MMB统一材料知识库-v4-表格增强",
+      "pipeline_id": "70627bf2-079f-4048-8f83-cedc861c33d8",
+      "pipeline_workflow_id": "854e3248-8072-4163-a990-bafb7bcf57df",
+      "file": "v4/rag-pipeline/v4-rag-pipeline.yml"
+    }
+  ]
+}
