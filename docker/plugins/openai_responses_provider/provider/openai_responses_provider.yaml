@@ -104,16 +104,16 @@ model_credential_schema:
         en_US: Enable OpenAI Code Interpreter
       type: select
       required: false
-      default: enabled
+      default: disabled
       options:
-        - value: enabled
-          label:
-            zh_Hans: 启用
-            en_US: Enabled
         - value: disabled
           label:
             zh_Hans: 关闭
             en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
       help:
         zh_Hans: 仅在 Responses API 下生效。启用后使用 OpenAI 托管代码解释器容器。
         en_US: Effective only with Responses API. Uses OpenAI hosted code interpreter container.
@@ -226,16 +226,16 @@ provider_credential_schema:
         en_US: Enable OpenAI Code Interpreter
       type: select
       required: false
-      default: enabled
+      default: disabled
       options:
-        - value: enabled
-          label:
-            zh_Hans: 启用
-            en_US: Enabled
         - value: disabled
           label:
             zh_Hans: 关闭
             en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
       help:
         zh_Hans: 仅在 Responses API 下生效。启用后使用 OpenAI 托管代码解释器容器。
         en_US: Effective only with Responses API. Uses OpenAI hosted code interpreter container.

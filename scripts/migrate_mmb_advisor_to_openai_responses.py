@@ -78,7 +78,7 @@ def _build_new_credentials(old: dict[str, Any]) -> dict[str, Any]:
         "validate_model": MODEL_NAME,
         "api_protocol": "responses",
         "enable_web_search": os.environ.get("ENABLE_WEB_SEARCH", "enabled"),
-        "enable_code_interpreter": os.environ.get("ENABLE_CODE_INTERPRETER", "enabled"),
+        "enable_code_interpreter": os.environ.get("ENABLE_CODE_INTERPRETER", "disabled"),
         "enable_file_search": os.environ.get("ENABLE_FILE_SEARCH", "disabled"),
         "openai_vector_store_ids": os.environ.get("OPENAI_VECTOR_STORE_IDS", ""),
     }

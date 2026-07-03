@@ -1,6 +1,6 @@
 [project]
 name = "dify-openai"
-version = "0.1.1"
+version = "0.1.2"
 description = "MMB private OpenAI Responses provider for Dify"
 readme = "README.md"
 requires-python = ">=3.12"
