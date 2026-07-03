@@ -9,6 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from .catalog import MaterialCatalog
 from .config import Settings
 from .dify_metadata import DifyMetadataRepository, FileTextReader
+from .external_tools import ExternalResearchTools
 
 JSONRPC_VERSION = "2.0"
 MCP_PROTOCOL_VERSION = "2025-06-18"
@@ -22,6 +23,7 @@ class MaterialMCPServer:
         self.catalog = catalog
         self.metadata_repo = metadata_repo
         self.file_reader = FileTextReader(settings.app_root)
+        self.external_tools = ExternalResearchTools(settings)
 
     def handle(self, payload: dict[str, Any]) -> dict[str, Any]:
         request_id = payload.get("id")
@@ -52,7 +54,9 @@ class MaterialMCPServer:
                 "thumbnail_markdown_image when present, plus original_link_markdown for source verification. "
                 "For PDF/PPT embedded images, use search_visual_assets. For person photo questions, use "
                 "find_person_visual_candidates and label inferred results as candidates. "
-                "For Markdown files, use read_file_text and preserve Markdown rendering."
+                "For Markdown files, use read_file_text and preserve Markdown rendering. For MMB advisor use cases, "
+                "combine internal material evidence with web_search, read_web_page, summarize_web_sources, and GitHub tools. "
+                "Separate internal evidence, external sources, and model inference. External write actions are draft-only unless explicitly confirmed outside this server."
             ),
         }
 
@@ -154,6 +158,112 @@ class MaterialMCPServer:
                 "List newly discovered, modified, or missing material files from the incremental catalog.",
                 {"limit": self._integer("Maximum changes to return.", 1, 1000, 100)},
             ),
+            self._tool(
+                "web_search",
+                "Search the public web through a configured provider such as Tavily, SerpAPI, or Brave Search. Returns external references, not MMB internal facts.",
+                {
+                    "query": self._string("Search query for market, industry, competitor, or current information.", required=True),
+                    "provider": self._string("Optional provider override: tavily, serpapi, or brave."),
+                    "limit": self._integer("Maximum results to return.", 1, 10, 5),
+                },
+                required=["query"],
+            ),
+            self._tool(
+                "read_web_page",
+                "Read a public web page as text with SSRF protections. Use after web_search before citing a source.",
+                {
+                    "url": self._string("Public http(s) URL to read.", required=True),
+                    "max_chars": self._integer("Maximum characters to return.", 500, 50000, 12000),
+                },
+                required=["url"],
+            ),
+            self._tool(
+                "summarize_web_sources",
+                "Read and extract short excerpts from supplied URLs, or search then read top sources when query is provided.",
+                {
+                    "query": self._string("Optional query used when urls is empty."),
+                    "urls": self._string("Optional comma/newline separated public URLs."),
+                    "limit": self._integer("Maximum sources to read.", 1, 8, 3),
+                    "max_chars_per_source": self._integer("Maximum characters per source excerpt.", 500, 8000, 2000),
+                },
+            ),
+            self._tool(
+                "github_search_repositories",
+                "Search public GitHub repositories for open-source projects or implementation references.",
+                {
+                    "query": self._string("GitHub repository search query.", required=True),
+                    "limit": self._integer("Maximum repositories to return.", 1, 10, 5),
+                },
+                required=["query"],
+            ),
+            self._tool(
+                "github_search_code",
+                "Search GitHub code. Public API may require GITHUB_TOKEN for code search.",
+                {
+                    "query": self._string("Code search query.", required=True),
+                    "owner": self._string("Optional repository owner."),
+                    "repo": self._string("Optional repository name."),
+                    "limit": self._integer("Maximum code results to return.", 1, 10, 5),
+                },
+                required=["query"],
+            ),
+            self._tool(
+                "github_read_file",
+                "Read a file from a GitHub repository, such as README.md or configuration docs.",
+                {
+                    "owner": self._string("Repository owner.", required=True),
+                    "repo": self._string("Repository name.", required=True),
+                    "path": self._string("File path, such as README.md.", required=True),
+                    "ref": self._string("Optional branch, tag, or commit SHA."),
+                    "max_chars": self._integer("Maximum characters to return.", 500, 50000, 20000),
+                },
+                required=["owner", "repo", "path"],
+            ),
+            self._tool(
+                "github_list_issues",
+                "List GitHub issues for a repository. This is read-only.",
+                {
+                    "owner": self._string("Repository owner.", required=True),
+                    "repo": self._string("Repository name.", required=True),
+                    "state": self._string("Issue state: open, closed, or all."),
+                    "limit": self._integer("Maximum issues to return.", 1, 20, 10),
+                },
+                required=["owner", "repo"],
+            ),
+            self._tool(
+                "github_list_pull_requests",
+                "List GitHub pull requests for a repository. This is read-only.",
+                {
+                    "owner": self._string("Repository owner.", required=True),
+                    "repo": self._string("Repository name.", required=True),
+                    "state": self._string("Pull request state: open, closed, or all."),
+                    "limit": self._integer("Maximum pull requests to return.", 1, 20, 10),
+                },
+                required=["owner", "repo"],
+            ),
+            self._tool(
+                "github_list_actions_runs",
+                "List recent GitHub Actions workflow runs for a repository. This is read-only.",
+                {
+                    "owner": self._string("Repository owner.", required=True),
+                    "repo": self._string("Repository name.", required=True),
+                    "branch": self._string("Optional branch filter."),
+                    "limit": self._integer("Maximum workflow runs to return.", 1, 20, 10),
+                },
+                required=["owner", "repo"],
+            ),
+            self._tool(
+                "github_prepare_issue",
+                "Prepare a GitHub issue draft. This tool does not write to GitHub and requires explicit confirmation before any real external action.",
+                {
+                    "owner": self._string("Repository owner.", required=True),
+                    "repo": self._string("Repository name.", required=True),
+                    "title": self._string("Issue title.", required=True),
+                    "body": self._string("Issue body.", required=True),
+                    "labels": self._string("Optional comma separated labels."),
+                },
+                required=["owner", "repo", "title", "body"],
+            ),
         ]
 
     def call_tool(self, name: str | None, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -170,6 +280,16 @@ class MaterialMCPServer:
             "read_file_text": self._read_file_text,
             "profile_materials": self._profile_materials,
             "list_material_changes": self._list_material_changes,
+            "web_search": self._web_search,
+            "read_web_page": self._read_web_page,
+            "summarize_web_sources": self._summarize_web_sources,
+            "github_search_repositories": self._github_search_repositories,
+            "github_search_code": self._github_search_code,
+            "github_read_file": self._github_read_file,
+            "github_list_issues": self._github_list_issues,
+            "github_list_pull_requests": self._github_list_pull_requests,
+            "github_list_actions_runs": self._github_list_actions_runs,
+            "github_prepare_issue": self._github_prepare_issue,
         }
         if not name or name not in handlers:
             return self._tool_error("UNKNOWN_TOOL", f"Unknown tool: {name}")
@@ -196,7 +316,9 @@ class MaterialMCPServer:
             "thumbnail_image_extensions": [".bmp", ".jpeg", ".jpg", ".png", ".webp"],
             "visual_assets": "search_visual_assets and find_person_visual_candidates expose PDF/PPT embedded images from visual_asset chunks with signed /files/tools links.",
             "rendering": "search_files returns thumbnail_markdown_image for Dify upload images; visual tools return image_markdown_images for PDF/PPT embedded images; read_file_text returns render_as=markdown for Markdown files.",
-            "safety": "No delete, move, overwrite, ingest, reindex, or secret-reading tools are exposed.",
+            "external_research": "web_search/read_web_page/summarize_web_sources expose external web references; GitHub tools expose public repository/code/issue/PR/Actions reads plus draft-only issue preparation.",
+            "execution_policy": "External write actions are not executed by this server; draft tools require explicit confirmation before any separate write-capable integration is used.",
+            "safety": "No delete, move, overwrite, ingest, reindex, secret-reading, public-posting, paid, or production-change tools are exposed.",
         }
 
     def _list_material_roots(self, _: dict[str, Any]) -> dict[str, Any]:
@@ -306,6 +428,83 @@ class MaterialMCPServer:
 
     def _list_material_changes(self, arguments: dict[str, Any]) -> dict[str, Any]:
         return self._sanitize_catalog_payload(self.catalog.changes(limit=int(arguments.get("limit") or 100)))
+
+    def _web_search(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.web_search(
+            query=str(arguments.get("query") or ""),
+            provider=arguments.get("provider"),
+            limit=int(arguments.get("limit") or 5),
+        )
+
+    def _read_web_page(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.read_web_page(
+            url=str(arguments.get("url") or ""),
+            max_chars=int(arguments.get("max_chars") or 12000),
+        )
+
+    def _summarize_web_sources(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.summarize_web_sources(
+            query=arguments.get("query"),
+            urls=arguments.get("urls"),
+            limit=int(arguments.get("limit") or 3),
+            max_chars_per_source=int(arguments.get("max_chars_per_source") or 2000),
+        )
+
+    def _github_search_repositories(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.github_search_repositories(
+            query=str(arguments.get("query") or ""),
+            limit=int(arguments.get("limit") or 5),
+        )
+
+    def _github_search_code(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.github_search_code(
+            query=str(arguments.get("query") or ""),
+            owner=arguments.get("owner"),
+            repo=arguments.get("repo"),
+            limit=int(arguments.get("limit") or 5),
+        )
+
+    def _github_read_file(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.github_read_file(
+            owner=str(arguments.get("owner") or ""),
+            repo=str(arguments.get("repo") or ""),
+            path=str(arguments.get("path") or ""),
+            ref=arguments.get("ref"),
+            max_chars=int(arguments.get("max_chars") or 20000),
+        )
+
+    def _github_list_issues(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.github_list_issues(
+            owner=str(arguments.get("owner") or ""),
+            repo=str(arguments.get("repo") or ""),
+            state=str(arguments.get("state") or "open"),
+            limit=int(arguments.get("limit") or 10),
+        )
+
+    def _github_list_pull_requests(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.github_list_pull_requests(
+            owner=str(arguments.get("owner") or ""),
+            repo=str(arguments.get("repo") or ""),
+            state=str(arguments.get("state") or "open"),
+            limit=int(arguments.get("limit") or 10),
+        )
+
+    def _github_list_actions_runs(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.github_list_actions_runs(
+            owner=str(arguments.get("owner") or ""),
+            repo=str(arguments.get("repo") or ""),
+            branch=arguments.get("branch"),
+            limit=int(arguments.get("limit") or 10),
+        )
+
+    def _github_prepare_issue(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        return self.external_tools.github_prepare_issue(
+            owner=str(arguments.get("owner") or ""),
+            repo=str(arguments.get("repo") or ""),
+            title=str(arguments.get("title") or ""),
+            body=str(arguments.get("body") or ""),
+            labels=arguments.get("labels"),
+        )
 
     def _sanitize_catalog_payload(self, value: Any) -> Any:
         if isinstance(value, dict):

@@ -10,6 +10,8 @@ For media display, the MCP response stays structured: Dify upload images get `th
 
 ## MCP tools
 
+Material evidence tools:
+
 - `server_info`
 - `list_material_roots`
 - `list_datasets`
@@ -20,6 +22,19 @@ For media display, the MCP response stays structured: Dify upload images get `th
 - `read_file_text` - Markdown files return `render_as=markdown` so the agent can preserve headings, lists, tables, and image syntax
 - `profile_materials`
 - `list_material_changes`
+
+External advisor tools:
+
+- `web_search` - public web search through Tavily, SerpAPI, or Brave when configured
+- `read_web_page` - public webpage text extraction with SSRF protections
+- `summarize_web_sources` - read URL excerpts or search then read top sources
+- `github_search_repositories`
+- `github_search_code`
+- `github_read_file`
+- `github_list_issues`
+- `github_list_pull_requests`
+- `github_list_actions_runs`
+- `github_prepare_issue` - draft-only, no GitHub write is performed
 
 ## Production defaults
 
@@ -65,4 +80,6 @@ docker exec docker-api-1 bash -lc \
   'cd /app/api && PYTHONPATH=/app/api /app/api/.venv/bin/python /tmp/register_dify_agent.py'
 ```
 
-This registers the MCP provider `资料全知材料探索`, configures `资料全知agent` as an `agent-chat` app, enables all MCP tools, and installs the app in Explore.
+This registers the MCP provider `资料全知材料探索`, configures `资料全知agent` as an `agent-chat` app, enables the internal material tools, and installs the app in Explore.
+
+For the advisor app, run `scripts/register_mmb_advisor_agent.py` inside the Dify API container. It registers a separate MCP provider identifier `mmb_advisor_mcp`, configures `MMB智囊` with internal + external advisor tools, and leaves `资料全知agent` / `超级内脑` behavior unchanged.

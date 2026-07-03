@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlparse
 from app.catalog import MaterialCatalog
 from app.config import Settings
 from app.dify_metadata import DifyMetadataRepository
+from app.external_tools import ExternalResearchTools
 from app.media import MediaAccessError, MediaThumbnailService, sign_material_thumbnail_url
 from app.mcp import MaterialMCPServer
 
@@ -203,6 +204,16 @@ class MaterialMCPServerTests(unittest.TestCase):
                     "read_file_text",
                     "profile_materials",
                     "list_material_changes",
+                    "web_search",
+                    "read_web_page",
+                    "summarize_web_sources",
+                    "github_search_repositories",
+                    "github_search_code",
+                    "github_read_file",
+                    "github_list_issues",
+                    "github_list_pull_requests",
+                    "github_list_actions_runs",
+                    "github_prepare_issue",
                 ],
             )
             search_schema = next(tool for tool in listed["result"]["tools"] if tool["name"] == "search_segments")["inputSchema"]
@@ -305,6 +316,38 @@ class MaterialMCPServerTests(unittest.TestCase):
             )["result"]["structuredContent"]
             self.assertNotIn("path", profile["recent_assets"][0])
             self.assertNotIn("sha256", profile["recent_assets"][0])
+
+            missing_search = server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 12,
+                    "method": "tools/call",
+                    "params": {"name": "web_search", "arguments": {"query": "self serve beer SaaS", "limit": 3}},
+                }
+            )["result"]["structuredContent"]
+            self.assertFalse(missing_search["ok"])
+            self.assertEqual(missing_search["error"]["code"], "TOOL_NOT_CONFIGURED")
+
+            issue_draft = server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 13,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "github_prepare_issue",
+                        "arguments": {
+                            "owner": "yufeinever",
+                            "repo": "dify-rag",
+                            "title": "Add advisor test",
+                            "body": "Draft body",
+                            "labels": "agent,advisor",
+                        },
+                    },
+                }
+            )["result"]["structuredContent"]
+            self.assertTrue(issue_draft["requires_confirmation"])
+            self.assertEqual(issue_draft["draft"]["repository"], "yufeinever/dify-rag")
+            self.assertIn("GitHub Issue 草稿", issue_draft["markdown"])
 
     def test_upload_image_preview_urls_are_signed_when_secret_is_configured(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -427,6 +470,23 @@ class MaterialMCPServerTests(unittest.TestCase):
             self.assertEqual(repo._visual_order_score_sql([]), "CASE WHEN TRUE THEN 0 ELSE 0 END")
             self.assertNotEqual(repo._visual_order_score_sql([]), "0")
             self.assertIn("seg.content ILIKE %s", repo._visual_order_score_sql(["核心团队"]))
+
+    def test_external_tools_block_private_web_urls_and_prepare_issue(self) -> None:
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            settings = Settings(
+                MATERIAL_CATALOG_APP_ROOT=tmp_path / "dify-app",
+                MATERIAL_CATALOG_ALLOWED_ROOTS="storage",
+                MATERIAL_CATALOG_DB_PATH=tmp_path / "catalog.sqlite",
+                MATERIAL_CATALOG_SYNC_INTERVAL_SECONDS=60,
+                DIFY_DB_PASSWORD="unused",
+            )
+            tools = ExternalResearchTools(settings)
+            with self.assertRaises(ValueError):
+                tools.read_web_page("http://127.0.0.1:8080")
+            draft = tools.github_prepare_issue("owner", "repo", "Title", "Body", "a,b")
+            self.assertTrue(draft["requires_confirmation"])
+            self.assertEqual(draft["draft"]["labels"], ["a", "b"])
 
     def test_file_query_expands_common_chinese_visual_terms(self) -> None:
         with TemporaryDirectory() as tmp:

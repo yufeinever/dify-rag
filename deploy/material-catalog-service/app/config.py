@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     thumbnail_default_quality: int = Field(78, alias="MATERIAL_CATALOG_THUMBNAIL_DEFAULT_QUALITY")
     thumbnail_max_width: int = Field(2048, alias="MATERIAL_CATALOG_THUMBNAIL_MAX_WIDTH")
 
+    external_http_timeout_seconds: int = Field(15, alias="EXTERNAL_HTTP_TIMEOUT_SECONDS")
+    external_max_page_bytes: int = Field(2000000, alias="EXTERNAL_MAX_PAGE_BYTES")
+    external_user_agent: str = Field("MMBAdvisorAgent/0.1", alias="EXTERNAL_USER_AGENT")
+    web_search_provider: str = Field("auto", alias="WEB_SEARCH_PROVIDER")
+    tavily_api_key: str = Field("", alias="TAVILY_API_KEY")
+    serpapi_api_key: str = Field("", alias="SERPAPI_API_KEY")
+    brave_search_api_key: str = Field("", alias="BRAVE_SEARCH_API_KEY")
+    github_api_base_url: str = Field("https://api.github.com", alias="GITHUB_API_BASE_URL")
+    github_token: str = Field("", alias="GITHUB_TOKEN")
+
     @field_validator("sync_interval_seconds")
     @classmethod
     def validate_sync_interval(cls, value: int) -> int:
@@ -59,6 +69,21 @@ class Settings(BaseSettings):
     def validate_thumbnail_quality(cls, value: int) -> int:
         if value < 40 or value > 95:
             raise ValueError("thumbnail quality must be between 40 and 95")
+        return value
+
+
+    @field_validator("external_http_timeout_seconds")
+    @classmethod
+    def validate_external_timeout(cls, value: int) -> int:
+        if value < 3 or value > 60:
+            raise ValueError("external HTTP timeout must be between 3 and 60 seconds")
+        return value
+
+    @field_validator("external_max_page_bytes")
+    @classmethod
+    def validate_external_max_page_bytes(cls, value: int) -> int:
+        if value < 100000 or value > 10000000:
+            raise ValueError("external max page bytes must be between 100000 and 10000000")
         return value
 
     @property
