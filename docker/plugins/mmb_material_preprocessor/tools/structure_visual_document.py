@@ -286,7 +286,7 @@ class MmbVisualDocumentStructurerTool(Tool):
                 while j < len(lines) and "</table>" not in table_blob[-1].lower():
                     table_blob.append(lines[j].strip())
                     j += 1
-                output.append(cls._format_summary_block("table_fact", "表格事实", [cls._html_table_to_markdown("".join(table_blob)), f"来源：{filename}"]))
+                output.append(cls._format_table_context_block(filename, last_heading, "".join(table_blob), output[-3:], lines[j : j + 3]))
                 stats["tables_normalized"] += 1
                 i = max(j, i + 1)
                 continue
@@ -386,8 +386,43 @@ class MmbVisualDocumentStructurerTool(Tool):
         text = re.sub(r"</td><tdrowspan", "</td><td rowspan", text, flags=re.I)
         return text
 
+    @classmethod
+    def _format_table_context_block(cls, filename: str, heading: str, html: str, previous_blocks: list[str], next_lines: list[str]) -> str:
+        table = cls._parse_html_table(html)
+        if not table:
+            table_text = BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+            return cls._format_summary_block(
+                "table_fact",
+                f"表格事实｜{heading or '邻近上下文'}",
+                [
+                    f"来源：{filename}，章节/邻近标题：{heading or '邻近上下文'}",
+                    f"相关主题：{cls._table_related_topics(heading, [], [])}",
+                    f"表格摘要：该表格来自 {heading or filename}，原始结构未能完整识别，已保留可见文本用于检索。",
+                    f"表格可见文字：{table_text}",
+                ],
+            )
+
+        header, rows = table
+        markdown = cls._table_to_markdown(header, rows)
+        facts = cls._table_rows_to_facts(header, rows)
+        context = cls._table_context_text(previous_blocks, next_lines)
+        summary = cls._summarize_table(heading, header, rows, context)
+        title_parts = ["表格事实"]
+        if heading:
+            title_parts.append(heading)
+        lines = [
+            f"来源：{filename}，章节/邻近标题：{heading or '邻近上下文'}",
+            f"相关主题：{cls._table_related_topics(heading, header, rows, context)}",
+        ]
+        if context:
+            lines.append(f"上下文：{context}")
+        lines.extend([f"表格摘要：{summary}", markdown])
+        if facts:
+            lines.extend(["表格事实展开：", *facts])
+        return cls._format_summary_block("table_fact", "｜".join(title_parts), lines)
+
     @staticmethod
-    def _html_table_to_markdown(html: str) -> str:
+    def _parse_html_table(html: str) -> tuple[list[str], list[list[str]]] | None:
         soup = BeautifulSoup(html, "html.parser")
         rows: list[list[str]] = []
         for tr in soup.find_all("tr"):
@@ -395,20 +430,101 @@ class MmbVisualDocumentStructurerTool(Tool):
             if any(cells):
                 rows.append(cells)
         if not rows:
-            return BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+            return None
         width = max(len(row) for row in rows)
-        rows = [row + [""] * (width - len(row)) for row in rows]
-        header, body = rows[0], rows[1:]
+        padded_rows = [row + [""] * (width - len(row)) for row in rows]
+        return padded_rows[0], padded_rows[1:]
+
+    @classmethod
+    def _html_table_to_markdown(cls, html: str) -> str:
+        table = cls._parse_html_table(html)
+        if table is None:
+            return BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
+        header, body = table
+        md = [cls._table_to_markdown(header, body)]
+        facts = cls._table_rows_to_facts(header, body)
+        if facts:
+            md.extend(["", "表格事实展开：", *facts])
+        return "\n".join(md)
+
+    @staticmethod
+    def _table_to_markdown(header: list[str], body: list[list[str]]) -> str:
+        width = len(header)
         md = ["| " + " | ".join(header) + " |", "| " + " | ".join(["---"] * width) + " |"]
         md.extend("| " + " | ".join(row) + " |" for row in body)
+        return "\n".join(md)
+
+    @classmethod
+    def _table_rows_to_facts(cls, header: list[str], body: list[list[str]]) -> list[str]:
         facts = []
         for row in body[:12]:
             pairs = [f"{header[i]}: {row[i]}" for i in range(min(len(header), len(row))) if header[i] and row[i]]
             if pairs:
-                facts.append("- " + "；".join(pairs))
-        if facts:
-            md.extend(["", "表格事实展开：", *facts])
-        return "\n".join(md)
+                facts.append("- " + cls._fact_sentence_from_pairs(header, row, pairs))
+        return facts
+
+    @staticmethod
+    def _fact_sentence_from_pairs(header: list[str], row: list[str], pairs: list[str]) -> str:
+        normalized = {h.strip(): row[i].strip() for i, h in enumerate(header[: len(row)]) if h.strip() and row[i].strip()}
+        if not pairs:
+            pairs = [f"{key}: {value}" for key, value in normalized.items()]
+        role = next((normalized[key] for key in normalized if any(word in key for word in ("岗位", "职位", "角色", "职责", "分工"))), "")
+        name = next((normalized[key] for key in normalized if any(word in key for word in ("姓名", "人员", "成员", "负责人", "参与人", "名称"))), "")
+        note = next((normalized[key] for key in normalized if any(word in key for word in ("备注", "说明", "工作", "内容", "职责", "任务"))), "")
+        if role and name and note:
+            return f"{role}：{name}，{note}。"
+        if role and name:
+            return f"{role}：{name}。"
+        return "；".join(pairs)
+
+    @classmethod
+    def _table_context_text(cls, previous_blocks: list[str], next_lines: list[str]) -> str:
+        candidates: list[str] = []
+        for block in previous_blocks[-3:]:
+            text = BeautifulSoup(block, "html.parser").get_text(" ", strip=True)
+            text = re.sub(r"<!--.*?-->", " ", text)
+            text = re.sub(r"\s+", " ", text).strip()
+            if text and not cls._is_low_info_text(text):
+                candidates.append(text[:180])
+        for line in next_lines[:2]:
+            text = BeautifulSoup(line.strip(), "html.parser").get_text(" ", strip=True)
+            text = re.sub(r"\s+", " ", text).strip()
+            if text and not HEADING_RE.match(line.strip()) and not cls._is_low_info_text(text):
+                candidates.append(text[:120])
+        return "；".join(candidates[-3:])[:420]
+
+    @classmethod
+    def _summarize_table(cls, heading: str, header: list[str], rows: list[list[str]], context: str) -> str:
+        subject = heading or context or "当前文档"
+        row_summaries: list[str] = []
+        for row in rows[:12]:
+            fact = cls._fact_sentence_from_pairs(header, row, [])
+            row_summaries.append(fact.rstrip("。"))
+        if row_summaries:
+            return f"本表记录{subject}相关信息，包括" + "、".join(row_summaries) + "。"
+        columns = "、".join(h for h in header if h)
+        return f"本表记录{subject}相关信息，字段包括{columns}。"
+
+    @classmethod
+    def _table_related_topics(cls, heading: str, header: list[str], rows: list[list[str]], context: str = "") -> str:
+        topics: list[str] = []
+        source = " ".join([heading, context, " ".join(header), " ".join(" ".join(row) for row in rows[:6])])
+        if any(key in source for key in ("团队", "组织架构", "职责", "岗位", "人员", "成员", "负责人")):
+            topics.extend(["团队组织架构", "职责分工", "参与人员", "团队成员", "负责人"])
+        if any(key in source for key in ("技术", "小程序", "开发", "全站", "UI", "硬件")):
+            topics.extend(["技术会议人员", "小程序开发团队", "技术团队", "开发分工"])
+        for token in re.split(r"[\s,，。;；|/\\:：()（）\[\]【】]+", source):
+            token = token.strip("#*- ")
+            if cls._wordish_len(token) >= 2 and not cls._is_low_info_text(token) and token not in topics:
+                topics.append(token)
+        lowered = source.lower()
+        if "mmb" in lowered or any(key in source for key in ("瞢瞢熊", "麦乐迪", "鲜啤")):
+            topics.extend(["MMB", "瞢瞢熊", "麦乐迪智慧鲜啤交易所"])
+        deduped: list[str] = []
+        for topic in topics:
+            if topic and topic not in deduped:
+                deduped.append(topic)
+        return "、".join(deduped[:24]) or "表格信息、结构化事实、业务资料"
 
     @staticmethod
     def _is_short_heading(title: str) -> bool:
