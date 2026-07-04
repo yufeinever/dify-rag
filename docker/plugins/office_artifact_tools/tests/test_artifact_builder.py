@@ -69,6 +69,49 @@ class ArtifactBuilderTests(unittest.TestCase):
         workbook = load_workbook(io.BytesIO(artifact.blob))
         self.assertEqual(workbook.active['A2'].value, '物料')
 
+    def test_build_xlsx_from_fenced_json(self):
+        artifact = build_xlsx_artifact(
+            title='端午预算',
+            sheets_json='''```json
+[
+  {"name": "预算明细", "headers": ["项目", "预算"], "data": [["物料", 8000]]}
+]
+```''',
+        )
+        workbook = load_workbook(io.BytesIO(artifact.blob))
+        self.assertEqual(workbook.sheetnames, ['预算明细'])
+        self.assertEqual(workbook['预算明细']['B2'].value, 8000)
+
+    def test_build_xlsx_from_double_encoded_json(self):
+        artifact = build_xlsx_artifact(
+            title='端午预算',
+            sheets_json='''"[{\\"name\\": \\"排期\\", \\"columns\\": [\\"日期\\", \\"动作\\"], \\"rows\\": [[\\"6月1日\\", \\"预热\\"]]}]"''',
+        )
+        workbook = load_workbook(io.BytesIO(artifact.blob))
+        self.assertEqual(workbook.sheetnames, ['排期'])
+        self.assertEqual(workbook['排期']['B2'].value, '预热')
+
+    def test_build_xlsx_from_multi_markdown_tables(self):
+        artifact = build_xlsx_artifact(
+            title='端午营销',
+            content='''# 预算明细
+
+| 项目 | 预算 |
+| --- | --- |
+| 物料 | 8000 |
+
+# 活动排期
+
+| 日期 | 动作 |
+| --- | --- |
+| 6月1日 | 预热 |
+''',
+        )
+        workbook = load_workbook(io.BytesIO(artifact.blob))
+        self.assertEqual(workbook.sheetnames, ['预算明细', '活动排期'])
+        self.assertEqual(workbook['预算明细']['A2'].value, '物料')
+        self.assertEqual(workbook['活动排期']['B2'].value, '预热')
+
     def test_empty_docx_content_is_rejected(self):
         with self.assertRaises(ValueError):
             build_docx_artifact(title='Empty', markdown_content='')

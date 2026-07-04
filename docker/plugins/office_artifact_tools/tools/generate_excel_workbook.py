@@ -15,6 +15,7 @@ class GenerateExcelWorkbookTool(Tool):
             title=str(tool_parameters.get("title") or "MMB 表格"),
             sheets_json=str(tool_parameters.get("sheets_json") or ""),
             table_markdown=str(tool_parameters.get("table_markdown") or ""),
+            content=str(tool_parameters.get("content") or ""),
             filename=tool_parameters.get("filename"),
             style_preset=str(tool_parameters.get("style_preset") or "business_table"),
         )

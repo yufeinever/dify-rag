@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import io
 import json
 import re
@@ -350,12 +351,25 @@ def _coerce_cell_value(value: Any) -> Any:
     return str(value)
 
 
+def _sanitize_excel_sheet_name(name: str, fallback: str) -> str:
+    cleaned = re.sub(r"[\[\]:*?/\\]+", "_", (name or "").strip()).strip("' ")
+    return (cleaned or fallback)[:31]
+
+
 def _normalize_excel_sheet(sheet: dict[str, Any], index: int) -> dict[str, Any]:
-    name = str(sheet.get("name") or f"Sheet{index + 1}").strip()[:31] or f"Sheet{index + 1}"
-    columns_raw = sheet.get("columns") or []
-    rows_raw = sheet.get("rows") or []
+    name = _sanitize_excel_sheet_name(str(sheet.get("name") or sheet.get("title") or ""), f"Sheet{index + 1}")
+    columns_raw = sheet.get("columns") or sheet.get("headers") or sheet.get("fields") or []
+    rows_raw = sheet.get("rows")
+    if rows_raw is None:
+        rows_raw = sheet.get("data")
+    if rows_raw is None:
+        rows_raw = sheet.get("items")
+    if rows_raw is None:
+        rows_raw = []
     if not isinstance(columns_raw, list):
         raise ValueError("sheet.columns must be an array")
+    if isinstance(rows_raw, dict):
+        rows_raw = list(rows_raw.values())
     if not isinstance(rows_raw, list):
         raise ValueError("sheet.rows must be an array")
     columns = [str(column) for column in columns_raw]
@@ -365,6 +379,8 @@ def _normalize_excel_sheet(sheet: dict[str, Any], index: int) -> dict[str, Any]:
             if not columns:
                 columns = [str(key) for key in row.keys()]
             rows.append([_coerce_cell_value(row.get(column)) for column in columns])
+        elif isinstance(row, tuple):
+            rows.append([_coerce_cell_value(cell) for cell in row])
         elif isinstance(row, list):
             rows.append([_coerce_cell_value(cell) for cell in row])
         else:
@@ -375,30 +391,93 @@ def _normalize_excel_sheet(sheet: dict[str, Any], index: int) -> dict[str, Any]:
     return {"name": name, "columns": columns, "rows": rows}
 
 
+def _extract_json_candidate(raw: str) -> str:
+    text = (raw or "").strip()
+    fence = re.search(r"```(?:json)?\s*(.*?)```", text, flags=re.DOTALL | re.IGNORECASE)
+    if fence:
+        text = fence.group(1).strip()
+    if (text.startswith("[") and text.endswith("]")) or (text.startswith("{") and text.endswith("}")):
+        return text
+    starts = [idx for idx in (text.find("["), text.find("{")) if idx >= 0]
+    if not starts:
+        return text
+    start = min(starts)
+    end_square = text.rfind("]")
+    end_curly = text.rfind("}")
+    end = max(end_square, end_curly)
+    if end > start:
+        return text[start : end + 1]
+    return text
+
+
+def _load_excel_json(raw: str) -> Any:
+    text = (raw or "").strip()
+    candidates = [text, _extract_json_candidate(text)]
+    last_error: Exception | None = None
+    for candidate in candidates:
+        for loader in (json.loads, ast.literal_eval):
+            try:
+                data = loader(candidate)
+                if isinstance(data, str):
+                    data = json.loads(_extract_json_candidate(data))
+                return data
+            except Exception as exc:  # noqa: BLE001 - convert parser variants into one user-facing error.
+                last_error = exc
+    raise ValueError(f"sheets_json is not valid JSON: {last_error}")
+
+
 def _excel_sheets_from_json(sheets_json: str) -> list[dict[str, Any]]:
-    data = json.loads(sheets_json)
+    data = _load_excel_json(sheets_json)
     if isinstance(data, dict):
-        data = data.get("sheets") or [data]
+        if "sheets" in data:
+            data = data["sheets"]
+        elif "workbook" in data and isinstance(data["workbook"], dict) and "sheets" in data["workbook"]:
+            data = data["workbook"]["sheets"]
+        else:
+            data = [data]
     if not isinstance(data, list):
         raise ValueError("sheets_json must be a JSON array or an object with a sheets array")
     sheets = [_normalize_excel_sheet(item, idx) for idx, item in enumerate(data) if isinstance(item, dict)]
+    sheets = [sheet for sheet in sheets if sheet["columns"] or sheet["rows"]]
     if not sheets:
         raise ValueError("sheets_json must contain at least one sheet")
     return sheets[:MAX_EXCEL_SHEETS]
 
 
 def _excel_sheets_from_markdown(table_markdown: str, title: str) -> list[dict[str, Any]]:
-    rows: list[list[str]] = []
-    for raw in table_markdown.splitlines():
-        line = raw.strip()
+    sheets: list[dict[str, Any]] = []
+    current_title = title or "表格"
+    pending_title = current_title
+    lines = table_markdown.splitlines()
+    idx = 0
+    while idx < len(lines):
+        line = lines[idx].strip()
+        heading = re.match(r"^#{1,6}\s+(.+)$", line)
+        if heading:
+            pending_title = heading.group(1).strip()
+            idx += 1
+            continue
         if not line.startswith("|") or "|" not in line[1:]:
+            idx += 1
             continue
-        if _is_table_separator(line):
-            continue
-        rows.append(_split_table_row(line))
-    if not rows:
-        raise ValueError("table_markdown must contain a Markdown table")
-    return [{"name": (title or "表格")[:31], "columns": rows[0], "rows": rows[1:]}]
+        rows: list[list[str]] = []
+        while idx < len(lines):
+            table_line = lines[idx].strip()
+            if not table_line.startswith("|") or "|" not in table_line[1:]:
+                break
+            if not _is_table_separator(table_line):
+                rows.append(_split_table_row(table_line))
+            idx += 1
+        if rows:
+            sheet_name = _sanitize_excel_sheet_name(pending_title, current_title)
+            sheets.append({"name": sheet_name, "columns": rows[0], "rows": rows[1:]})
+            pending_title = current_title
+            if len(sheets) >= MAX_EXCEL_SHEETS:
+                break
+        continue
+    if not sheets:
+        raise ValueError("table_markdown/content must contain at least one Markdown table")
+    return sheets
 
 
 def _style_excel_sheet(ws: Any, column_count: int) -> None:
@@ -428,13 +507,23 @@ def build_xlsx_artifact(
     sheets_json: str = "",
     table_markdown: str = "",
     filename: str | None = None,
+    content: str = "",
     style_preset: str = "business_table",
 ) -> Artifact:
-    source = (sheets_json or table_markdown or "").strip()
+    source = (sheets_json or table_markdown or content or "").strip()
     if not source:
-        raise ValueError("sheets_json or table_markdown is required")
+        raise ValueError("sheets_json, table_markdown, or content is required")
 
-    sheets = _excel_sheets_from_json(sheets_json) if sheets_json.strip() else _excel_sheets_from_markdown(table_markdown, title)
+    table_source = (table_markdown or content or "").strip()
+    if sheets_json.strip():
+        try:
+            sheets = _excel_sheets_from_json(sheets_json)
+        except ValueError:
+            if not table_source:
+                raise
+            sheets = _excel_sheets_from_markdown(table_source, title)
+    else:
+        sheets = _excel_sheets_from_markdown(table_source, title)
     cell_count = sum(len(sheet["columns"]) * (len(sheet["rows"]) + 1) for sheet in sheets)
     if cell_count > MAX_EXCEL_CELLS:
         raise ValueError(f"Excel workbook is too large; max {MAX_EXCEL_CELLS} cells")
