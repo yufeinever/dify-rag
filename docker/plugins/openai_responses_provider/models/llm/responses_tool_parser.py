@@ -3,17 +3,37 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 
+def get_field(obj: Any, name: str, default: Any = None) -> Any:
+    """Read a field from either OpenAI SDK objects or proxy-returned dicts."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
 def item_to_function_call_data(item: Any, fallback_call_id: str = "") -> dict[str, str] | None:
     """Extract a Responses API function_call item into Dify-compatible data."""
-    if getattr(item, "type", None) != "function_call":
+    if get_field(item, "type") != "function_call":
         return None
 
-    call_id = getattr(item, "call_id", None) or getattr(item, "id", None) or fallback_call_id
+    nested_function = get_field(item, "function", {}) or {}
+    call_id = get_field(item, "call_id") or get_field(item, "id") or fallback_call_id
+    name = get_field(item, "name") or get_field(nested_function, "name") or ""
+    arguments = get_field(item, "arguments")
+    if arguments is None:
+        arguments = get_field(nested_function, "arguments")
+
     return {
         "call_id": str(call_id or fallback_call_id),
-        "name": str(getattr(item, "name", None) or ""),
-        "arguments": str(getattr(item, "arguments", None) or ""),
+        "name": str(name or ""),
+        "arguments": str(arguments or ""),
     }
+
+
+def get_event_field(event: Any, name: str, default: Any = None) -> Any:
+    """Read a streaming event field from either SDK objects or dict events."""
+    return get_field(event, name, default)
 
 
 def merge_function_call_data(
@@ -79,6 +99,7 @@ def valid_function_call_data(
 ) -> list[dict[str, str]]:
     """Return only function calls that Dify can execute as declared tools."""
     valid: list[dict[str, str]] = []
+    allowed_names = {name for name in allowed_names if name}
     for call in calls:
         name = (call.get("name") or "").strip()
         if not name:

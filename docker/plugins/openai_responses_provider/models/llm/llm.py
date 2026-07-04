@@ -25,6 +25,7 @@ from .responses_tool_parser import (
     collect_response_output_function_calls,
     finalize_function_call_arguments,
     item_to_function_call_data,
+    get_event_field,
     merge_function_call_data,
     valid_function_call_data,
 )
@@ -1169,12 +1170,12 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         )
 
         for event in stream:
-            event_type = getattr(event, "type", "")
+            event_type = get_event_field(event, "type", "")
             logger.info(f"Responses API stream event: {event_type}")
 
             if event_type == "response.output_text.delta":
                 # delta field name varies: official SDK uses .delta
-                delta_text = getattr(event, "delta", None) or getattr(event, "text", "") or ""
+                delta_text = get_event_field(event, "delta") or get_event_field(event, "text", "") or ""
                 if delta_text:
                     full_text += delta_text
                     yield LLMResultChunk(
@@ -1187,9 +1188,9 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                     )
 
             elif event_type == "response.output_item.added":
-                output_index = getattr(event, "output_index", 0)
-                item = getattr(event, "item", None)
-                fallback_call_id = getattr(item, "id", "") if item is not None else ""
+                output_index = get_event_field(event, "output_index", 0)
+                item = get_event_field(event, "item")
+                fallback_call_id = get_event_field(item, "id", "") if item is not None else ""
                 merge_function_call_data(
                     pending_tool_calls,
                     output_index,
@@ -1199,23 +1200,23 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
             elif event_type == "response.function_call_arguments.delta":
                 append_function_call_arguments_delta(
                     pending_tool_calls,
-                    getattr(event, "output_index", 0),
-                    getattr(event, "delta", "") or "",
-                    getattr(event, "item_id", "") or "",
+                    get_event_field(event, "output_index", 0),
+                    get_event_field(event, "delta", "") or "",
+                    get_event_field(event, "item_id", "") or "",
                 )
 
             elif event_type == "response.function_call_arguments.done":
                 finalize_function_call_arguments(
                     pending_tool_calls,
-                    getattr(event, "output_index", 0),
-                    getattr(event, "arguments", "") or "",
-                    getattr(event, "name", "") or "",
-                    getattr(event, "item_id", "") or "",
+                    get_event_field(event, "output_index", 0),
+                    get_event_field(event, "arguments", "") or "",
+                    get_event_field(event, "name", "") or "",
+                    get_event_field(event, "item_id", "") or "",
                 )
 
             elif event_type == "response.output_item.done":
-                output_index = getattr(event, "output_index", 0)
-                item = getattr(event, "item", None)
+                output_index = get_event_field(event, "output_index", 0)
+                item = get_event_field(event, "item")
                 merge_function_call_data(
                     pending_tool_calls,
                     output_index,
@@ -1223,16 +1224,17 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                 )
 
             elif event_type == "response.completed":
-                resp = event.response
-                final_model = resp.model
-                if resp.usage:
-                    prompt_tokens = resp.usage.input_tokens
-                    completion_tokens = resp.usage.output_tokens
-                for idx, tool_call_data in collect_response_output_function_calls(getattr(resp, "output", [])).items():
+                resp = get_event_field(event, "response")
+                final_model = get_event_field(resp, "model", final_model)
+                usage_obj = get_event_field(resp, "usage")
+                if usage_obj:
+                    prompt_tokens = get_event_field(usage_obj, "input_tokens", 0)
+                    completion_tokens = get_event_field(usage_obj, "output_tokens", 0)
+                for idx, tool_call_data in collect_response_output_function_calls(get_event_field(resp, "output", [])).items():
                     merge_function_call_data(pending_tool_calls, idx, tool_call_data)
                 # if stream produced no text, extract from completed response
                 if not full_text and not pending_tool_calls:
-                    full_text = getattr(resp, "output_text", "") or ""
+                    full_text = get_event_field(resp, "output_text", "") or ""
                     if full_text:
                         yield LLMResultChunk(
                             model=final_model,

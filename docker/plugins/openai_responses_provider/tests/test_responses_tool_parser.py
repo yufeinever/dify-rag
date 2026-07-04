@@ -45,5 +45,27 @@ class ResponsesToolParserTests(unittest.TestCase):
         self.assertEqual(calls[0]["arguments"], '{"query":"MMB"}')
 
 
+    def test_dict_function_call_item_restores_name(self):
+        output = [
+            {
+                "type": "function_call",
+                "call_id": "call_5",
+                "name": "generate_word_document",
+                "arguments": '{"title":"方案","markdown_content":"# 方案"}',
+            }
+        ]
+
+        pending = collect_response_output_function_calls(output)
+        calls = valid_function_call_data(pending.values(), {"generate_word_document"})
+
+        self.assertEqual(calls[0]["call_id"], "call_5")
+        self.assertEqual(calls[0]["name"], "generate_word_document")
+        self.assertEqual(calls[0]["arguments"], '{"title":"方案","markdown_content":"# 方案"}')
+
+    def test_blank_allowed_names_are_ignored(self):
+        calls = valid_function_call_data([{"call_id": "call_6", "name": "", "arguments": "{}"}], {""})
+        self.assertEqual(calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()
