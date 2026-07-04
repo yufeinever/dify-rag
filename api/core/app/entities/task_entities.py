@@ -160,6 +160,10 @@ class MessageFileStreamResponse(StreamResponse):
     type: str
     belongs_to: str
     url: str
+    filename: str | None = None
+    extension: str | None = None
+    mime_type: str | None = None
+    size: int | None = None
 
 
 class MessageReplaceStreamResponse(StreamResponse):

@@ -256,7 +256,12 @@ def _build_from_tool_file(
         if tool_file is None:
             raise ValueError(f"ToolFile {tool_file_id} not found")
 
-        extension = "." + tool_file.file_key.split(".")[-1] if "." in tool_file.file_key else ".bin"
+        if "." in tool_file.name:
+            extension = f".{tool_file.name.rsplit('.', 1)[1]}"
+        elif "." in tool_file.file_key:
+            extension = f".{tool_file.file_key.rsplit('.', 1)[1]}"
+        else:
+            extension = mimetypes.guess_extension(tool_file.mimetype) or ".bin"
         detected_file_type = standardize_file_type(extension=extension, mime_type=tool_file.mimetype)
         file_type = _resolve_file_type(
             detected_file_type=detected_file_type,

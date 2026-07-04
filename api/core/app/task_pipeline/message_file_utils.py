@@ -3,7 +3,7 @@ from typing import TypedDict
 from core.tools.signature import sign_tool_file
 from graphon.file import FileTransferMethod
 from graphon.file import helpers as file_helpers
-from models.model import MessageFile, UploadFile
+from models.model import MessageFile, ToolFile, UploadFile
 
 MAX_TOOL_FILE_EXTENSION_LENGTH = 10
 
@@ -21,7 +21,11 @@ class MessageFileInfoDict(TypedDict):
     remote_url: str | None
 
 
-def prepare_file_dict(message_file: MessageFile, upload_files_map: dict[str, UploadFile]) -> MessageFileInfoDict:
+def prepare_file_dict(
+    message_file: MessageFile,
+    upload_files_map: dict[str, UploadFile],
+    tool_files_map: dict[str, ToolFile] | None = None,
+) -> MessageFileInfoDict:
     """
     Prepare file dictionary for message end stream response.
 
@@ -30,8 +34,12 @@ def prepare_file_dict(message_file: MessageFile, upload_files_map: dict[str, Upl
     :return: Dictionary containing file information
     """
     upload_file = None
+    tool_file = None
     if message_file.transfer_method == FileTransferMethod.LOCAL_FILE and message_file.upload_file_id:
         upload_file = upload_files_map.get(message_file.upload_file_id)
+    if message_file.transfer_method == FileTransferMethod.TOOL_FILE and message_file.upload_file_id:
+        if tool_files_map:
+            tool_file = tool_files_map.get(message_file.upload_file_id)
 
     url = None
     filename = "file"
@@ -55,6 +63,16 @@ def prepare_file_dict(message_file: MessageFile, upload_files_map: dict[str, Upl
                 extension = f".{upload_file.extension}" if upload_file.extension else ""
             elif message_file.upload_file_id:
                 url = file_helpers.get_signed_file_url(upload_file_id=str(message_file.upload_file_id))
+        case FileTransferMethod.TOOL_FILE if tool_file:
+            filename = tool_file.name
+            mime_type = tool_file.mimetype or "application/octet-stream"
+            size = tool_file.size or 0
+            if "." in filename:
+                extension = f".{filename.rsplit('.', 1)[1]}"
+            else:
+                file_part = tool_file.file_key.rsplit("/", 1)[-1]
+                extension = f".{file_part.rsplit('.', 1)[1]}" if "." in file_part else ".bin"
+            url = sign_tool_file(tool_file_id=str(tool_file.id), extension=extension)
         case FileTransferMethod.TOOL_FILE if message_file.url:
             if message_file.url.startswith(("http://", "https://")):
                 url = message_file.url

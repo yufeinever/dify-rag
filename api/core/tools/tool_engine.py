@@ -265,6 +265,12 @@ class ToolEngine:
                 )
             elif response.type == ToolInvokeMessage.MessageType.VARIABLE:
                 continue
+            elif response.type in {ToolInvokeMessage.MessageType.BLOB, ToolInvokeMessage.MessageType.BINARY_LINK}:
+                parts.append(
+                    "file has been created and sent to user already, "
+                    + "you do not need to print the file URL, just tell the user to download it "
+                    + "from the attachment card."
+                )
             else:
                 parts.append(str(response.message))
 
@@ -343,7 +349,18 @@ class ToolEngine:
                 file_type = FileType.VIDEO
             elif "audio" in message.mimetype:
                 file_type = FileType.AUDIO
-            elif "text" in message.mimetype or "pdf" in message.mimetype:
+            elif any(
+                marker in message.mimetype
+                for marker in (
+                    "text",
+                    "pdf",
+                    "wordprocessingml",
+                    "presentationml",
+                    "spreadsheetml",
+                    "msword",
+                    "ms-powerpoint",
+                )
+            ):
                 file_type = FileType.DOCUMENT
             else:
                 file_type = FileType.CUSTOM

@@ -34,8 +34,9 @@ from core.llm_generator.llm_generator import LLMGenerator
 from core.tools.signature import sign_tool_file
 from extensions.ext_database import db
 from extensions.ext_redis import redis_client
+from graphon.file import FileTransferMethod
 from models.enums import MessageFileBelongsTo
-from models.model import AppMode, Conversation, MessageAnnotation, MessageFile
+from models.model import AppMode, Conversation, MessageAnnotation, MessageFile, ToolFile
 from services.annotation_service import AppAnnotationService
 
 logger = logging.getLogger(__name__)
@@ -208,22 +209,42 @@ class MessageCycleManager:
         """
         with Session(db.engine, expire_on_commit=False) as session:
             message_file = session.scalar(select(MessageFile).where(MessageFile.id == event.message_file_id))
+            tool_file = None
+            if (
+                message_file
+                and message_file.transfer_method == FileTransferMethod.TOOL_FILE
+                and message_file.upload_file_id
+            ):
+                tool_file = session.scalar(select(ToolFile).where(ToolFile.id == message_file.upload_file_id))
 
         if message_file and message_file.url is not None:
             self._message_has_file.add(message_file.message_id)
 
-            # get tool file id
-            tool_file_id = message_file.url.split("/")[-1]
-            # trim extension
-            tool_file_id = tool_file_id.split(".")[0]
+            filename = None
+            mime_type = None
+            size = None
 
-            # get extension
-            if "." in message_file.url:
-                extension = f".{message_file.url.split('.')[-1]}"
-                if len(extension) > 10:
-                    extension = ".bin"
+            if tool_file:
+                filename = tool_file.name
+                mime_type = tool_file.mimetype
+                size = tool_file.size
+                extension = f".{filename.rsplit('.', 1)[1]}" if "." in filename else ".bin"
+                tool_file_id = str(tool_file.id)
             else:
-                extension = ".bin"
+                # get tool file id
+                tool_file_id = message_file.url.split("/")[-1]
+                # trim extension
+                tool_file_id = tool_file_id.split(".")[0]
+
+                # get extension
+                if "." in message_file.url:
+                    extension = f".{message_file.url.split('.')[-1]}"
+                    if len(extension) > 10:
+                        extension = ".bin"
+                else:
+                    extension = ".bin"
+                filename = message_file.url.split("/")[-1].split("?")[0]
+
             # add sign url to local file
             if message_file.url.startswith("http"):
                 url = message_file.url
@@ -236,6 +257,10 @@ class MessageCycleManager:
                 type=message_file.type,
                 belongs_to=message_file.belongs_to or MessageFileBelongsTo.USER,
                 url=url,
+                filename=filename,
+                extension=extension,
+                mime_type=mime_type,
+                size=size,
             )
 
         return None

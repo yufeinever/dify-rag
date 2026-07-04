@@ -61,7 +61,7 @@ from graphon.model_runtime.entities.message_entities import (
 )
 from graphon.model_runtime.model_providers.base.large_language_model import LargeLanguageModel
 from libs.datetime_utils import naive_utc_now
-from models.model import AppMode, Conversation, Message, MessageAgentThought, MessageFile, UploadFile
+from models.model import AppMode, Conversation, Message, MessageAgentThought, MessageFile, ToolFile, UploadFile
 
 logger = logging.getLogger(__name__)
 
@@ -479,9 +479,21 @@ class EasyUIBasedGenerateTaskPipeline(BasedGenerateTaskPipeline):
                     upload_files = session.scalars(select(UploadFile).where(UploadFile.id.in_(upload_file_ids))).all()
                     upload_files_map = {uf.id: uf for uf in upload_files}
 
+                tool_file_ids = list(
+                    dict.fromkeys(
+                        mf.upload_file_id
+                        for mf in message_files
+                        if mf.transfer_method == FileTransferMethod.TOOL_FILE and mf.upload_file_id
+                    )
+                )
+                tool_files_map = {}
+                if tool_file_ids:
+                    tool_files = session.scalars(select(ToolFile).where(ToolFile.id.in_(tool_file_ids))).all()
+                    tool_files_map = {tf.id: tf for tf in tool_files}
+
                 files_list = []
                 for message_file in message_files:
-                    file_dict = prepare_file_dict(message_file, upload_files_map)
+                    file_dict = prepare_file_dict(message_file, upload_files_map, tool_files_map)
                     files_list.append(file_dict)
 
                 files = files_list or None
