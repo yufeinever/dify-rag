@@ -171,6 +171,7 @@ def valid_function_call_data(
     """Return only function calls that Dify can execute as declared tools."""
     valid: list[dict[str, str]] = []
     allowed_names = {name for name in allowed_names if name}
+    seen_calls: set[tuple[str, str]] = set()
     for call in calls:
         arguments = call.get("arguments") or "{}"
         name = normalize_function_name(call.get("name") or "", arguments, allowed_names)
@@ -178,6 +179,10 @@ def valid_function_call_data(
             continue
         if name not in allowed_names:
             continue
+        dedupe_key = (name, arguments)
+        if dedupe_key in seen_calls:
+            continue
+        seen_calls.add(dedupe_key)
         call_id = (call.get("call_id") or name).strip() or name
         valid.append({"call_id": call_id, "name": name, "arguments": arguments})
     return valid

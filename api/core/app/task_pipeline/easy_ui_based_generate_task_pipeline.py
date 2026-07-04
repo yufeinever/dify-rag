@@ -490,7 +490,7 @@ class EasyUIBasedGenerateTaskPipeline(BasedGenerateTaskPipeline):
                 tool_files_map = {}
                 if tool_file_ids:
                     tool_files = session.scalars(select(ToolFile).where(ToolFile.id.in_(tool_file_ids))).all()
-                    tool_files_map = {tf.id: tf for tf in tool_files}
+                    tool_files_map = {str(tf.id): tf for tf in tool_files}
 
                 files_list = []
                 for message_file in message_files:

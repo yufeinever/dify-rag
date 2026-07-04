@@ -40,7 +40,7 @@ def prepare_file_dict(
         upload_file = upload_files_map.get(message_file.upload_file_id)
     if message_file.transfer_method == FileTransferMethod.TOOL_FILE and message_file.upload_file_id:
         if tool_files_map:
-            tool_file = tool_files_map.get(message_file.upload_file_id)
+            tool_file = tool_files_map.get(str(message_file.upload_file_id))
 
     url = None
     filename = "file"

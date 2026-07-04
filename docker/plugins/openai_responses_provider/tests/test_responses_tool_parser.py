@@ -126,6 +126,26 @@ class ResponsesToolParserTests(unittest.TestCase):
 
         self.assertEqual(calls[0]["name"], "create_office_artifact")
 
+    def test_duplicate_tool_calls_with_same_arguments_are_deduped(self):
+        calls = valid_function_call_data(
+            [
+                {
+                    "call_id": "call_1",
+                    "name": "create_office_artifact",
+                    "arguments": '{"artifact_type":"excel","title":"预算","content":"# 预算"}',
+                },
+                {
+                    "call_id": "call_2",
+                    "name": "create_office_artifact",
+                    "arguments": '{"artifact_type":"excel","title":"预算","content":"# 预算"}',
+                },
+            ],
+            {"create_office_artifact"},
+        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["call_id"], "call_1")
+
     def test_functions_prefix_is_stripped(self):
         calls = valid_function_call_data(
             [

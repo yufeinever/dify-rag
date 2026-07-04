@@ -216,7 +216,7 @@ class MessageCycleManager:
                 and message_file.transfer_method == FileTransferMethod.TOOL_FILE
                 and message_file.upload_file_id
             ):
-                tool_file = session.scalar(select(ToolFile).where(ToolFile.id == message_file.upload_file_id))
+                tool_file = session.scalar(select(ToolFile).where(ToolFile.id == str(message_file.upload_file_id)))
 
         if message_file and message_file.url is not None:
             self._message_has_file.add(message_file.message_id)
