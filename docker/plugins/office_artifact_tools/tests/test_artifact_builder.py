@@ -1,9 +1,11 @@
+import io
 import unittest
 
 from docx import Document
 from pptx import Presentation
+from openpyxl import load_workbook
 
-from tools.artifact_builder import build_docx_artifact, build_pptx_artifact, safe_filename
+from tools.artifact_builder import build_docx_artifact, build_pptx_artifact, build_xlsx_artifact, safe_filename
 
 
 class ArtifactBuilderTests(unittest.TestCase):
@@ -19,8 +21,6 @@ class ArtifactBuilderTests(unittest.TestCase):
         self.assertTrue(artifact.filename.endswith('.docx'))
         self.assertGreater(len(artifact.blob), 10000)
         self.assertEqual(artifact.summary['tables'], 1)
-        import io
-
         doc = Document(io.BytesIO(artifact.blob))
         self.assertGreaterEqual(len(doc.paragraphs), 4)
         self.assertEqual(len(doc.tables), 1)
@@ -32,10 +32,42 @@ class ArtifactBuilderTests(unittest.TestCase):
         )
         self.assertTrue(artifact.filename.endswith('.pptx'))
         self.assertGreater(len(artifact.blob), 10000)
-        import io
-
         deck = Presentation(io.BytesIO(artifact.blob))
         self.assertEqual(len(deck.slides), 3)
+
+    def test_build_xlsx_from_sheets_json(self):
+        artifact = build_xlsx_artifact(
+            title='MMB 端午预算表',
+            filename='端午预算.xlsx',
+            sheets_json='''[
+                {
+                    "name": "预算明细",
+                    "columns": ["项目", "预算", "负责人"],
+                    "rows": [["端午限定物料", 8000, "市场部"], ["线下快闪", 20000, "运营部"]]
+                },
+                {
+                    "name": "排期",
+                    "columns": ["日期", "动作"],
+                    "rows": [{"日期": "6月1日", "动作": "预热"}]
+                }
+            ]''',
+        )
+        self.assertTrue(artifact.filename.endswith('.xlsx'))
+        self.assertGreater(len(artifact.blob), 4000)
+        self.assertEqual(artifact.summary['sheets'], 2)
+        workbook = load_workbook(io.BytesIO(artifact.blob))
+        self.assertEqual(workbook.sheetnames, ['预算明细', '排期'])
+        self.assertEqual(workbook['预算明细']['A2'].value, '端午限定物料')
+        self.assertEqual(workbook['预算明细']['B2'].value, 8000)
+
+    def test_build_xlsx_from_markdown_table(self):
+        artifact = build_xlsx_artifact(
+            title='简单预算',
+            table_markdown='| 项目 | 预算 |\n| --- | --- |\n| 物料 | 8000 |',
+        )
+        self.assertEqual(artifact.summary['sheets'], 1)
+        workbook = load_workbook(io.BytesIO(artifact.blob))
+        self.assertEqual(workbook.active['A2'].value, '物料')
 
     def test_empty_docx_content_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -44,6 +76,10 @@ class ArtifactBuilderTests(unittest.TestCase):
     def test_empty_ppt_content_is_rejected(self):
         with self.assertRaises(ValueError):
             build_pptx_artifact(title='Empty')
+
+    def test_empty_xlsx_content_is_rejected(self):
+        with self.assertRaises(ValueError):
+            build_xlsx_artifact(title='Empty')
 
 
 if __name__ == '__main__':

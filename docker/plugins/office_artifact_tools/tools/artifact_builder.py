@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -17,12 +16,18 @@ from pptx import Presentation
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches as PptInches
 from pptx.util import Pt as PptPt
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 
 DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_MARKDOWN_CHARS = 80000
 MAX_PPT_CHARS = 60000
+MAX_EXCEL_CELLS = 50000
+MAX_EXCEL_SHEETS = 20
 MAX_SLIDES = 60
 
 
@@ -335,3 +340,130 @@ def build_pptx_artifact(
         mime_type=PPTX_MIME,
         summary={"format": "pptx", "size_bytes": len(blob), "slides": len(prs.slides), "theme": theme},
     )
+
+
+def _coerce_cell_value(value: Any) -> Any:
+    if value is None:
+        return ""
+    if isinstance(value, bool | int | float):
+        return value
+    return str(value)
+
+
+def _normalize_excel_sheet(sheet: dict[str, Any], index: int) -> dict[str, Any]:
+    name = str(sheet.get("name") or f"Sheet{index + 1}").strip()[:31] or f"Sheet{index + 1}"
+    columns_raw = sheet.get("columns") or []
+    rows_raw = sheet.get("rows") or []
+    if not isinstance(columns_raw, list):
+        raise ValueError("sheet.columns must be an array")
+    if not isinstance(rows_raw, list):
+        raise ValueError("sheet.rows must be an array")
+    columns = [str(column) for column in columns_raw]
+    rows: list[list[Any]] = []
+    for row in rows_raw:
+        if isinstance(row, dict):
+            if not columns:
+                columns = [str(key) for key in row.keys()]
+            rows.append([_coerce_cell_value(row.get(column)) for column in columns])
+        elif isinstance(row, list):
+            rows.append([_coerce_cell_value(cell) for cell in row])
+        else:
+            rows.append([_coerce_cell_value(row)])
+    if not columns and rows:
+        width = max(len(row) for row in rows)
+        columns = [f"列{idx + 1}" for idx in range(width)]
+    return {"name": name, "columns": columns, "rows": rows}
+
+
+def _excel_sheets_from_json(sheets_json: str) -> list[dict[str, Any]]:
+    data = json.loads(sheets_json)
+    if isinstance(data, dict):
+        data = data.get("sheets") or [data]
+    if not isinstance(data, list):
+        raise ValueError("sheets_json must be a JSON array or an object with a sheets array")
+    sheets = [_normalize_excel_sheet(item, idx) for idx, item in enumerate(data) if isinstance(item, dict)]
+    if not sheets:
+        raise ValueError("sheets_json must contain at least one sheet")
+    return sheets[:MAX_EXCEL_SHEETS]
+
+
+def _excel_sheets_from_markdown(table_markdown: str, title: str) -> list[dict[str, Any]]:
+    rows: list[list[str]] = []
+    for raw in table_markdown.splitlines():
+        line = raw.strip()
+        if not line.startswith("|") or "|" not in line[1:]:
+            continue
+        if _is_table_separator(line):
+            continue
+        rows.append(_split_table_row(line))
+    if not rows:
+        raise ValueError("table_markdown must contain a Markdown table")
+    return [{"name": (title or "表格")[:31], "columns": rows[0], "rows": rows[1:]}]
+
+
+def _style_excel_sheet(ws: Any, column_count: int) -> None:
+    header_fill = PatternFill("solid", fgColor="EAF2F8")
+    header_font = Font(bold=True, color="1F4E78")
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
+    for idx in range(1, column_count + 1):
+        letter = get_column_letter(idx)
+        max_len = 8
+        for cell in ws[letter]:
+            value = "" if cell.value is None else str(cell.value)
+            max_len = max(max_len, min(len(value), 40))
+        ws.column_dimensions[letter].width = min(max_len + 2, 42)
+
+
+def build_xlsx_artifact(
+    *,
+    title: str,
+    sheets_json: str = "",
+    table_markdown: str = "",
+    filename: str | None = None,
+    style_preset: str = "business_table",
+) -> Artifact:
+    source = (sheets_json or table_markdown or "").strip()
+    if not source:
+        raise ValueError("sheets_json or table_markdown is required")
+
+    sheets = _excel_sheets_from_json(sheets_json) if sheets_json.strip() else _excel_sheets_from_markdown(table_markdown, title)
+    cell_count = sum(len(sheet["columns"]) * (len(sheet["rows"]) + 1) for sheet in sheets)
+    if cell_count > MAX_EXCEL_CELLS:
+        raise ValueError(f"Excel workbook is too large; max {MAX_EXCEL_CELLS} cells")
+
+    wb = Workbook()
+    default = wb.active
+    wb.remove(default)
+    for sheet in sheets:
+        ws = wb.create_sheet(title=sheet["name"])
+        columns = sheet["columns"] or ["内容"]
+        ws.append(columns)
+        for row in sheet["rows"]:
+            padded = list(row) + [""] * (len(columns) - len(row))
+            ws.append(padded[: len(columns)])
+        _style_excel_sheet(ws, len(columns))
+
+    out = io.BytesIO()
+    wb.save(out)
+    blob = out.getvalue()
+    return Artifact(
+        filename=safe_filename(filename, title or "workbook", ".xlsx"),
+        blob=blob,
+        mime_type=XLSX_MIME,
+        summary={
+            "format": "xlsx",
+            "size_bytes": len(blob),
+            "sheets": len(sheets),
+            "rows": sum(len(sheet["rows"]) for sheet in sheets),
+            "style": style_preset,
+        },
+    )
+

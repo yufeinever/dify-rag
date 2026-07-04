@@ -5,8 +5,8 @@ identity:
     en_US: MMB Office Artifact Tools
     zh_Hans: MMB Office Artifact Tools
   description:
-    en_US: Generate downloadable Word and PowerPoint artifacts.
-    zh_Hans: 生成可下载的 Word 和 PowerPoint 附件。
+    en_US: Generate downloadable Word, PowerPoint, and Excel artifacts.
+    zh_Hans: 生成可下载的 Word、PowerPoint 和 Excel 附件。
   icon: icon.svg
 credentials_for_provider: {}
 extra:
@@ -15,3 +15,4 @@ extra:
 tools:
   - tools/generate_word_document.yaml
   - tools/generate_ppt_deck.yaml
+  - tools/generate_excel_workbook.yaml

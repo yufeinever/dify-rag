@@ -1,4 +1,4 @@
-version: 0.1.0
+version: 0.1.1
 type: plugin
 author: mmb
 name: office_artifact_tools
@@ -6,8 +6,8 @@ label:
   en_US: MMB Office Artifact Tools
   zh_Hans: MMB Office Artifact Tools
 description:
-  en_US: Generate downloadable Word and PowerPoint artifacts for MMB agents.
-  zh_Hans: 为 MMB Agent 生成可下载的 Word 和 PowerPoint 附件。
+  en_US: Generate downloadable Word, PowerPoint, and Excel artifacts for MMB agents.
+  zh_Hans: 为 MMB Agent 生成可下载的 Word、PowerPoint 和 Excel 附件。
 icon: icon.svg
 resource:
   memory: 536870912

@@ -1,0 +1,76 @@
+identity:
+  name: generate_excel_workbook
+  author: mmb
+  label:
+    en_US: Generate Excel Workbook
+    zh_Hans: 生成 Excel 表格
+description:
+  human:
+    en_US: Generate a downloadable .xlsx workbook from sheets JSON or a Markdown table.
+    zh_Hans: 根据 sheets JSON 或 Markdown 表格生成可下载的 .xlsx 工作簿。
+  llm: Generate a downloadable Excel .xlsx workbook. Use this when the user asks for Excel, spreadsheet, xlsx, budget table, schedule, checklist, ledger, or export table.
+parameters:
+  - name: title
+    type: string
+    required: true
+    label:
+      en_US: Workbook Title
+      zh_Hans: 表格标题
+    human_description:
+      en_US: Workbook title.
+      zh_Hans: 工作簿标题。
+    llm_description: The workbook title.
+    form: llm
+  - name: sheets_json
+    type: string
+    required: false
+    label:
+      en_US: Sheets JSON
+      zh_Hans: Sheets JSON
+    human_description:
+      en_US: JSON array of sheets. Each sheet has name, columns, and rows.
+      zh_Hans: 工作表 JSON 数组，每个工作表包含 name、columns 和 rows。
+    llm_description: 'Preferred input. JSON array like [{"name":"预算明细","columns":["项目","预算"],"rows":[["物料",8000]]}]. Rows may also be objects keyed by column name.'
+    form: llm
+  - name: table_markdown
+    type: string
+    required: false
+    label:
+      en_US: Markdown Table
+      zh_Hans: Markdown 表格
+    human_description:
+      en_US: Optional single Markdown table. Used only when sheets_json is empty.
+      zh_Hans: 可选单个 Markdown 表格，仅在 sheets_json 为空时使用。
+    llm_description: Optional single Markdown table. Use only for simple one-sheet output.
+    form: llm
+  - name: filename
+    type: string
+    required: false
+    label:
+      en_US: Filename
+      zh_Hans: 文件名
+    human_description:
+      en_US: Optional output filename.
+      zh_Hans: 可选输出文件名。
+    llm_description: Optional output filename ending with .xlsx.
+    form: llm
+  - name: style_preset
+    type: select
+    required: false
+    default: business_table
+    label:
+      en_US: Style Preset
+      zh_Hans: 样式预设
+    human_description:
+      en_US: Workbook style preset.
+      zh_Hans: 工作簿样式预设。
+    llm_description: Use business_table by default.
+    form: form
+    options:
+      - value: business_table
+        label:
+          en_US: Business Table
+          zh_Hans: 商务表格
+extra:
+  python:
+    source: tools/generate_excel_workbook.py
