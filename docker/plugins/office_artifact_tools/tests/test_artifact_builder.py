@@ -5,7 +5,7 @@ from docx import Document
 from pptx import Presentation
 from openpyxl import load_workbook
 
-from tools.artifact_builder import build_docx_artifact, build_pptx_artifact, build_xlsx_artifact, safe_filename
+from tools.artifact_builder import build_docx_artifact, build_office_artifact, build_pptx_artifact, build_xlsx_artifact, safe_filename
 
 
 class ArtifactBuilderTests(unittest.TestCase):
@@ -111,6 +111,45 @@ class ArtifactBuilderTests(unittest.TestCase):
         self.assertEqual(workbook.sheetnames, ['预算明细', '活动排期'])
         self.assertEqual(workbook['预算明细']['A2'].value, '物料')
         self.assertEqual(workbook['活动排期']['B2'].value, '预热')
+
+    def test_build_office_artifact_routes_word_by_explicit_type(self):
+        artifact = build_office_artifact(
+            artifact_type='word',
+            title='统一入口 Word',
+            content='# 方案\n正文',
+            filename='统一入口.docx',
+        )
+        self.assertTrue(artifact.filename.endswith('.docx'))
+        self.assertIn('tables', artifact.summary)
+
+    def test_build_office_artifact_routes_ppt_by_explicit_type(self):
+        artifact = build_office_artifact(
+            artifact_type='ppt',
+            title='统一入口 PPT',
+            content='# 首页\n- 要点',
+            filename='统一入口.pptx',
+        )
+        self.assertTrue(artifact.filename.endswith('.pptx'))
+        self.assertEqual(artifact.summary['slides'], 2)
+
+    def test_build_office_artifact_routes_excel_by_explicit_type(self):
+        artifact = build_office_artifact(
+            artifact_type='excel',
+            title='统一入口 Excel',
+            content='# 预算\n\n| 项目 | 金额 |\n| --- | --- |\n| 物料 | 8000 |',
+            filename='统一入口.xlsx',
+        )
+        self.assertTrue(artifact.filename.endswith('.xlsx'))
+        workbook = load_workbook(io.BytesIO(artifact.blob))
+        self.assertEqual(workbook.active['A2'].value, '物料')
+
+    def test_build_office_artifact_rejects_unknown_type(self):
+        with self.assertRaises(ValueError):
+            build_office_artifact(
+                artifact_type='pdf',
+                title='非法类型',
+                content='正文',
+            )
 
     def test_empty_docx_content_is_rejected(self):
         with self.assertRaises(ValueError):

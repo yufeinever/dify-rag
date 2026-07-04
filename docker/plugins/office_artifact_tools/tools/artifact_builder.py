@@ -31,6 +31,15 @@ MAX_EXCEL_CELLS = 50000
 MAX_EXCEL_SHEETS = 20
 MAX_SLIDES = 60
 
+ARTIFACT_TYPE_ALIASES = {
+    "word": "word",
+    "docx": "word",
+    "ppt": "ppt",
+    "pptx": "ppt",
+    "excel": "excel",
+    "xlsx": "excel",
+}
+
 
 @dataclass
 class Artifact:
@@ -556,3 +565,43 @@ def build_xlsx_artifact(
         },
     )
 
+
+def build_office_artifact(
+    *,
+    artifact_type: str,
+    title: str,
+    content: str = "",
+    filename: str | None = None,
+    sheets_json: str = "",
+    slides_json: str = "",
+    style_preset: str = "",
+    theme: str = "",
+) -> Artifact:
+    normalized_type = ARTIFACT_TYPE_ALIASES.get((artifact_type or "").strip().lower())
+    if not normalized_type:
+        raise ValueError("artifact_type must be one of: word, ppt, excel")
+
+    if normalized_type == "word":
+        return build_docx_artifact(
+            title=title,
+            markdown_content=content,
+            filename=filename,
+            style_preset=style_preset or "business_brief",
+        )
+
+    if normalized_type == "ppt":
+        return build_pptx_artifact(
+            title=title,
+            markdown_outline=content,
+            slides_json=slides_json,
+            filename=filename,
+            theme=theme or style_preset or "mmb_business",
+        )
+
+    return build_xlsx_artifact(
+        title=title,
+        sheets_json=sheets_json,
+        content=content,
+        filename=filename,
+        style_preset=style_preset or "business_table",
+    )

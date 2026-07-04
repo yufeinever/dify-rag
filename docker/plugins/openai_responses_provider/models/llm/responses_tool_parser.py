@@ -105,6 +105,8 @@ def infer_tool_name_from_arguments(arguments: str, allowed_names: set[str]) -> s
         return ""
 
     keys = set(payload.keys())
+    if "create_office_artifact" in allowed_names and "artifact_type" in keys:
+        return "create_office_artifact"
     if "generate_word_document" in allowed_names and {"filename", "markdown_content"}.issubset(keys):
         return "generate_word_document"
     if "generate_ppt_deck" in allowed_names and ({"markdown_outline"} & keys or {"slides"} & keys):
@@ -147,6 +149,7 @@ def normalize_function_name(
         return normalized
 
     inference_names = allowed_names or {
+        "create_office_artifact",
         "generate_word_document",
         "generate_ppt_deck",
         "generate_excel_workbook",

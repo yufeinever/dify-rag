@@ -1,0 +1,116 @@
+identity:
+  name: create_office_artifact
+  author: mmb
+  label:
+    en_US: Create Office Artifact
+    zh_Hans: 创建 Office 附件
+description:
+  human:
+    en_US: Generate one downloadable Word, PowerPoint, or Excel file from explicit artifact_type and content.
+    zh_Hans: 根据明确的 artifact_type 和内容生成一个可下载的 Word、PPT 或 Excel 文件。
+  llm: Tool name is create_office_artifact. Use this single tool whenever the user asks to generate a downloadable Office file. Set artifact_type explicitly to word, ppt, or excel. Do not call the legacy generate_word_document, generate_ppt_deck, or generate_excel_workbook tools when this tool is available.
+parameters:
+  - name: artifact_type
+    type: select
+    required: true
+    label:
+      en_US: Artifact Type
+      zh_Hans: 文件类型
+    human_description:
+      en_US: Office file type to generate.
+      zh_Hans: 要生成的 Office 文件类型。
+    llm_description: Required. Use word for .docx, ppt for .pptx, and excel for .xlsx.
+    form: llm
+    options:
+      - value: word
+        label:
+          en_US: Word
+          zh_Hans: Word
+      - value: ppt
+        label:
+          en_US: PowerPoint
+          zh_Hans: PPT
+      - value: excel
+        label:
+          en_US: Excel
+          zh_Hans: Excel
+  - name: title
+    type: string
+    required: true
+    label:
+      en_US: Title
+      zh_Hans: 标题
+    human_description:
+      en_US: Artifact title.
+      zh_Hans: 文件标题。
+    llm_description: Required artifact title.
+    form: llm
+  - name: content
+    type: string
+    required: true
+    label:
+      en_US: Content
+      zh_Hans: 内容
+    human_description:
+      en_US: Markdown content. For Word it is the document body; for PPT it is the slide outline; for Excel it may contain headings and Markdown tables.
+      zh_Hans: Markdown 内容。Word 使用正文，PPT 使用页面大纲，Excel 可使用标题和 Markdown 表格。
+    llm_description: Required stable content. Word uses markdown body. PPT uses headings and bullets as slide outline. Excel can use markdown headings and tables, unless sheets_json is provided.
+    form: llm
+  - name: filename
+    type: string
+    required: false
+    label:
+      en_US: Filename
+      zh_Hans: 文件名
+    human_description:
+      en_US: Optional output filename.
+      zh_Hans: 可选输出文件名。
+    llm_description: Optional filename. Extension will be corrected according to artifact_type.
+    form: llm
+  - name: sheets_json
+    type: string
+    required: false
+    label:
+      en_US: Sheets JSON
+      zh_Hans: Sheets JSON
+    human_description:
+      en_US: Optional Excel sheets JSON.
+      zh_Hans: 可选 Excel 工作表 JSON。
+    llm_description: Optional for artifact_type=excel. JSON array of sheets with name, columns, and rows.
+    form: llm
+  - name: slides_json
+    type: string
+    required: false
+    label:
+      en_US: Slides JSON
+      zh_Hans: Slides JSON
+    human_description:
+      en_US: Optional PowerPoint slides JSON.
+      zh_Hans: 可选 PPT 页面 JSON。
+    llm_description: Optional for artifact_type=ppt. JSON array of slide objects with title and bullets.
+    form: llm
+  - name: style_preset
+    type: string
+    required: false
+    label:
+      en_US: Style Preset
+      zh_Hans: 样式预设
+    human_description:
+      en_US: Optional style preset.
+      zh_Hans: 可选样式预设。
+    llm_description: Optional. Use business_brief for Word and business_table for Excel when needed.
+    form: llm
+  - name: theme
+    type: string
+    required: false
+    label:
+      en_US: Theme
+      zh_Hans: 主题
+    human_description:
+      en_US: Optional PPT theme.
+      zh_Hans: 可选 PPT 主题。
+    llm_description: Optional for artifact_type=ppt. Use mmb_business by default.
+    form: llm
+extra:
+  python:
+    source: tools/create_office_artifact.py

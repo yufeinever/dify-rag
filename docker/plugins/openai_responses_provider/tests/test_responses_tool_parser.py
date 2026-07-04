@@ -112,6 +112,20 @@ class ResponsesToolParserTests(unittest.TestCase):
 
         self.assertEqual(calls[0]["name"], "generate_excel_workbook")
 
+    def test_blank_name_prefers_unified_office_tool_from_artifact_type(self):
+        calls = valid_function_call_data(
+            [
+                {
+                    "call_id": "call_office",
+                    "name": "",
+                    "arguments": '{"artifact_type":"excel","title":"预算","content":"# 预算"}',
+                }
+            ],
+            {"create_office_artifact", "generate_excel_workbook", "generate_word_document"},
+        )
+
+        self.assertEqual(calls[0]["name"], "create_office_artifact")
+
     def test_functions_prefix_is_stripped(self):
         calls = valid_function_call_data(
             [

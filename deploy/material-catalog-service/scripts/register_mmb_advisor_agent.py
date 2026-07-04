@@ -54,39 +54,11 @@ OFFICE_TOOLS = [
         "provider_id": "mmb/office_artifact_tools/office_artifact_tools",
         "provider_name": "office_artifact_tools",
         "plugin_id": "mmb/office_artifact_tools",
-        "tool_name": "generate_word_document",
-        "tool_label": "Generate Word Document",
-        "tool_description": "Generate a downloadable Word .docx file from markdown content.",
+        "tool_name": "create_office_artifact",
+        "tool_label": "Create Office Artifact",
+        "tool_description": "Generate one downloadable Word, PowerPoint, or Excel file. Set artifact_type explicitly to word, ppt, or excel.",
         "tool_parameters": {},
-        "tool_configurations": {"style_preset": {"type": "constant", "value": "business_brief"}},
-        "enabled": True,
-        "isDeleted": False,
-        "notAuthor": False,
-    },
-    {
-        "provider_type": "builtin",
-        "provider_id": "mmb/office_artifact_tools/office_artifact_tools",
-        "provider_name": "office_artifact_tools",
-        "plugin_id": "mmb/office_artifact_tools",
-        "tool_name": "generate_ppt_deck",
-        "tool_label": "Generate PowerPoint Deck",
-        "tool_description": "Generate a downloadable PowerPoint .pptx file from a markdown outline or slides JSON.",
-        "tool_parameters": {},
-        "tool_configurations": {"theme": {"type": "constant", "value": "mmb_business"}},
-        "enabled": True,
-        "isDeleted": False,
-        "notAuthor": False,
-    },
-    {
-        "provider_type": "builtin",
-        "provider_id": "mmb/office_artifact_tools/office_artifact_tools",
-        "provider_name": "office_artifact_tools",
-        "plugin_id": "mmb/office_artifact_tools",
-        "tool_name": "generate_excel_workbook",
-        "tool_label": "Generate Excel Workbook",
-        "tool_description": "Generate a downloadable Excel .xlsx workbook. Use this tool directly when the user asks for Excel/xlsx/spreadsheet/budget/schedule/checklist/export table. Supports sheets_json, table_markdown, or content with markdown headings and multiple tables.",
-        "tool_parameters": {},
-        "tool_configurations": {"style_preset": {"type": "constant", "value": "business_table"}},
+        "tool_configurations": {},
         "enabled": True,
         "isDeleted": False,
         "notAuthor": False,
@@ -122,9 +94,10 @@ AGENT_PROMPT = """你是“MMB智囊”，一个面向 MMB 内部的战略顾问
 
 Office 文件生成规则：
 - 用户要求生成 Word/docx、PPT/pptx、Excel/xlsx、表格文件、预算表、排期表、清单、台账、导出表格时，必须调用对应的 MMB Office Artifact Tools，不能只用文字回复。
-- 生成 Word 时，把最终内容整理为 Markdown 后调用 generate_word_document。
-- 生成 PPT 时，先整理为清晰的页面标题和要点，再调用 generate_ppt_deck。
-- 生成 Excel 时，先整理表格数据，再调用 generate_excel_workbook。优先传 sheets_json；如果严格 JSON 不方便，可以把多个 Markdown 标题和表格放到 content 参数，每个标题后的表格会成为一个 sheet。
+- 统一调用 create_office_artifact，不再在 Word/PPT/Excel 三个旧工具之间选择。
+- 生成 Word 时设置 artifact_type=word，并把最终内容整理为 Markdown 放入 content。
+- 生成 PPT 时设置 artifact_type=ppt，先整理为清晰的页面标题和要点放入 content；需要精确控制时可传 slides_json。
+- 生成 Excel 时设置 artifact_type=excel，先整理表格数据。优先传 sheets_json；如果严格 JSON 不方便，可以把多个 Markdown 标题和表格放到 content，每个标题后的表格会成为一个 sheet。
 - 只要没有出现工具调用成功，就不能说“已生成文件”或“请下载附件”；你应该继续调用工具，而不是口头承诺。
 - 调用 Office 工具成功后，简短说明文件名、sheet/页数，并提示用户在下方附件卡片下载。
 """

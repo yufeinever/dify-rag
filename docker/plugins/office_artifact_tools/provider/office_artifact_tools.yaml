@@ -13,6 +13,7 @@ extra:
   python:
     source: provider/office_artifact_tools.py
 tools:
+  - tools/create_office_artifact.yaml
   - tools/generate_word_document.yaml
   - tools/generate_ppt_deck.yaml
   - tools/generate_excel_workbook.yaml
