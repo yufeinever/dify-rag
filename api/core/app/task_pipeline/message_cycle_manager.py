@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import time
 from threading import Thread, Timer
 from typing import Union
 
@@ -216,7 +217,12 @@ class MessageCycleManager:
                 and message_file.transfer_method == FileTransferMethod.TOOL_FILE
                 and message_file.upload_file_id
             ):
-                tool_file = session.scalar(select(ToolFile).where(ToolFile.id == str(message_file.upload_file_id)))
+                tool_file_id = str(message_file.upload_file_id)
+                for retry_index in range(5):
+                    tool_file = session.scalar(select(ToolFile).where(ToolFile.id == tool_file_id))
+                    if tool_file or retry_index == 4:
+                        break
+                    time.sleep(0.05)
 
         if message_file and message_file.url is not None:
             self._message_has_file.add(message_file.message_id)
