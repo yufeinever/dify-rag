@@ -1,0 +1,33 @@
+version: 0.1.0
+type: plugin
+author: mmb
+name: visual_ppt_tools
+label:
+  en_US: MMB Visual PPT Tools
+  zh_Hans: MMB Visual PPT Tools
+description:
+  en_US: Generate image-first PowerPoint decks with OpenAI image generation.
+  zh_Hans: 使用 OpenAI 图片生成能力创建图片型 PPT 附件。
+icon: icon.svg
+resource:
+  memory: 1073741824
+  permission:
+    tool:
+      enabled: true
+    storage:
+      enabled: true
+      size: 209715200
+plugins:
+  tools:
+    - provider/visual_ppt_tools.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: '3.12'
+    entrypoint: main
+created_at: 2026-07-04T00:00:00+08:00
+verified: false

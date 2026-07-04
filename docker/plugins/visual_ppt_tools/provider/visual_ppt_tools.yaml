@@ -1,0 +1,62 @@
+identity:
+  author: mmb
+  name: visual_ppt_tools
+  label:
+    en_US: MMB Visual PPT Tools
+    zh_Hans: MMB Visual PPT Tools
+  description:
+    en_US: Generate image-first PowerPoint decks.
+    zh_Hans: 生成图片型 PowerPoint 附件。
+  icon: icon.svg
+credentials_for_provider:
+  openai_api_key:
+    label:
+      en_US: OpenAI API Key
+      zh_Hans: OpenAI API Key
+    placeholder:
+      en_US: sk-...
+      zh_Hans: 输入 OpenAI 或中转站 Key
+    required: false
+    type: secret-input
+  openai_api_base:
+    label:
+      en_US: OpenAI API Base
+      zh_Hans: OpenAI API Base
+    placeholder:
+      en_US: https://api.openai.com/v1
+      zh_Hans: https://api.openai.com/v1 或你的中转站 /v1 地址
+    required: false
+    type: text-input
+  openai_image_model:
+    label:
+      en_US: Image Model
+      zh_Hans: 图片模型
+    placeholder:
+      en_US: gpt-image-2
+      zh_Hans: gpt-image-2
+    required: false
+    type: text-input
+  openai_image_quality:
+    label:
+      en_US: Image Quality
+      zh_Hans: 图片质量
+    required: false
+    type: select
+    options:
+      - value: low
+        label:
+          en_US: Low
+          zh_Hans: 低
+      - value: medium
+        label:
+          en_US: Medium
+          zh_Hans: 中
+      - value: high
+        label:
+          en_US: High
+          zh_Hans: 高
+extra:
+  python:
+    source: provider/visual_ppt_tools.py
+tools:
+  - tools/create_visual_ppt_deck.yaml

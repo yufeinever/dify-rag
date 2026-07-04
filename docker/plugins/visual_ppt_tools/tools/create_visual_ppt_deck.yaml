@@ -1,0 +1,133 @@
+identity:
+  name: create_visual_ppt_deck
+  author: mmb
+  label:
+    en_US: Create Visual PPT Deck
+    zh_Hans: 创建视觉 PPT
+description:
+  human:
+    en_US: Generate an image-first PowerPoint deck where each slide is a full 16:9 generated image.
+    zh_Hans: 生成图片型 PowerPoint，每页都是完整 16:9 视觉页面图。
+  llm: Use this tool whenever the user asks for a beautiful PPT, visual deck, presentation, pitch deck, report deck, or image-first slide deck. You must provide a clear outline or slides_json. Do not answer with text only.
+parameters:
+  - name: title
+    type: string
+    required: true
+    label:
+      en_US: Title
+      zh_Hans: 标题
+    human_description:
+      en_US: Deck title.
+      zh_Hans: PPT 标题。
+    llm_description: Required deck title.
+    form: llm
+  - name: outline
+    type: string
+    required: false
+    label:
+      en_US: Outline
+      zh_Hans: 大纲
+    human_description:
+      en_US: Markdown outline. Headings become slides and bullets become visual keywords.
+      zh_Hans: Markdown 大纲。标题会成为页面，列表会成为视觉关键词。
+    llm_description: Markdown outline. Use headings for slide titles and short bullets for key visual messages. Required unless slides_json is provided.
+    form: llm
+  - name: slides_json
+    type: string
+    required: false
+    label:
+      en_US: Slides JSON
+      zh_Hans: Slides JSON
+    human_description:
+      en_US: Optional structured slides JSON.
+      zh_Hans: 可选结构化页面 JSON。
+    llm_description: Optional JSON array of slide objects with title, bullets, and optional image_prompt. This has priority over outline.
+    form: llm
+  - name: filename
+    type: string
+    required: false
+    label:
+      en_US: Filename
+      zh_Hans: 文件名
+    human_description:
+      en_US: Output filename.
+      zh_Hans: 输出文件名。
+    llm_description: Optional output filename ending in .pptx.
+    form: llm
+  - name: slide_count
+    type: number
+    required: false
+    label:
+      en_US: Slide Count
+      zh_Hans: 页数
+    human_description:
+      en_US: Target slide count. Maximum 12.
+      zh_Hans: 目标页数，最多 12 页。
+    llm_description: Optional target slide count. Default 6, maximum 12.
+    form: llm
+  - name: style_preset
+    type: select
+    required: false
+    label:
+      en_US: Style Preset
+      zh_Hans: 风格预设
+    human_description:
+      en_US: Visual style preset.
+      zh_Hans: 视觉风格预设。
+    llm_description: Optional. Use mmb_modern_pitch by default.
+    form: llm
+    options:
+      - value: mmb_modern_pitch
+        label:
+          en_US: MMB Modern Pitch
+          zh_Hans: MMB 现代路演
+      - value: beer_brand_campaign
+        label:
+          en_US: Beer Brand Campaign
+          zh_Hans: 啤酒品牌营销
+      - value: finance_pitch
+        label:
+          en_US: Finance Pitch
+          zh_Hans: 融资路演
+      - value: tech_saas
+        label:
+          en_US: Tech SaaS
+          zh_Hans: 科技 SaaS
+  - name: image_model
+    type: string
+    required: false
+    label:
+      en_US: Image Model
+      zh_Hans: 图片模型
+    human_description:
+      en_US: OpenAI image model.
+      zh_Hans: OpenAI 图片模型。
+    llm_description: Optional. Defaults to provider credential or gpt-image-2.
+    form: llm
+  - name: quality
+    type: select
+    required: false
+    label:
+      en_US: Quality
+      zh_Hans: 质量
+    human_description:
+      en_US: Image generation quality.
+      zh_Hans: 图片生成质量。
+    llm_description: Optional. Use medium by default unless user asks for draft or high quality.
+    form: llm
+    options:
+      - value: low
+        label:
+          en_US: Low
+          zh_Hans: 低
+      - value: medium
+        label:
+          en_US: Medium
+          zh_Hans: 中
+      - value: high
+        label:
+          en_US: High
+          zh_Hans: 高
+extra:
+  python:
+    source: tools/create_visual_ppt_deck.py
