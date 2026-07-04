@@ -5,6 +5,7 @@ import { TransferMethod } from '@/types/app'
 import { FILE_EXTS } from '../../prompt-editor/constants'
 import { FileAppearanceTypeEnum } from '../types'
 import {
+  appendDownloadAttachmentParam,
   fileIsUploaded,
   fileUpload,
   getFileAppearanceType,
@@ -300,6 +301,29 @@ describe('file-uploader utils', () => {
     it('should return file type when isCustom is false', () => {
       expect(getSupportFileType('file.txt', 'text/plain'))
         .toBe(SupportUploadFileTypes.document)
+    })
+  })
+
+  describe('appendDownloadAttachmentParam', () => {
+    it('should append with question mark when url has no query', () => {
+      expect(appendDownloadAttachmentParam('/files/tools/test.pptx')).toBe('/files/tools/test.pptx?as_attachment=true')
+    })
+
+    it('should append with ampersand when url already has query', () => {
+      expect(appendDownloadAttachmentParam('/files/tools/test.pptx?timestamp=1')).toBe('/files/tools/test.pptx?timestamp=1&as_attachment=true')
+    })
+
+    it('should not duplicate existing attachment param', () => {
+      expect(appendDownloadAttachmentParam('/files/tools/test.pptx?as_attachment=true')).toBe('/files/tools/test.pptx?as_attachment=true')
+    })
+
+    it('should preserve url hash', () => {
+      expect(appendDownloadAttachmentParam('/files/tools/test.pptx?timestamp=1#page=1')).toBe('/files/tools/test.pptx?timestamp=1&as_attachment=true#page=1')
+    })
+
+    it('should leave data and blob urls unchanged', () => {
+      expect(appendDownloadAttachmentParam('data:application/pdf;base64,abc')).toBe('data:application/pdf;base64,abc')
+      expect(appendDownloadAttachmentParam('blob:http://localhost/test')).toBe('blob:http://localhost/test')
     })
   })
 

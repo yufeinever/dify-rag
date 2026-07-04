@@ -12,6 +12,7 @@ import ProgressCircle from '@/app/components/base/progress-bar/progress-circle'
 import { downloadUrl } from '@/utils/download'
 import FileImageRender from '../file-image-render'
 import {
+  appendDownloadAttachmentParam,
   fileIsUploaded,
 } from '../utils'
 
@@ -34,7 +35,7 @@ const FileImageItem = ({
   const { t } = useTranslation()
   const { id, progress, base64Url, url, name } = file
   const [imagePreviewUrl, setImagePreviewUrl] = useState('')
-  const download_url = url ? `${url}&as_attachment=true` : base64Url
+  const download_url = url ? appendDownloadAttachmentParam(url) : base64Url
 
   return (
     <>

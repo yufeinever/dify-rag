@@ -12,6 +12,7 @@ import { downloadUrl } from '@/utils/download'
 import { formatFileSize } from '@/utils/format'
 import FileTypeIcon from '../file-type-icon'
 import {
+  appendDownloadAttachmentParam,
   fileIsUploaded,
   getFileAppearanceType,
   getFileExtension,
@@ -43,7 +44,7 @@ const FileItem = ({
   let tmp_preview_url = url || base64Url
   if (!tmp_preview_url && file?.originalFile)
     tmp_preview_url = URL.createObjectURL(file.originalFile.slice()).toString()
-  const download_url = url ? `${url}&as_attachment=true` : base64Url
+  const download_url = url ? appendDownloadAttachmentParam(url) : base64Url
 
   return (
     <>

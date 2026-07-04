@@ -1762,13 +1762,31 @@ class Message(Base):
                     )
             files.append(file)
 
-        result = cast(
-            list[MessageFileInfo],
-            [
-                {"belongs_to": message_file.belongs_to, "upload_file_id": message_file.upload_file_id, **file.to_dict()}
-                for (file, message_file) in zip(files, message_files)
-            ],
-        )
+        result: list[MessageFileInfo] = []
+        for file, message_file in zip(files, message_files):
+            file_info = cast(
+                MessageFileInfo,
+                {
+                    "belongs_to": message_file.belongs_to,
+                    "upload_file_id": message_file.upload_file_id,
+                    **file.to_dict(),
+                },
+            )
+
+            # Tool file links are time-limited. Historical message payloads must
+            # return a fresh signed URL instead of reusing the persisted path or
+            # an expired URL generated during the original streaming response.
+            if message_file.transfer_method == FileTransferMethod.TOOL_FILE and message_file.upload_file_id:
+                extension = file_info.get("extension") or ".bin"
+                if not extension.startswith("."):
+                    extension = f".{extension}"
+                if len(extension) > 10:
+                    extension = ".bin"
+                file_info["url"] = sign_tool_file(
+                    tool_file_id=str(message_file.upload_file_id), extension=extension
+                )
+
+            result.append(file_info)
 
         db.session.commit()
         return result

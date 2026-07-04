@@ -212,6 +212,21 @@ export const getFileNameFromUrl = (url: string) => {
   return urlParts[urlParts.length - 1] || ''
 }
 
+export const appendDownloadAttachmentParam = (url: string) => {
+  if (!url || url.startsWith('data:') || url.startsWith('blob:'))
+    return url
+
+  const hashIndex = url.indexOf('#')
+  const urlWithoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url
+  const hash = hashIndex >= 0 ? url.slice(hashIndex) : ''
+
+  if (/[?&]as_attachment=/.test(urlWithoutHash))
+    return url
+
+  const separator = urlWithoutHash.includes('?') ? '&' : '?'
+  return `${urlWithoutHash}${separator}as_attachment=true${hash}`
+}
+
 export const getSupportFileExtensionList = (allowFileTypes: string[], allowFileExtensions: string[]) => {
   if (allowFileTypes.includes(SupportUploadFileTypes.custom))
     return allowFileExtensions.map(item => item.slice(1).toUpperCase())
