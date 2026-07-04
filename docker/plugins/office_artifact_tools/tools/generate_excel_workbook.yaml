@@ -8,11 +8,11 @@ description:
   human:
     en_US: Generate a downloadable .xlsx workbook from sheets JSON or a Markdown table.
     zh_Hans: 根据 sheets JSON、Markdown 表格或正文内容生成可下载的 .xlsx 工作簿。
-  llm: Generate a downloadable Excel .xlsx workbook. When the user asks for Excel, xlsx, spreadsheet, budget table, schedule, checklist, ledger, or export table, call this tool directly instead of only describing the table. Prefer sheets_json, but content can contain markdown headings and multiple markdown tables.
+  llm: Tool name is generate_excel_workbook. Generate a downloadable Excel .xlsx workbook. When the user asks for Excel, xlsx, spreadsheet, budget table, schedule, checklist, ledger, or export table, call generate_excel_workbook directly instead of only describing the table. Use content with markdown headings and tables, or sheets_json for structured sheets.
 parameters:
   - name: title
     type: string
-    required: false
+    required: true
     label:
       en_US: Workbook Title
       zh_Hans: 表格标题
@@ -45,14 +45,14 @@ parameters:
     form: llm
   - name: content
     type: string
-    required: false
+    required: true
     label:
       en_US: Content
       zh_Hans: 表格正文
     human_description:
       en_US: Optional markdown content containing headings and one or more tables.
       zh_Hans: 可选 Markdown 正文，可包含标题和多个表格。
-    llm_description: Optional fallback. Put markdown headings and tables here when constructing multiple sheets is easier than strict JSON. Each heading immediately before a table becomes that sheet name.
+    llm_description: Required stable input. Put markdown headings and tables here. Each heading immediately before a table becomes that sheet name. If sheets_json is also provided, content can be a short markdown summary of the same workbook.
     form: llm
   - name: filename
     type: string
