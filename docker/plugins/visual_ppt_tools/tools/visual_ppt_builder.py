@@ -7,6 +7,7 @@ import json
 import os
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -23,6 +24,7 @@ MAX_OUTLINE_CHARS = 30000
 MAX_SLIDES = 12
 DEFAULT_SLIDE_COUNT = 6
 TARGET_IMAGE_SIZE = (1536, 864)
+DEFAULT_IMAGE_CONCURRENCY = 6
 REQUESTED_IMAGE_SIZE = "1536x864"
 FALLBACK_IMAGE_SIZE = "1536x1024"
 
@@ -265,6 +267,37 @@ def get_slide_image(
     return normalized
 
 
+def normalize_image_concurrency(value: Any, slide_total: int) -> int:
+    try:
+        configured = int(value or os.environ.get("VISUAL_PPT_IMAGE_CONCURRENCY") or DEFAULT_IMAGE_CONCURRENCY)
+    except (TypeError, ValueError):
+        configured = DEFAULT_IMAGE_CONCURRENCY
+    return max(1, min(slide_total, DEFAULT_IMAGE_CONCURRENCY, configured))
+
+
+def generate_slide_images(
+    *,
+    prompts: list[str],
+    config: OpenAIImageConfig,
+    image_client: ImageClient | None = None,
+    concurrency: Any = None,
+) -> list[bytes]:
+    if not prompts:
+        return []
+
+    max_workers = normalize_image_concurrency(concurrency, len(prompts))
+    images: list[bytes | None] = [None] * len(prompts)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(get_slide_image, prompt=prompt, config=config, image_client=image_client): index
+            for index, prompt in enumerate(prompts)
+        }
+        for future in as_completed(futures):
+            images[futures[future]] = future.result()
+
+    return [image for image in images if image is not None]
+
+
 def build_visual_ppt_artifact(
     *,
     title: str,
@@ -275,6 +308,7 @@ def build_visual_ppt_artifact(
     style_preset: str = "mmb_modern_pitch",
     image_config: OpenAIImageConfig | None = None,
     image_client: ImageClient | None = None,
+    image_concurrency: Any = None,
 ) -> Artifact:
     limit = normalize_slide_count(slide_count)
     slides = slides_from_json(slides_json, limit) if slides_json.strip() else slides_from_markdown(title, outline, limit)
@@ -286,12 +320,18 @@ def build_visual_ppt_artifact(
     prs.slide_width = Inches(13.333333)
     prs.slide_height = Inches(7.5)
     blank_layout = prs.slide_layouts[6]
-    prompts: list[str] = []
+    prompts = [
+        build_prompt_for_slide(slide_data, deck_title=title or "MMB 视觉PPT", style_preset=style_preset)
+        for slide_data in slides
+    ]
+    images = generate_slide_images(
+        prompts=prompts,
+        config=config,
+        image_client=image_client,
+        concurrency=image_concurrency,
+    )
 
-    for slide_data in slides:
-        prompt = build_prompt_for_slide(slide_data, deck_title=title or "MMB 视觉PPT", style_preset=style_preset)
-        prompts.append(prompt)
-        image = get_slide_image(prompt=prompt, config=config, image_client=image_client)
+    for image in images:
         slide = prs.slides.add_slide(blank_layout)
         slide.shapes.add_picture(io.BytesIO(image), 0, 0, width=prs.slide_width, height=prs.slide_height)
 
@@ -311,5 +351,6 @@ def build_visual_ppt_artifact(
             "quality": config.quality,
             "size_bytes": len(blob),
             "prompt_count": len(prompts),
+            "image_concurrency": normalize_image_concurrency(image_concurrency, len(prompts)),
         },
     )

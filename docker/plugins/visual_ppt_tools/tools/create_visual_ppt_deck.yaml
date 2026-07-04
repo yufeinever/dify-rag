@@ -128,6 +128,17 @@ parameters:
         label:
           en_US: High
           zh_Hans: 高
+  - name: image_concurrency
+    type: number
+    required: false
+    label:
+      en_US: Image Concurrency
+      zh_Hans: 图片并发数
+    human_description:
+      en_US: Number of slide images to generate in parallel. Default 6, maximum 6.
+      zh_Hans: 并行生成图片的页数。默认 6，最大 6。
+    llm_description: Optional image generation concurrency. Default 6, maximum 6.
+    form: llm
 extra:
   python:
     source: tools/create_visual_ppt_deck.py

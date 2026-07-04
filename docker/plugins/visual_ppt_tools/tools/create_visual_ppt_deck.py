@@ -39,6 +39,7 @@ class CreateVisualPptDeckTool(Tool):
             slide_count=tool_parameters.get("slide_count"),
             style_preset=str(tool_parameters.get("style_preset") or "mmb_modern_pitch"),
             image_config=image_config,
+            image_concurrency=tool_parameters.get("image_concurrency"),
         )
         summary = artifact.summary
         yield self.create_text_message(

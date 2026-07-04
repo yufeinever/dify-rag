@@ -1,13 +1,18 @@
 import io
 import json
+import time
 import unittest
+from threading import Lock
 
 from PIL import Image
 from pptx import Presentation
 
 from tools.visual_ppt_builder import (
     build_prompt_for_slide,
+    OpenAIImageConfig,
     build_visual_ppt_artifact,
+    generate_slide_images,
+    normalize_image_concurrency,
     normalize_slide_image,
     slides_from_markdown,
     slides_from_json,
@@ -105,6 +110,34 @@ class VisualPptBuilderTest(unittest.TestCase):
         )
         prs = Presentation(io.BytesIO(artifact.blob))
         self.assertEqual(len(prs.slides), 12)
+
+    def test_normalize_image_concurrency_caps_to_six_and_slide_total(self):
+        self.assertEqual(normalize_image_concurrency(None, 4), 4)
+        self.assertEqual(normalize_image_concurrency(20, 12), 6)
+        self.assertEqual(normalize_image_concurrency(0, 3), 3)
+
+    def test_generate_slide_images_runs_in_parallel(self):
+        lock = Lock()
+        calls = []
+
+        def slow_image_client(prompt, model, quality, size):
+            time.sleep(0.25)
+            with lock:
+                calls.append(prompt)
+            return fake_png(color=(80, 120, 180))
+
+        prompts = [f"slide-{time.time_ns()}-{index}" for index in range(4)]
+        started = time.perf_counter()
+        images = generate_slide_images(
+            prompts=prompts,
+            config=OpenAIImageConfig(api_key="test"),
+            image_client=slow_image_client,
+            concurrency=4,
+        )
+        elapsed = time.perf_counter() - started
+        self.assertEqual(len(images), 4)
+        self.assertLess(elapsed, 0.85)
+        self.assertCountEqual(calls, prompts)
 
 
 if __name__ == "__main__":
