@@ -17,6 +17,7 @@ import { useAppContext } from '@/context/app-context'
 import { useProviderContext } from '@/context/provider-context'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import { ApiBasedExtensionPage } from './api-based-extension-page'
+import ChannelIntegrationsPage from './channel-integrations-page'
 import DataSourcePage from './data-source-page-new'
 import LanguagePage from './language-page'
 import MembersPage from './members-page'
@@ -93,6 +94,12 @@ export default function AccountSetting({
         name: t('settings.apiBasedExtension', { ns: 'common' }),
         icon: <span className={cn('i-ri-puzzle-2-line', iconClassName)} />,
         activeIcon: <span className={cn('i-ri-puzzle-2-fill', iconClassName)} />,
+      },
+      {
+        key: ACCOUNT_SETTING_TAB.CHANNEL_INTEGRATIONS,
+        name: t('settings.channelIntegrations', { ns: 'common' }),
+        icon: <span className={cn('i-ri-webhook-line', iconClassName)} />,
+        activeIcon: <span className={cn('i-ri-webhook-fill', iconClassName)} />,
       },
     )
 
@@ -231,6 +238,7 @@ export default function AccountSetting({
               {activeMenu === ACCOUNT_SETTING_TAB.BILLING && <BillingPage />}
               {activeMenu === ACCOUNT_SETTING_TAB.DATA_SOURCE && <DataSourcePage />}
               {activeMenu === ACCOUNT_SETTING_TAB.API_BASED_EXTENSION && <ApiBasedExtensionPage />}
+              {activeMenu === ACCOUNT_SETTING_TAB.CHANNEL_INTEGRATIONS && <ChannelIntegrationsPage />}
               {activeMenu === ACCOUNT_SETTING_TAB.CUSTOM && <CustomPage />}
               {activeMenu === ACCOUNT_SETTING_TAB.LANGUAGE && <LanguagePage />}
             </div>

@@ -2,6 +2,7 @@ import express from "express";
 import type { Express, Request } from "express";
 import { loadConfig } from "./config.js";
 import { DifyGateway } from "./difyGateway.js";
+import type { RuntimeBotConfig } from "./difyGateway.js";
 import { FeishuClient } from "./feishuClient.js";
 import { decryptFeishuPayload, verifyFeishuSignature } from "./feishuCrypto.js";
 import { extractMessageEvent } from "./feishuEvent.js";
@@ -17,9 +18,9 @@ export const createApp = (): Express => {
   const app = express();
   const idempotency = new TtlSet(config.idempotencyTtlMs);
   const limiter = new SlidingWindowRateLimiter(config.rateLimitWindowMs, config.rateLimitMaxMessages);
-  const feishu = new FeishuClient(config.feishu.appId, config.feishu.appSecret);
   const dify = new DifyGateway(config.dify);
   const poster = new PosterClient(config.poster.serviceUrl, config.poster.size);
+  const runtimeCache = new RuntimeConfigCache(config.runtimeConfigCacheTtlMs);
 
   app.use(express.json({
     limit: "2mb",
@@ -32,44 +33,58 @@ export const createApp = (): Express => {
     res.json({ status: "ok", service: "feishu-bot-gateway" });
   });
 
-  app.post("/feishu-bot/events", async (req: Request & { rawBody?: string }, res) => {
+  app.post("/feishu-bot/events/:botId", async (req: Request & { rawBody?: string }, res) => {
+    const botId = singleQueryValue(req.params.botId);
+    const token = singleQueryValue(req.query.token);
+    if (!botId) {
+      res.status(400).json({ error: "missing bot id" });
+      return;
+    }
     try {
+      const runtime = await runtimeCache.get(botId, token, () => dify.getRuntimeBotConfig(botId, token));
       const rawBody = req.rawBody ?? JSON.stringify(req.body ?? {});
       if (req.headers["x-lark-signature"] && !verifyFeishuSignature({
-        encryptKey: config.feishu.encryptKey,
+        encryptKey: runtime.encrypt_key,
         timestamp: req.headers["x-lark-request-timestamp"],
         nonce: req.headers["x-lark-request-nonce"],
         signature: req.headers["x-lark-signature"],
         body: rawBody,
       })) {
-        logger.warn("invalid feishu signature");
+        logger.warn("invalid feishu signature", { botId });
         res.status(401).json({ error: "invalid signature" });
         return;
       }
 
       let payload: any = req.body;
       if (payload.encrypt) {
-        payload = decryptFeishuPayload(config.feishu.encryptKey, payload.encrypt);
+        payload = decryptFeishuPayload(runtime.encrypt_key, payload.encrypt);
       }
 
       if (payload.type === "url_verification") {
-        if (payload.token && payload.token !== config.feishu.verificationToken) {
+        if (payload.token && payload.token !== runtime.verification_token) {
           res.status(401).json({ error: "invalid verification token" });
           return;
         }
+        await dify.markVerified(botId, token).catch(error => logger.warn("mark verified failed", { botId, error: String(error) }));
+        runtimeCache.delete(botId, token);
         res.json({ challenge: payload.challenge });
         return;
       }
 
+      if (!runtime.enabled) {
+        res.json({ ignored: true, reason: "bot disabled" });
+        return;
+      }
+
       const headerToken = payload.header?.token;
-      if (headerToken && headerToken !== config.feishu.verificationToken) {
+      if (headerToken && headerToken !== runtime.verification_token) {
         res.status(401).json({ error: "invalid event token" });
         return;
       }
 
       const message = extractMessageEvent(payload, {
-        botOpenId: config.feishu.botOpenId,
-        botName: config.feishu.botName,
+        botOpenId: runtime.bot_open_id ?? undefined,
+        botName: runtime.bot_name ?? runtime.name,
       });
       if (!message) {
         res.json({ ignored: true, reason: "not a text message event" });
@@ -77,9 +92,10 @@ export const createApp = (): Express => {
       }
 
       res.json({ ok: true });
-      void handleMessage({ message, feishu, dify, poster, idempotency, limiter, config, logger });
+      const feishu = new FeishuClient(runtime.app_id, runtime.app_secret);
+      void handleMessage({ message, feishu, dify, poster, idempotency, limiter, config, runtime, logger });
     } catch (error) {
-      logger.error("event handling failed", { error: error instanceof Error ? error.message : String(error) });
+      logger.error("event handling failed", { botId, error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ error: "internal error" });
     }
   });
@@ -95,14 +111,15 @@ type HandleMessageParams = {
   idempotency: TtlSet;
   limiter: SlidingWindowRateLimiter;
   config: ReturnType<typeof loadConfig>;
+  runtime: RuntimeBotConfig;
   logger: ReturnType<typeof createLogger>;
 };
 
-const handleMessage = async ({ message, feishu, dify, poster, idempotency, limiter, config, logger }: HandleMessageParams): Promise<void> => {
+const handleMessage = async ({ message, feishu, dify, poster, idempotency, limiter, config, runtime, logger }: HandleMessageParams): Promise<void> => {
   try {
     if (!message.messageId || !message.chatId) return;
     if (!idempotency.add(message.messageId)) {
-      logger.info("duplicate message ignored", { messageId: message.messageId });
+      logger.info("duplicate message ignored", { messageId: message.messageId, botId: runtime.id });
       return;
     }
     if (message.chatType !== "p2p" && !message.mentionedBot) return;
@@ -112,15 +129,15 @@ const handleMessage = async ({ message, feishu, dify, poster, idempotency, limit
     }
     if (!message.text) return;
 
-    const rateKey = message.senderOpenId || message.chatId;
+    const rateKey = `${runtime.id}:${message.senderOpenId || message.chatId}`;
     if (!limiter.take(rateKey)) {
       await feishu.sendText(message.chatId, "请求太频繁了，请稍后再试。");
       return;
     }
 
-    const user = `feishu:${message.senderOpenId}:${message.chatId}`;
+    const user = `feishu:${runtime.id}:${message.senderOpenId}:${message.chatId}`;
     const intent = detectIntent(message.text);
-    logger.info("message routed", { intent, chatType: message.chatType, messageId: message.messageId });
+    logger.info("message routed", { intent, chatType: message.chatType, messageId: message.messageId, botId: runtime.id });
 
     if (intent === "poster") {
       const job = await poster.createJob(message.text, message.messageId);
@@ -137,12 +154,47 @@ const handleMessage = async ({ message, feishu, dify, poster, idempotency, limit
       return;
     }
 
-    const answer = intent === "copywriting"
-      ? await dify.copywrite(buildCopywritingPrompt(message.text), user)
-      : await dify.chat(message.text, user);
+    const binding = intent === "copywriting"
+      ? runtime.bindings.copywriting ?? runtime.bindings.default
+      : runtime.bindings.default;
+    if (!binding?.api_key) {
+      await feishu.sendText(message.chatId, intent === "copywriting" ? "这个 Bot 还没有绑定文案或默认 Dify 应用，请管理员在渠道接入里配置。" : "这个 Bot 还没有绑定默认 Dify 应用，请管理员在渠道接入里配置。");
+      return;
+    }
+
+    const query = intent === "copywriting" ? buildCopywritingPrompt(message.text) : message.text;
+    const answer = await dify.chat(binding.api_key, query, user);
     await feishu.sendText(message.chatId, answer);
   } catch (error) {
-    logger.error("message processing failed", { error: error instanceof Error ? error.message : String(error), messageId: message.messageId });
+    logger.error("message processing failed", { error: error instanceof Error ? error.message : String(error), messageId: message.messageId, botId: runtime.id });
     await feishu.sendText(message.chatId, "处理失败了，请稍后再试；如果持续失败，请联系管理员查看 feishu-bot-gateway 日志。").catch(() => undefined);
   }
+};
+
+class RuntimeConfigCache {
+  private readonly values = new Map<string, { expiresAt: number; value: RuntimeBotConfig }>();
+
+  constructor(private readonly ttlMs: number) {}
+
+  async get(botId: string, token: string | undefined, loader: () => Promise<RuntimeBotConfig>): Promise<RuntimeBotConfig> {
+    const key = this.key(botId, token);
+    const cached = this.values.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const value = await loader();
+    this.values.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+    return value;
+  }
+
+  delete(botId: string, token: string | undefined): void {
+    this.values.delete(this.key(botId, token));
+  }
+
+  private key(botId: string, token: string | undefined): string {
+    return `${botId}:${token ?? ""}`;
+  }
+}
+
+const singleQueryValue = (value: unknown): string | undefined => {
+  if (Array.isArray(value)) return typeof value[0] === "string" ? value[0] : undefined;
+  return typeof value === "string" && value ? value : undefined;
 };

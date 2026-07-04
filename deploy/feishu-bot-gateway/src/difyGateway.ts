@@ -1,10 +1,32 @@
 import { ChatClient } from "../../../sdks/nodejs-client/dist/index.mjs";
 import type { JsonObject } from "../../../sdks/nodejs-client/dist/index.mjs";
 
+export type ChannelIntegrationPurpose = "default" | "copywriting" | "poster";
+
+export type RuntimeAppBinding = {
+  app_id: string;
+  app_name: string;
+  api_key?: string | null;
+};
+
+export type RuntimeBotConfig = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  channel: "feishu";
+  enabled: boolean;
+  app_id: string;
+  app_secret: string;
+  verification_token: string;
+  encrypt_key: string;
+  bot_name?: string | null;
+  bot_open_id?: string | null;
+  bindings: Partial<Record<ChannelIntegrationPurpose, RuntimeAppBinding>>;
+};
+
 export type DifyGatewayConfig = {
   baseUrl: string;
-  advisorApiKey: string;
-  copywritingApiKey?: string;
+  consoleApiBaseUrl: string;
 };
 
 const answerFromResponse = (data: JsonObject): string => {
@@ -15,22 +37,35 @@ const answerFromResponse = (data: JsonObject): string => {
   return JSON.stringify(data, null, 2);
 };
 
+const cleanBaseUrl = (url: string): string => url.replace(/\/$/, "");
+
 export class DifyGateway {
-  private readonly advisor: ChatClient;
-  private readonly copywriting: ChatClient;
+  constructor(private readonly config: DifyGatewayConfig) {}
 
-  constructor(config: DifyGatewayConfig) {
-    this.advisor = new ChatClient({ apiKey: config.advisorApiKey, baseUrl: config.baseUrl, timeout: 120, maxRetries: 1 });
-    this.copywriting = new ChatClient({ apiKey: config.copywritingApiKey ?? config.advisorApiKey, baseUrl: config.baseUrl, timeout: 120, maxRetries: 1 });
+  async getRuntimeBotConfig(botId: string, token?: string): Promise<RuntimeBotConfig> {
+    const base = cleanBaseUrl(this.config.consoleApiBaseUrl);
+    const url = new URL(`${base}/workspaces/current/channel-integrations/runtime/bots/${encodeURIComponent(botId)}`);
+    if (token) url.searchParams.set("token", token);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`load channel integration runtime config failed: ${response.status} ${await response.text()}`);
+    }
+    return response.json() as Promise<RuntimeBotConfig>;
   }
 
-  async chat(query: string, user: string): Promise<string> {
-    const response = await this.advisor.createChatMessage({ inputs: {}, query, user, response_mode: "blocking" });
-    return answerFromResponse(response.data as JsonObject);
+  async markVerified(botId: string, token?: string): Promise<void> {
+    const base = cleanBaseUrl(this.config.consoleApiBaseUrl);
+    const url = new URL(`${base}/workspaces/current/channel-integrations/runtime/bots/${encodeURIComponent(botId)}/verified`);
+    if (token) url.searchParams.set("token", token);
+    const response = await fetch(url, { method: "POST" });
+    if (!response.ok) {
+      throw new Error(`mark channel integration verified failed: ${response.status} ${await response.text()}`);
+    }
   }
 
-  async copywrite(query: string, user: string): Promise<string> {
-    const response = await this.copywriting.createChatMessage({ inputs: {}, query, user, response_mode: "blocking" });
+  async chat(apiKey: string, query: string, user: string): Promise<string> {
+    const client = new ChatClient({ apiKey, baseUrl: this.config.baseUrl, timeout: 120, maxRetries: 1 });
+    const response = await client.createChatMessage({ inputs: {}, query, user, response_mode: "blocking" });
     return answerFromResponse(response.data as JsonObject);
   }
 }

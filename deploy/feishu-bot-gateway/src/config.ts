@@ -3,18 +3,9 @@ import process from "node:process";
 export type GatewayConfig = {
   port: number;
   publicBaseUrl?: string;
-  feishu: {
-    appId: string;
-    appSecret: string;
-    verificationToken: string;
-    encryptKey: string;
-    botOpenId?: string;
-    botName: string;
-  };
   dify: {
     baseUrl: string;
-    advisorApiKey: string;
-    copywritingApiKey?: string;
+    consoleApiBaseUrl: string;
   };
   poster: {
     serviceUrl: string;
@@ -25,15 +16,8 @@ export type GatewayConfig = {
   idempotencyTtlMs: number;
   rateLimitWindowMs: number;
   rateLimitMaxMessages: number;
+  runtimeConfigCacheTtlMs: number;
   logLevel: string;
-};
-
-const required = (name: string): string => {
-  const value = process.env[name];
-  if (!value || !value.trim()) {
-    throw new Error(`Missing required environment variable ${name}`);
-  }
-  return value.trim();
 };
 
 const optional = (name: string): string | undefined => {
@@ -54,18 +38,9 @@ const intEnv = (name: string, fallback: number): number => {
 export const loadConfig = (): GatewayConfig => ({
   port: intEnv("PORT", 8096),
   publicBaseUrl: optional("PUBLIC_BASE_URL"),
-  feishu: {
-    appId: required("FEISHU_APP_ID"),
-    appSecret: required("FEISHU_APP_SECRET"),
-    verificationToken: required("FEISHU_VERIFICATION_TOKEN"),
-    encryptKey: required("FEISHU_ENCRYPT_KEY"),
-    botOpenId: optional("FEISHU_BOT_OPEN_ID"),
-    botName: optional("FEISHU_BOT_NAME") ?? "MMBAI",
-  },
   dify: {
     baseUrl: optional("DIFY_BASE_URL") ?? "http://nginx/v1",
-    advisorApiKey: required("DIFY_ADVISOR_APP_API_KEY"),
-    copywritingApiKey: optional("DIFY_COPYWRITING_APP_API_KEY"),
+    consoleApiBaseUrl: optional("DIFY_CONSOLE_API_BASE_URL") ?? "http://nginx/console/api",
   },
   poster: {
     serviceUrl: optional("POSTER_SERVICE_URL") ?? "http://poster-service:8088",
@@ -76,5 +51,6 @@ export const loadConfig = (): GatewayConfig => ({
   idempotencyTtlMs: intEnv("IDEMPOTENCY_TTL_MS", 600_000),
   rateLimitWindowMs: intEnv("RATE_LIMIT_WINDOW_MS", 60_000),
   rateLimitMaxMessages: intEnv("RATE_LIMIT_MAX_MESSAGES", 12),
+  runtimeConfigCacheTtlMs: intEnv("RUNTIME_CONFIG_CACHE_TTL_MS", 30_000),
   logLevel: optional("LOG_LEVEL") ?? "info",
 });

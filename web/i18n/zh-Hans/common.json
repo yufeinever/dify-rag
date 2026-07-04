@@ -610,6 +610,7 @@
   "provider.validating": "验证密钥中...",
   "settings.account": "我的账户",
   "settings.accountGroup": "通用",
+  "settings.channelIntegrations": "渠道接入",
   "settings.apiBasedExtension": "API 扩展",
   "settings.billing": "账单",
   "settings.dataSource": "数据来源",

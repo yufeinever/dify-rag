@@ -127,6 +127,7 @@ from .tag import tags
 from .workspace import (
     account,
     agent_providers,
+    channel_integrations,
     endpoint,
     load_balancing_config,
     members,
@@ -156,6 +157,7 @@ __all__ = [
     "banner",
     "billing",
     "bp",
+    "channel_integrations",
     "completion",
     "compliance",
     "console_ns",

@@ -22,6 +22,12 @@ from .agent import (
     WorkflowAgentNodeBinding,
 )
 from .api_based_extension import APIBasedExtension, APIBasedExtensionPoint
+from .channel_integration import (
+    ChannelIntegrationAppBinding,
+    ChannelIntegrationBindingPurpose,
+    ChannelIntegrationBot,
+    ChannelIntegrationType,
+)
 from .comment import (
     WorkflowComment,
     WorkflowCommentMention,
@@ -176,6 +182,10 @@ __all__ = [
     "BuiltinToolProvider",
     "CeleryTask",
     "CeleryTaskSet",
+    "ChannelIntegrationAppBinding",
+    "ChannelIntegrationBindingPurpose",
+    "ChannelIntegrationBot",
+    "ChannelIntegrationType",
     "Conversation",
     "ConversationVariable",
     "CreatorUserRole",
