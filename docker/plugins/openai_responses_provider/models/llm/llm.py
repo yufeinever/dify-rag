@@ -1448,37 +1448,32 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
             assistant_message_tool_calls = delta.delta.tool_calls
             assistant_message_function_call = delta.delta.function_call
 
-            # extract tool calls from response (new preferred path)
-            if assistant_message_tool_calls:
-                tool_calls = self._extract_response_tool_calls(assistant_message_tool_calls)  # type: ignore
-            else:
+            # STATEFUL AGGREGATION OF TOOL CALLS
+            # Do not emit streaming tool-call fragments early. Some OpenAI-compatible
+            # proxies send arguments before the final function name, and Dify will try
+            # to execute the partial empty-name call if we yield it before aggregation.
+            if not assistant_message_tool_calls:
                 # legacy streaming via function_call
                 if delta_assistant_message_function_call_storage is not None:
                     if assistant_message_function_call:
-                        # message continues
                         assert isinstance(delta_assistant_message_function_call_storage.arguments, str)
                         assert isinstance(assistant_message_function_call.arguments, str)
                         delta_assistant_message_function_call_storage.arguments += assistant_message_function_call.arguments
                         continue
-                    else:
-                        assistant_message_function_call = delta_assistant_message_function_call_storage
-                        delta_assistant_message_function_call_storage = None
-                else:
-                    if assistant_message_function_call:
-                        # start of legacy stream
-                        delta_assistant_message_function_call_storage = assistant_message_function_call
-                        if delta_assistant_message_function_call_storage.arguments is None:
-                            delta_assistant_message_function_call_storage.arguments = ""
-                        if not has_finish_reason:
-                            continue
+                    assistant_message_function_call = delta_assistant_message_function_call_storage
+                    delta_assistant_message_function_call_storage = None
+                elif assistant_message_function_call:
+                    delta_assistant_message_function_call_storage = assistant_message_function_call
+                    if delta_assistant_message_function_call_storage.arguments is None:
+                        delta_assistant_message_function_call_storage.arguments = ""
+                    if not has_finish_reason:
+                        continue
 
                 function_call = self._extract_response_function_call(assistant_message_function_call)
                 tool_calls = [function_call] if function_call else []
+                if tool_calls:
+                    final_tool_calls.extend(tool_calls)
 
-            if tool_calls:
-                final_tool_calls.extend(tool_calls)
-            
-            # STATEFUL AGGREGATION OF TOOL CALLS
             if assistant_message_tool_calls:
                 for tool_call_chunk in assistant_message_tool_calls:
                     # new tool

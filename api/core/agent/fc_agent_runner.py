@@ -31,6 +31,39 @@ from models.model import Message
 logger = logging.getLogger(__name__)
 
 
+
+def _normalize_tool_call_name(tool_name: str, args: dict[str, Any]) -> str:
+    """Recover Dify tool names from partial/proxy tool-call names."""
+    normalized = (tool_name or "").strip()
+    for prefix in ("functions.", "function.", "tools."):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+            break
+
+    if normalized and normalized.strip(";"):
+        return normalized
+
+    keys = set(args.keys())
+    if {"filename", "markdown_content"}.issubset(keys):
+        return "generate_word_document"
+    if "markdown_outline" in keys or "slides" in keys:
+        return "generate_ppt_deck"
+    if "person_name" in keys:
+        return "find_person_visual_candidates"
+    if "query" in keys and ("section" in keys or "document_id" in keys) and "image" in " ".join(keys):
+        return "search_visual_assets"
+    if "query" in keys and ("limit" in keys or "dataset_id" in keys or "document_id" in keys):
+        return "search_segments"
+    if "query" in keys and "file_type" in keys:
+        return "search_files"
+    if "document_id" in keys and ("start_position" in keys or "limit" in keys):
+        return "read_document_chunks"
+    if "upload_file_id" in keys or "file_id" in keys:
+        return "read_file_text"
+    return normalized
+
+
+
 class FunctionCallAgentRunner(BaseAgentRunner):
     def run(self, message: Message, query: str, **kwargs: Any) -> Generator[LLMResultChunk, None, None]:
         """
@@ -351,7 +384,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
             tool_calls.append(
                 (
                     prompt_message.id,
-                    prompt_message.function.name,
+                    _normalize_tool_call_name(prompt_message.function.name, args),
                     args,
                 )
             )
@@ -374,7 +407,7 @@ class FunctionCallAgentRunner(BaseAgentRunner):
             tool_calls.append(
                 (
                     prompt_message.id,
-                    prompt_message.function.name,
+                    _normalize_tool_call_name(prompt_message.function.name, args),
                     args,
                 )
             )
