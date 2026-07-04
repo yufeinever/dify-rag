@@ -27,6 +27,7 @@ from .responses_tool_parser import (
     item_to_function_call_data,
     get_event_field,
     merge_function_call_data,
+    normalize_function_name,
     valid_function_call_data,
 )
 
@@ -1582,9 +1583,10 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         if response_tool_calls:
             for response_tool_call in response_tool_calls:
                 if response_tool_call.function:
+                    arguments = response_tool_call.function.arguments or ""
                     function = AssistantPromptMessage.ToolCall.ToolCallFunction(
-                        name=response_tool_call.function.name or "",
-                        arguments=response_tool_call.function.arguments or "",
+                        name=normalize_function_name(response_tool_call.function.name or "", arguments),
+                        arguments=arguments,
                     )
 
                     tool_call = AssistantPromptMessage.ToolCall(
@@ -1611,9 +1613,10 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
             if not hasattr(response_function_call, "name"):
                 return None
 
+            arguments = response_function_call.arguments or ""
             function = AssistantPromptMessage.ToolCall.ToolCallFunction(
-                name=response_function_call.name or "",
-                arguments=response_function_call.arguments or "",
+                name=normalize_function_name(response_function_call.name or "", arguments),
+                arguments=arguments,
             )
 
             tool_call = AssistantPromptMessage.ToolCall(
