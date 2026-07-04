@@ -1,0 +1,76 @@
+identity:
+  name: generate_ppt_deck
+  author: mmb
+  label:
+    en_US: Generate PowerPoint Deck
+    zh_Hans: 生成 PPT
+description:
+  human:
+    en_US: Generate a downloadable .pptx deck from a Markdown outline or slides JSON.
+    zh_Hans: 根据 Markdown 大纲或 slides JSON 生成可下载的 .pptx。
+  llm: Generate a downloadable PowerPoint .pptx file. Use this when the user asks for PPT, deck, slides, presentation, or report deck.
+parameters:
+  - name: title
+    type: string
+    required: true
+    label:
+      en_US: Deck Title
+      zh_Hans: PPT 标题
+    human_description:
+      en_US: Deck title.
+      zh_Hans: PPT 标题。
+    llm_description: The deck title.
+    form: llm
+  - name: markdown_outline
+    type: string
+    required: false
+    label:
+      en_US: Markdown Outline
+      zh_Hans: Markdown 大纲
+    human_description:
+      en_US: Markdown outline. Headings become slides and bullets become slide bullets.
+      zh_Hans: Markdown 大纲，标题会转换为页面，项目符号会转换为页面要点。
+    llm_description: Markdown outline. Use headings for slide titles and bullets for slide bullet points.
+    form: llm
+  - name: slides_json
+    type: string
+    required: false
+    label:
+      en_US: Slides JSON
+      zh_Hans: Slides JSON
+    human_description:
+      en_US: Optional JSON array like [{"title":"...","bullets":["..."]}]. Overrides markdown_outline when provided.
+      zh_Hans: 可选 JSON 数组，例如 [{"title":"...","bullets":["..."]}]。填写后优先于 Markdown 大纲。
+    llm_description: Optional JSON array of slide objects with title and bullets. Use this for precise slide control.
+    form: llm
+  - name: filename
+    type: string
+    required: false
+    label:
+      en_US: Filename
+      zh_Hans: 文件名
+    human_description:
+      en_US: Optional output filename.
+      zh_Hans: 可选输出文件名。
+    llm_description: Optional output filename ending with .pptx.
+    form: llm
+  - name: theme
+    type: select
+    required: false
+    default: mmb_business
+    label:
+      en_US: Theme
+      zh_Hans: 主题
+    human_description:
+      en_US: Deck theme.
+      zh_Hans: PPT 主题。
+    llm_description: Use mmb_business by default.
+    form: form
+    options:
+      - value: mmb_business
+        label:
+          en_US: MMB Business
+          zh_Hans: MMB 商务
+extra:
+  python:
+    source: tools/generate_ppt_deck.py

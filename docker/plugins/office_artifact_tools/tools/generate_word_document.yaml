@@ -1,0 +1,69 @@
+identity:
+  name: generate_word_document
+  author: mmb
+  label:
+    en_US: Generate Word Document
+    zh_Hans: 生成 Word 文档
+description:
+  human:
+    en_US: Generate a downloadable .docx document from Markdown.
+    zh_Hans: 根据 Markdown 内容生成可下载的 .docx 文档。
+  llm: Generate a downloadable Word .docx file from markdown content. Use this when the user asks for Word, docx, document, report, proposal, or send me a file.
+parameters:
+  - name: title
+    type: string
+    required: true
+    label:
+      en_US: Title
+      zh_Hans: 标题
+    human_description:
+      en_US: Document title.
+      zh_Hans: 文档标题。
+    llm_description: The document title.
+    form: llm
+  - name: markdown_content
+    type: string
+    required: true
+    label:
+      en_US: Markdown Content
+      zh_Hans: Markdown 内容
+    human_description:
+      en_US: Markdown body. Supports headings, paragraphs, bullets, numbered lists, and simple tables.
+      zh_Hans: Markdown 正文，支持标题、段落、列表、编号列表和简单表格。
+    llm_description: Full markdown content to convert into a Word document.
+    form: llm
+  - name: filename
+    type: string
+    required: false
+    label:
+      en_US: Filename
+      zh_Hans: 文件名
+    human_description:
+      en_US: Optional output filename.
+      zh_Hans: 可选输出文件名。
+    llm_description: Optional output filename ending with .docx.
+    form: llm
+  - name: style_preset
+    type: select
+    required: false
+    default: business_brief
+    label:
+      en_US: Style Preset
+      zh_Hans: 样式预设
+    human_description:
+      en_US: Document style preset.
+      zh_Hans: 文档样式预设。
+    llm_description: Use business_brief by default. Use google_docs only when the document should look like a simple Google Docs file.
+    form: form
+    options:
+      - value: business_brief
+        label:
+          en_US: Business Brief
+          zh_Hans: 商务方案
+      - value: google_docs
+        label:
+          en_US: Google Docs Style
+          zh_Hans: Google Docs 风格
+extra:
+  python:
+    source: tools/generate_word_document.py
