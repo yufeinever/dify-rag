@@ -1,0 +1,331 @@
+openapi: 3.0.3
+info:
+  title: MMB Capability Center Tools
+  version: 0.1.0
+  description: Unified tools for MMB enterprise knowledge, materials, copywriting, posters, and team artifacts.
+servers:
+  - url: http://mmb-capability-center:8097
+security:
+  - bearerAuth: []
+paths:
+  /v1/knowledge/search:
+    post:
+      operationId: search_enterprise_knowledge
+      summary: Search enterprise knowledge
+      description: Search approved enterprise, department, or project knowledge before answering factual MMB questions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchEnterpriseKnowledgeRequest"
+      responses:
+        "200":
+          description: Search results with sources.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
+  /v1/materials/search:
+    post:
+      operationId: search_materials
+      summary: Search MMB materials
+      description: Find source materials, images, documents, and asset records by keyword or file extension.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchMaterialsRequest"
+      responses:
+        "200":
+          description: Material results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
+  /v1/copywriting/generate:
+    post:
+      operationId: generate_copywriting
+      summary: Generate MMB copywriting
+      description: Generate polished MMB copy for social posts, groups, campaigns, sales, or customer communication.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateCopywritingRequest"
+      responses:
+        "200":
+          description: Generated copywriting.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
+  /v1/poster-jobs:
+    post:
+      operationId: create_poster_job
+      summary: Create poster job
+      description: Create an asynchronous poster job when the user asks for a poster or shareable campaign image.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePosterJobRequest"
+      responses:
+        "200":
+          description: Poster job state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
+  /v1/poster-jobs/{job_id}:
+    get:
+      operationId: get_poster_job
+      summary: Get poster job
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Poster job state.
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1/artifacts/team:
+    post:
+      operationId: create_team_artifact
+      summary: Save team artifact
+      description: Save confirmed copy, poster notes, summaries, or task outputs into a team or project workspace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeamArtifactRequest"
+      responses:
+        "200":
+          description: Created artifact metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    ToolContext:
+      type: object
+      required:
+        - tenant_id
+        - bot_id
+      properties:
+        tenant_id:
+          type: string
+          description: Workspace or tenant id.
+        bot_id:
+          type: string
+          description: Channel bot id.
+        channel:
+          type: string
+          default: feishu
+        chat_type:
+          type: string
+          enum: [p2p, group]
+          default: p2p
+        open_id:
+          type: string
+          nullable: true
+        sender_open_id:
+          type: string
+          nullable: true
+        chat_id:
+          type: string
+          nullable: true
+        department_id:
+          type: string
+          nullable: true
+        project_id:
+          type: string
+          nullable: true
+        role:
+          type: string
+          default: member
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [enterprise, department, project, team, personal]
+          default: [enterprise]
+        use_personal_context:
+          type: boolean
+          default: false
+    SearchEnterpriseKnowledgeRequest:
+      type: object
+      required: [context, query]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        query:
+          type: string
+        dataset_id:
+          type: string
+          nullable: true
+        document_id:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+          default: 8
+          minimum: 1
+          maximum: 30
+    SearchMaterialsRequest:
+      type: object
+      required: [context]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        query:
+          type: string
+          nullable: true
+        extension:
+          type: string
+          nullable: true
+        limit:
+          type: integer
+          default: 20
+          minimum: 1
+          maximum: 100
+    GenerateCopywritingRequest:
+      type: object
+      required: [context, user_query]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        user_query:
+          type: string
+        platform:
+          type: string
+          nullable: true
+        audience:
+          type: string
+          nullable: true
+        style:
+          type: string
+          nullable: true
+        extra_context:
+          type: string
+          nullable: true
+    PosterBrief:
+      type: object
+      required: [theme]
+      properties:
+        theme:
+          type: string
+        background:
+          type: string
+          nullable: true
+        special_elements:
+          type: array
+          items:
+            type: string
+        audience:
+          type: string
+          nullable: true
+        main_title:
+          type: string
+          nullable: true
+        subtitle:
+          type: string
+          nullable: true
+        selling_points:
+          type: array
+          items:
+            type: string
+        brand_constraints:
+          type: string
+          nullable: true
+    PosterAsset:
+      type: object
+      properties:
+        url:
+          type: string
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+    CreatePosterJobRequest:
+      type: object
+      required: [context, user_query]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        user_query:
+          type: string
+        brief:
+          $ref: "#/components/schemas/PosterBrief"
+        assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PosterAsset"
+        size:
+          type: string
+          default: 1080x1440
+        request_id:
+          type: string
+          nullable: true
+    CreateTeamArtifactRequest:
+      type: object
+      required: [context, title, content]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        artifact_type:
+          type: string
+          enum: [copywriting, poster, summary, research, other]
+          default: other
+        title:
+          type: string
+        content:
+          type: string
+        visibility:
+          type: string
+          enum: [team, project, personal]
+          default: team
+        source_request_id:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+    ToolResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        session_key:
+          type: string
+        tool:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        sources:
+          type: array
+          items:
+            type: object
+            additionalProperties: true

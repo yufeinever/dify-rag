@@ -1,0 +1,30 @@
+services:
+  mmb-capability-center:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mmbai/mmb-capability-center:local
+    container_name: mmb-capability-center
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CAPABILITY_DB_PATH: /app/data/capability_center.sqlite
+      MATERIAL_CATALOG_URL: ${MATERIAL_CATALOG_URL:-http://material-catalog-service:8091}
+      POSTER_SERVICE_URL: ${POSTER_SERVICE_URL:-http://poster-service:8088}
+      DIFY_BASE_URL: ${DIFY_BASE_URL:-http://nginx/v1}
+    ports:
+      - "${MMB_CAPABILITY_CENTER_PORT:-8097}:8097"
+    volumes:
+      - ./data:/app/data
+    networks:
+      default:
+      dify:
+        aliases:
+          - mmb-capability-center
+    restart: unless-stopped
+
+networks:
+  dify:
+    external: true
+    name: ${DIFY_DOCKER_NETWORK:-mmb-dify-v010_default}

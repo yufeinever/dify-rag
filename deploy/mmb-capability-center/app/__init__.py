@@ -1,0 +1,1 @@
+"""MMB Capability Center service."""
