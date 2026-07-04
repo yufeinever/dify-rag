@@ -28,6 +28,13 @@ docker/volumes/**
 !sdks/
 !sdks/nodejs-client/
 !sdks/nodejs-client/package.json
+!sdks/nodejs-client/src/
+!sdks/nodejs-client/src/**
+!sdks/nodejs-client/tsconfig.json
+!sdks/nodejs-client/vite.config.ts
+!deploy/
+!deploy/feishu-bot-gateway/
+!deploy/feishu-bot-gateway/**
 
 .git
 node_modules

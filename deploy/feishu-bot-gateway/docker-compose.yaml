@@ -1,0 +1,27 @@
+services:
+  feishu-bot-gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/feishu-bot-gateway/Dockerfile
+    image: mmbai/feishu-bot-gateway:local
+    container_name: mmb-feishu-bot-gateway
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: ${PORT:-8096}
+      DIFY_BASE_URL: ${DIFY_BASE_URL:-http://nginx/v1}
+      POSTER_SERVICE_URL: ${POSTER_SERVICE_URL:-http://poster-service:8088}
+    ports:
+      - "${FEISHU_BOT_GATEWAY_PORT:-8096}:8096"
+    networks:
+      default:
+      dify:
+        aliases:
+          - feishu-bot-gateway
+    restart: unless-stopped
+
+networks:
+  dify:
+    external: true
+    name: ${DIFY_DOCKER_NETWORK:-mmb-dify-v010_default}
