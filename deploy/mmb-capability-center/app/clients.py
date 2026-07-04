@@ -8,8 +8,11 @@ import httpx
 from .config import Settings
 from .models import (
     CreatePosterJobRequest,
+    CreateBusinessArtifactRequest,
     GenerateCopywritingRequest,
     PosterBrief,
+    ReadKnowledgeRequest,
+    ReadMaterialRequest,
     SearchEnterpriseKnowledgeRequest,
     SearchMaterialsRequest,
 )
@@ -86,6 +89,20 @@ class ServiceClients:
             params=params,
         )
 
+    async def read_knowledge(self, request: ReadKnowledgeRequest) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "before": request.before,
+            "after": request.after,
+            "limit": request.limit,
+        }
+        if request.center_position is not None:
+            params["center_position"] = request.center_position
+        return await self._request_json(
+            "GET",
+            f"{_base_url(self.settings.material_catalog_url)}/v1/documents/{request.document_id}/chunks",
+            params=params,
+        )
+
     async def search_materials(self, request: SearchMaterialsRequest) -> dict[str, Any]:
         params: dict[str, Any] = {"limit": request.limit}
         if request.query:
@@ -96,6 +113,13 @@ class ServiceClients:
             "GET",
             f"{_base_url(self.settings.material_catalog_url)}/v1/materials/files",
             params=params,
+        )
+
+    async def read_material(self, request: ReadMaterialRequest) -> dict[str, Any]:
+        return await self._request_json(
+            "GET",
+            f"{_base_url(self.settings.material_catalog_url)}/v1/materials/file-text",
+            params={"relative_path": request.relative_path, "max_chars": request.max_chars},
         )
 
     async def generate_copywriting(self, request: GenerateCopywritingRequest) -> dict[str, Any]:
@@ -157,6 +181,51 @@ class ServiceClients:
             f"{_base_url(self.settings.poster_service_url)}/v1/poster-jobs",
             json=payload,
         )
+
+    async def create_business_artifact(self, request: CreateBusinessArtifactRequest) -> dict[str, Any]:
+        api_key = self.settings.dify_business_artifact_app_api_key or self.settings.dify_default_app_api_key
+        if not api_key:
+            return {
+                "status": "stored",
+                "message": "DIFY_BUSINESS_ARTIFACT_APP_API_KEY is not configured; stored the artifact brief only.",
+                "artifact_type": request.artifact_type,
+                "title": request.title,
+                "content": request.content,
+                "metadata": request.metadata,
+            }
+
+        query = "\n".join(
+            [
+                "请根据以下内容生成真实业务产物附件。",
+                f"产物类型：{request.artifact_type}",
+                f"标题：{request.title}",
+                f"内容：{request.content}",
+                f"补充要求：{request.instructions or '无'}",
+                "如果需要生成 Word/Excel/PPT，请直接调用可用的 Office artifact 工具生成附件，不要只返回文字说明。",
+            ]
+        )
+        payload = {
+            "inputs": {
+                "artifact_type": request.artifact_type,
+                "title": request.title,
+                "instructions": request.instructions or "",
+                "session_key": request.context.session_key,
+            },
+            "query": query,
+            "user": request.context.user_key,
+            "response_mode": "blocking",
+        }
+        data = await self._request_json(
+            "POST",
+            f"{_base_url(self.settings.dify_base_url)}/chat-messages",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        return {
+            "status": "requested",
+            "answer": answer_from_dify(data),
+            "raw": data,
+        }
 
     async def get_poster_job(self, job_id: str) -> dict[str, Any]:
         return await self._request_json(

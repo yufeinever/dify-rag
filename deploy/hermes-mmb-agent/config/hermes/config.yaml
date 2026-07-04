@@ -1,0 +1,31 @@
+# Hermes MMB validation config.
+# Keep secrets in .env. This file is intentionally a portable template.
+
+default_profile: "MMB企业主助手"
+
+providers:
+  openai_compatible:
+    type: openai_compatible
+    base_url: "${OPENAI_API_BASE_URL}"
+    api_key: "${OPENAI_API_KEY}"
+    default_model: "${HERMES_DEFAULT_MODEL:-gpt-5.5}"
+
+mcp_servers:
+  mmb_capability_center:
+    type: streamable_http
+    url: "${CAPABILITY_MCP_URL:-http://mmb-capability-center:8097/mcp}"
+    headers:
+      Authorization: "Bearer ${CAPABILITY_AUTH_TOKEN}"
+
+profiles:
+  - name: "MMB企业主助手"
+    description: "MMBAI enterprise master agent for Hermes validation."
+    model: "${HERMES_DEFAULT_MODEL:-gpt-5.5}"
+    provider: openai_compatible
+    memory:
+      enabled: true
+      namespace: "mmb-enterprise-validation"
+    mcp_servers:
+      - mmb_capability_center
+    skills_path: "/opt/data/skills"
+    system_prompt_file: "/opt/data/profiles/mmb-enterprise-master-agent.md"

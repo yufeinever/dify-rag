@@ -80,11 +80,26 @@ class SearchEnterpriseKnowledgeRequest(BaseModel):
     limit: int = Field(default=8, ge=1, le=30)
 
 
+class ReadKnowledgeRequest(BaseModel):
+    context: ToolContext
+    document_id: str = Field(min_length=1)
+    center_position: int | None = None
+    before: int = Field(default=2, ge=0, le=10)
+    after: int = Field(default=2, ge=0, le=10)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
 class SearchMaterialsRequest(BaseModel):
     context: ToolContext
     query: str | None = None
     extension: str | None = None
     limit: int = Field(default=20, ge=1, le=100)
+
+
+class ReadMaterialRequest(BaseModel):
+    context: ToolContext
+    relative_path: str = Field(min_length=1)
+    max_chars: int = Field(default=12000, ge=1, le=50000)
 
 
 class GenerateCopywritingRequest(BaseModel):
@@ -120,6 +135,16 @@ class CreatePosterJobRequest(BaseModel):
     brief: PosterBrief | None = None
     assets: list[PosterAsset] = Field(default_factory=list)
     size: str = "1080x1440"
+    request_id: str | None = None
+
+
+class CreateBusinessArtifactRequest(BaseModel):
+    context: ToolContext
+    artifact_type: Literal["word", "excel", "ppt", "document", "spreadsheet", "presentation", "team_note", "other"] = "other"
+    title: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1)
+    instructions: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     request_id: str | None = None
 
 

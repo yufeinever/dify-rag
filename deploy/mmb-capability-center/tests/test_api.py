@@ -102,6 +102,73 @@ class CapabilityApiTest(unittest.TestCase):
         self.assertEqual(data["tool"], "create_team_artifact")
         self.assertEqual(data["data"]["visibility"], "team")
 
+    def test_mcp_initialize_and_tools_list(self) -> None:
+        response = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["result"]["serverInfo"]["name"], "mmb-capability-center")
+
+        response = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+
+        self.assertEqual(response.status_code, 200)
+        names = {tool["name"] for tool in response.json()["result"]["tools"]}
+        self.assertIn("search_knowledge", names)
+        self.assertIn("create_artifact", names)
+        self.assertIn("save_team_asset", names)
+
+    def test_mcp_search_knowledge_call(self) -> None:
+        original = main.clients.search_enterprise_knowledge
+
+        async def fake_search(request):
+            self.assertEqual(request.context.channel, "hermes")
+            self.assertEqual(request.query, "MMB 品牌")
+            return {"query": request.query, "hits": [{"document_id": "doc-1"}]}
+
+        main.clients.search_enterprise_knowledge = fake_search
+        try:
+            response = self.client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {"name": "search_knowledge", "arguments": {"query": "MMB 品牌", "user_id": "u1"}},
+                },
+            )
+        finally:
+            main.clients.search_enterprise_knowledge = original
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["result"]["structuredContent"]
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["tool"], "search_knowledge")
+
+    def test_mcp_save_team_asset(self) -> None:
+        response = self.client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": "save_team_asset",
+                    "arguments": {
+                        "chat_type": "group",
+                        "chat_id": "oc_1",
+                        "sender_open_id": "ou_a",
+                        "title": "团队文案",
+                        "content": "确认保存的团队产物。",
+                        "visibility": "team",
+                    },
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["result"]["structuredContent"]
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["tool"], "save_team_asset")
+
 
 if __name__ == "__main__":
     unittest.main()

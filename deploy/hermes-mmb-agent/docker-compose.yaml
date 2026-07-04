@@ -1,0 +1,68 @@
+services:
+  hermes-agent:
+    build:
+      context: ./vendor/hermes-agent
+      dockerfile: Dockerfile
+    image: ${HERMES_IMAGE:-mmbai/hermes-agent:local}
+    container_name: hermes-mmb-agent
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      HERMES_DEFAULT_MODEL: ${HERMES_DEFAULT_MODEL:-gpt-5.5}
+      CAPABILITY_AUTH_TOKEN: ${CAPABILITY_AUTH_TOKEN}
+      CAPABILITY_MCP_URL: ${CAPABILITY_MCP_URL:-http://mmb-capability-center:8097/mcp}
+    command:
+      - gateway
+      - run
+      - --server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8642"
+      - --dashboard-host
+      - 0.0.0.0
+      - --dashboard-port
+      - "9119"
+    ports:
+      - "${HERMES_API_PORT:-8642}:8642"
+      - "${HERMES_DASHBOARD_PORT:-9119}:9119"
+    volumes:
+      - ./data/hermes:/opt/data
+      - ./config/hermes/config.yaml:/opt/data/config.yaml:ro
+      - ./profiles:/opt/data/profiles:ro
+      - ./skills:/opt/data/skills:ro
+    networks:
+      default:
+      dify:
+        aliases:
+          - hermes-mmb-agent
+    restart: unless-stopped
+
+  open-webui:
+    image: ${OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+    container_name: hermes-mmb-open-webui
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      OPENAI_API_BASE_URLS: http://hermes-agent:8642/v1
+      OPENAI_API_KEYS: local-hermes-validation-key
+      WEBUI_AUTH: ${OPEN_WEBUI_AUTH:-false}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-mmb-hermes-validation}
+    ports:
+      - "${OPEN_WEBUI_PORT:-3008}:8080"
+    volumes:
+      - ./data/open-webui:/app/backend/data
+    depends_on:
+      - hermes-agent
+    networks:
+      default:
+    restart: unless-stopped
+
+networks:
+  dify:
+    external: true
+    name: ${DIFY_DOCKER_NETWORK:-mmb-dify-v010_default}

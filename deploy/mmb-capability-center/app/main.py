@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 
 from .audit import AuditStore
@@ -12,9 +12,12 @@ from .clients import CapabilityClientError, ServiceClients
 from .config import get_settings
 from .models import (
     ContextResponse,
+    CreateBusinessArtifactRequest,
     CreatePosterJobRequest,
     CreateTeamArtifactRequest,
     GenerateCopywritingRequest,
+    ReadKnowledgeRequest,
+    ReadMaterialRequest,
     ResourceScope,
     SearchEnterpriseKnowledgeRequest,
     SearchMaterialsRequest,
@@ -22,6 +25,7 @@ from .models import (
     ToolDescriptor,
     ToolResponse,
 )
+from .mcp_protocol import handle_mcp_request
 
 settings = get_settings()
 audit_store = AuditStore(settings.db_path)
@@ -55,10 +59,29 @@ def tool_descriptors() -> list[ToolDescriptor]:
             endpoint="/v1/knowledge/search",
         ),
         ToolDescriptor(
+            name="read_knowledge",
+            description="Read nearby chunks from an approved MMB knowledge document.",
+            resource_scopes=[ResourceScope.ENTERPRISE, ResourceScope.DEPARTMENT, ResourceScope.PROJECT],
+            endpoint="/v1/knowledge/read",
+        ),
+        ToolDescriptor(
             name="search_materials",
             description="Find MMB source materials, images, documents, and asset records by keyword or file extension.",
             resource_scopes=[ResourceScope.ENTERPRISE, ResourceScope.DEPARTMENT, ResourceScope.PROJECT],
             endpoint="/v1/materials/search",
+        ),
+        ToolDescriptor(
+            name="read_material",
+            description="Read text from a material file returned by search_materials.",
+            resource_scopes=[ResourceScope.ENTERPRISE, ResourceScope.DEPARTMENT, ResourceScope.PROJECT],
+            endpoint="/v1/materials/read",
+        ),
+        ToolDescriptor(
+            name="create_business_artifact",
+            description="Create or request a real MMB Word, Excel, PPT, or structured business artifact.",
+            resource_scopes=[ResourceScope.ENTERPRISE, ResourceScope.DEPARTMENT, ResourceScope.PROJECT, ResourceScope.TEAM],
+            endpoint="/v1/artifacts/business",
+            side_effect=True,
         ),
         ToolDescriptor(
             name="generate_copywriting",
@@ -156,6 +179,19 @@ async def search_enterprise_knowledge(request: SearchEnterpriseKnowledgeRequest)
     )
 
 
+@app.post("/v1/knowledge/read", response_model=ToolResponse, dependencies=[Depends(require_auth)])
+async def read_knowledge(request: ReadKnowledgeRequest) -> ToolResponse:
+    request_id = new_request_id()
+    data = await run_tool(request_id, request.context, "read_knowledge", lambda: clients.read_knowledge(request))
+    record_success(request_id, request.context, "read_knowledge", {"document_id": request.document_id})
+    return ToolResponse(
+        request_id=request_id,
+        session_key=request.context.session_key,
+        tool="read_knowledge",
+        data=data,
+    )
+
+
 @app.post("/v1/materials/search", response_model=ToolResponse, dependencies=[Depends(require_auth)])
 async def search_materials(request: SearchMaterialsRequest) -> ToolResponse:
     request_id = new_request_id()
@@ -171,6 +207,19 @@ async def search_materials(request: SearchMaterialsRequest) -> ToolResponse:
     )
 
 
+@app.post("/v1/materials/read", response_model=ToolResponse, dependencies=[Depends(require_auth)])
+async def read_material(request: ReadMaterialRequest) -> ToolResponse:
+    request_id = new_request_id()
+    data = await run_tool(request_id, request.context, "read_material", lambda: clients.read_material(request))
+    record_success(request_id, request.context, "read_material", {"relative_path": request.relative_path})
+    return ToolResponse(
+        request_id=request_id,
+        session_key=request.context.session_key,
+        tool="read_material",
+        data=data,
+    )
+
+
 @app.post("/v1/copywriting/generate", response_model=ToolResponse, dependencies=[Depends(require_auth)])
 async def generate_copywriting(request: GenerateCopywritingRequest) -> ToolResponse:
     request_id = new_request_id()
@@ -180,6 +229,19 @@ async def generate_copywriting(request: GenerateCopywritingRequest) -> ToolRespo
         request_id=request_id,
         session_key=request.context.session_key,
         tool="generate_copywriting",
+        data=data,
+    )
+
+
+@app.post("/v1/artifacts/business", response_model=ToolResponse, dependencies=[Depends(require_auth)])
+async def create_business_artifact(request: CreateBusinessArtifactRequest) -> ToolResponse:
+    request_id = request.request_id or new_request_id()
+    data = await run_tool(request_id, request.context, "create_business_artifact", lambda: clients.create_business_artifact(request))
+    record_success(request_id, request.context, "create_business_artifact", {"artifact_type": request.artifact_type, "title": request.title})
+    return ToolResponse(
+        request_id=request_id,
+        session_key=request.context.session_key,
+        tool="create_business_artifact",
         data=data,
     )
 
@@ -217,6 +279,22 @@ def create_team_artifact(request: CreateTeamArtifactRequest) -> ToolResponse:
         tool="create_team_artifact",
         data=artifact,
     )
+
+
+@app.post("/mcp", response_model=None)
+async def mcp_endpoint(request: Request, _: None = Depends(require_auth)):
+    payload = await request.json()
+    if isinstance(payload, list):
+        responses = []
+        for item in payload:
+            result = await handle_mcp_request(item, clients=clients, create_artifact=audit_store.create_artifact)
+            if result is not None:
+                responses.append(result)
+        return responses
+    result = await handle_mcp_request(payload, clients=clients, create_artifact=audit_store.create_artifact)
+    if result is None:
+        return Response(status_code=202)
+    return result
 
 
 @app.get("/v1/audit/events", dependencies=[Depends(require_auth)])

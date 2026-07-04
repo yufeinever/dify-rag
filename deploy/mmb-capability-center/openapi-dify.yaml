@@ -26,6 +26,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ToolResponse"
+  /v1/knowledge/read:
+    post:
+      operationId: read_knowledge
+      summary: Read enterprise knowledge document
+      description: Read nearby chunks from an approved MMB knowledge document.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadKnowledgeRequest"
+      responses:
+        "200":
+          description: Knowledge document chunks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
   /v1/materials/search:
     post:
       operationId: search_materials
@@ -40,6 +58,24 @@ paths:
       responses:
         "200":
           description: Material results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
+  /v1/materials/read:
+    post:
+      operationId: read_material
+      summary: Read MMB material file
+      description: Read text from a known material file path returned by search_materials.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadMaterialRequest"
+      responses:
+        "200":
+          description: Material text.
           content:
             application/json:
               schema:
@@ -97,6 +133,24 @@ paths:
             application/json:
               schema:
                 type: object
+  /v1/artifacts/business:
+    post:
+      operationId: create_business_artifact
+      summary: Create business artifact
+      description: Create or request a real MMB Word, Excel, PPT, or structured business artifact.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessArtifactRequest"
+      responses:
+        "200":
+          description: Business artifact result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolResponse"
   /v1/artifacts/team:
     post:
       operationId: create_team_artifact
@@ -203,6 +257,45 @@ components:
           default: 20
           minimum: 1
           maximum: 100
+    ReadKnowledgeRequest:
+      type: object
+      required: [context, document_id]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        document_id:
+          type: string
+        center_position:
+          type: integer
+          nullable: true
+        before:
+          type: integer
+          default: 2
+          minimum: 0
+          maximum: 10
+        after:
+          type: integer
+          default: 2
+          minimum: 0
+          maximum: 10
+        limit:
+          type: integer
+          default: 20
+          minimum: 1
+          maximum: 100
+    ReadMaterialRequest:
+      type: object
+      required: [context, relative_path]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        relative_path:
+          type: string
+        max_chars:
+          type: integer
+          default: 12000
+          minimum: 1
+          maximum: 50000
     GenerateCopywritingRequest:
       type: object
       required: [context, user_query]
@@ -285,6 +378,29 @@ components:
         size:
           type: string
           default: 1080x1440
+        request_id:
+          type: string
+          nullable: true
+    CreateBusinessArtifactRequest:
+      type: object
+      required: [context, title, content]
+      properties:
+        context:
+          $ref: "#/components/schemas/ToolContext"
+        artifact_type:
+          type: string
+          enum: [word, excel, ppt, document, spreadsheet, presentation, team_note, other]
+          default: other
+        title:
+          type: string
+        content:
+          type: string
+        instructions:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
         request_id:
           type: string
           nullable: true

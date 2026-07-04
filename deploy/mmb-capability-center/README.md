@@ -18,13 +18,11 @@
 
 ## 工具 API
 
-- `search_enterprise_knowledge`：检索企业、部门、项目知识库片段。
-- `search_materials`：检索素材、图片、原始文件和资料记录。
-- `generate_copywriting`：调用 Dify 文案应用或默认应用生成可用文案。
-- `create_poster_job`：调用 poster-service 创建异步海报任务。
-- `create_team_artifact`：保存确认后的群聊/项目产物。
+- HTTP/OpenAPI 工具保留 `search_enterprise_knowledge`、`read_knowledge`、`search_materials`、`read_material`、`generate_copywriting`、`create_business_artifact`、`create_poster_job`、`create_team_artifact`。
+- MCP 入口为 `POST /mcp`，面向 Hermes 暴露通用原语：`search_knowledge`、`read_knowledge`、`search_materials`、`read_material`、`create_artifact`、`create_poster_job`、`save_team_asset`。
+- Hermes 主 Agent 不直接看到 Dify 底层 `list_documents`、`read_chunks`、旧 Office 单项工具；这些能力由 Capability Center 内部封装。
 
-`GET /openapi-dify.yaml` 可作为 Dify/Hermes 工具导入规范。
+`GET /openapi-dify.yaml` 可作为 Dify OpenAPI 工具导入规范。
 
 ## 配置
 
@@ -37,9 +35,21 @@ POSTER_SERVICE_URL=http://poster-service:8088
 DIFY_BASE_URL=http://nginx/v1
 DIFY_DEFAULT_APP_API_KEY=
 DIFY_COPYWRITING_APP_API_KEY=
+DIFY_BUSINESS_ARTIFACT_APP_API_KEY=
 ```
 
-`CAPABILITY_AUTH_TOKEN` 设置后，所有 `/v1/*` 接口都要求 `Authorization: Bearer <token>`。服务端密钥不进入 Agent 提示词。
+`CAPABILITY_AUTH_TOKEN` 设置后，所有 `/v1/*` 和 `/mcp` 接口都要求 `Authorization: Bearer <token>`。服务端密钥不进入 Agent 提示词。
+
+Hermes MCP 配置示例：
+
+```yaml
+mcp_servers:
+  mmb_capability_center:
+    type: streamable_http
+    url: http://mmb-capability-center:8097/mcp
+    headers:
+      Authorization: Bearer ${CAPABILITY_AUTH_TOKEN}
+```
 
 ## 本地验证
 
