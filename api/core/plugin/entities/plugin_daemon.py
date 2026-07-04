@@ -249,7 +249,7 @@ class CredentialType(enum.StrEnum):
             return cls.API_KEY
         elif type_name in {"oauth2", "oauth"}:
             return cls.OAUTH2
-        elif type_name == "unauthorized":
+        elif type_name in {"unauthorized", "none", "no-auth", "no_auth", "no-authentication"}:
             return cls.UNAUTHORIZED
         else:
             raise ValueError(f"Invalid credential type: {credential_type}")

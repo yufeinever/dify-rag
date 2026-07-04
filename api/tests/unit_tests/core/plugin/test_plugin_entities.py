@@ -287,6 +287,10 @@ class TestPluginDaemonEntities:
             ("oauth2", CredentialType.OAUTH2),
             ("oauth", CredentialType.OAUTH2),
             ("unauthorized", CredentialType.UNAUTHORIZED),
+            ("none", CredentialType.UNAUTHORIZED),
+            ("no-auth", CredentialType.UNAUTHORIZED),
+            ("no_auth", CredentialType.UNAUTHORIZED),
+            ("no-authentication", CredentialType.UNAUTHORIZED),
         ],
     )
     def test_credential_type_of(self, raw, expected):
