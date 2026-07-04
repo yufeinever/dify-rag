@@ -7,7 +7,7 @@ from uuid import UUID
 from flask import request
 from flask_restx import Resource
 from pydantic import BaseModel, Field, field_validator
-from werkzeug.exceptions import Forbidden, NotFound
+from werkzeug.exceptions import BadRequest, Forbidden, NotFound
 
 from constants import HIDDEN_VALUE
 from controllers.common.schema import register_response_schema_models, register_schema_models
@@ -148,7 +148,10 @@ class ChannelIntegrationBotListApi(Resource):
     def post(self):
         payload = ChannelIntegrationBotPayload.model_validate(console_ns.payload or {})
         _, tenant_id = current_account_with_tenant()
-        bot = ChannelIntegrationService.create_bot(tenant_id, payload.model_dump())
+        try:
+            bot = ChannelIntegrationService.create_bot(tenant_id, payload.model_dump())
+        except ValueError as exc:
+            raise BadRequest(str(exc)) from exc
         return _serialize_bot(bot), 201
 
 
@@ -168,7 +171,10 @@ class ChannelIntegrationBotDetailApi(Resource):
     def post(self, bot_id: UUID):
         payload = ChannelIntegrationBotPayload.model_validate(console_ns.payload or {})
         _, tenant_id = current_account_with_tenant()
-        bot = ChannelIntegrationService.update_bot(tenant_id, str(bot_id), payload.model_dump())
+        try:
+            bot = ChannelIntegrationService.update_bot(tenant_id, str(bot_id), payload.model_dump())
+        except ValueError as exc:
+            raise BadRequest(str(exc)) from exc
         return _serialize_bot(bot)
 
     @setup_required

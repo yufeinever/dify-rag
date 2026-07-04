@@ -8,13 +8,24 @@ import { useChannelIntegrationApps, useCreateChannelIntegrationBot, useUpdateCha
 
 const HIDDEN_VALUE = '[__HIDDEN__]'
 
-const purposeLabels: Record<ChannelIntegrationPurpose, string> = {
-  default: '默认聊天',
-  copywriting: '文案生成',
-  poster: '海报生成',
+const purposeMeta: Record<ChannelIntegrationPurpose, { label: string, description: string }> = {
+  default: {
+    label: '主入口应用（必选）',
+    description: '所有普通消息默认进入这个 Dify 应用，由它自行识别意图并调用能力。',
+  },
+  copywriting: {
+    label: '文案专项覆盖（可选）',
+    description: '配置后，命中文案关键词的消息会改发到这个应用；不配置则交给主入口应用。',
+  },
+  poster: {
+    label: '海报专项覆盖（可选）',
+    description: '配置后，命中海报关键词的消息会由网关走异步海报生成并回传飞书图片；不配置则交给主入口应用。',
+  },
 }
 
-const purposes: ChannelIntegrationPurpose[] = ['default', 'copywriting', 'poster']
+const requiredPurposes: ChannelIntegrationPurpose[] = ['default']
+const optionalPurposes: ChannelIntegrationPurpose[] = ['copywriting', 'poster']
+const purposes: ChannelIntegrationPurpose[] = [...requiredPurposes, ...optionalPurposes]
 
 type BotModalProps = {
   open: boolean
@@ -47,7 +58,7 @@ export function BotModal({ open, bot, onOpenChange, onSaved }: BotModalProps) {
   const [bindings, setBindings] = useState<Record<ChannelIntegrationPurpose, string>>(() => getInitialBindings(bot))
 
   const isSaving = createMutation.isPending || updateMutation.isPending
-  const canSubmit = name.trim() && appId.trim() && appSecret && verificationToken && encryptKey
+  const canSubmit = name.trim() && appId.trim() && appSecret && verificationToken && encryptKey && bindings.default
 
   const handleSubmit = () => {
     const body: ChannelIntegrationBotPayload = {
@@ -124,18 +135,25 @@ export function BotModal({ open, bot, onOpenChange, onSaved }: BotModalProps) {
             <FieldControl value={botOpenId} onChange={e => setBotOpenId(e.target.value)} placeholder="用于更严格的群聊 @ 判断" />
           </FieldRoot>
         </div>
-        <div className="mt-6 rounded-xl border border-divider-subtle bg-background-section-burn p-4">
-          <div className="mb-3 system-sm-semibold text-text-primary">绑定 Dify 应用</div>
+        <div className="mt-6 rounded-lg border border-divider-subtle bg-background-section-burn p-4">
+          <div className="system-sm-semibold text-text-primary">消息入口与专项覆盖</div>
+          <div className="mt-1 text-xs text-text-tertiary">
+            不配置专项覆盖时，所有消息都会交给主入口应用，由 Dify 应用自行识别和调用能力。
+          </div>
           <div className="grid gap-3">
             {purposes.map(purpose => (
-              <label key={purpose} className="grid grid-cols-[120px_1fr] items-center gap-3 text-sm">
-                <span className="text-text-secondary">{purposeLabels[purpose]}</span>
+              <label key={purpose} className="grid grid-cols-[170px_1fr] items-start gap-3 text-sm first:mt-4">
+                <span className="pt-2 text-text-secondary">
+                  <span className="block text-text-primary">{purposeMeta[purpose].label}</span>
+                  <span className="mt-0.5 block text-xs leading-4 text-text-tertiary">{purposeMeta[purpose].description}</span>
+                </span>
                 <select
                   className="h-9 rounded-lg border bg-components-input-bg-normal px-3 text-sm outline-none"
                   value={bindings[purpose]}
                   onChange={e => setBindings(prev => ({ ...prev, [purpose]: e.target.value }))}
+                  required={purpose === 'default'}
                 >
-                  <option value="">不绑定</option>
+                  <option value="">{purpose === 'default' ? '请选择主入口应用' : '不启用覆盖'}</option>
                   {appOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>

@@ -195,3 +195,11 @@ class ChannelIntegrationService:
                 raise ValueError(f"{field} must not be empty")
             if value and value != HIDDEN_VALUE and len(value) < 3:
                 raise ValueError(f"{field} is too short")
+        if bool(payload.get("enabled", True)):
+            has_default_binding = any(
+                (binding.get("purpose") or "").strip() == ChannelIntegrationBindingPurpose.DEFAULT.value
+                and (binding.get("app_id") or "").strip()
+                for binding in payload.get("bindings") or []
+            )
+            if not has_default_binding:
+                raise ValueError("enabled channel integration bot requires a default Dify app binding")

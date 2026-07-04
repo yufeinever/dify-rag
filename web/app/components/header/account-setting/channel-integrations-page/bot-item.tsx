@@ -13,9 +13,9 @@ import { useMemo, useState } from 'react'
 import { useDeleteChannelIntegrationBot } from '@/service/channel-integrations'
 
 const purposeLabels: Record<string, string> = {
-  default: '默认聊天',
-  copywriting: '文案',
-  poster: '海报',
+  default: '主入口',
+  copywriting: '文案覆盖',
+  poster: '海报覆盖',
 }
 
 type BotItemProps = {

@@ -6,7 +6,7 @@ import type { RuntimeBotConfig } from "./difyGateway.js";
 import { FeishuClient } from "./feishuClient.js";
 import { decryptFeishuPayload, verifyFeishuSignature } from "./feishuCrypto.js";
 import { extractMessageEvent } from "./feishuEvent.js";
-import { detectIntent, buildCopywritingPrompt } from "./intent.js";
+import { selectMessageRoute } from "./routing.js";
 import { createLogger } from "./logger.js";
 import { PosterClient } from "./posterClient.js";
 import { schedulePosterDelivery } from "./posterDelivery.js";
@@ -136,10 +136,10 @@ const handleMessage = async ({ message, feishu, dify, poster, idempotency, limit
     }
 
     const user = `feishu:${runtime.id}:${message.senderOpenId}:${message.chatId}`;
-    const intent = detectIntent(message.text);
-    logger.info("message routed", { intent, chatType: message.chatType, messageId: message.messageId, botId: runtime.id });
+    const route = selectMessageRoute(message.text, runtime);
+    logger.info("message routed", { route: route.kind, overrideIntent: route.overrideIntent, chatType: message.chatType, messageId: message.messageId, botId: runtime.id });
 
-    if (intent === "poster") {
+    if (route.kind === "poster-service") {
       const job = await poster.createJob(message.text, message.messageId);
       await feishu.sendText(message.chatId, `已开始生成海报，job_id：${job.job_id}\n${job.estimated_time_text ?? "图片生成预计需要 5-10 分钟左右。"}`);
       schedulePosterDelivery({
@@ -154,16 +154,13 @@ const handleMessage = async ({ message, feishu, dify, poster, idempotency, limit
       return;
     }
 
-    const binding = intent === "copywriting"
-      ? runtime.bindings.copywriting ?? runtime.bindings.default
-      : runtime.bindings.default;
+    const binding = route.binding;
     if (!binding?.api_key) {
-      await feishu.sendText(message.chatId, intent === "copywriting" ? "这个 Bot 还没有绑定文案或默认 Dify 应用，请管理员在渠道接入里配置。" : "这个 Bot 还没有绑定默认 Dify 应用，请管理员在渠道接入里配置。");
+      await feishu.sendText(message.chatId, "这个 Bot 还没有绑定主入口 Dify 应用，请管理员在渠道接入里配置。");
       return;
     }
 
-    const query = intent === "copywriting" ? buildCopywritingPrompt(message.text) : message.text;
-    const answer = await dify.chat(binding.api_key, query, user);
+    const answer = await dify.chat(binding.api_key, message.text, user);
     await feishu.sendText(message.chatId, answer);
   } catch (error) {
     logger.error("message processing failed", { error: error instanceof Error ? error.message : String(error), messageId: message.messageId, botId: runtime.id });

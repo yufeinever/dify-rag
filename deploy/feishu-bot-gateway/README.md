@@ -6,10 +6,10 @@ Thin Feishu/Lark channel gateway for MMBAI. It keeps Feishu-specific event parsi
 
 - Private chat: every text message is handled.
 - Group chat: only messages that mention the bot are handled.
-- Intent routing:
-  - normal chat -> Dify app bound as `默认聊天` in workspace settings
-  - copywriting -> Dify app bound as `文案生成`, falling back to `默认聊天` with a copywriting instruction prefix
-  - poster -> existing `poster-service` async job; result is uploaded to Feishu and sent as an image
+- Gateway routing:
+  - all text messages go to the Dify app bound as `主入口应用` by default; Dify decides intent and tool use
+  - copywriting override is optional; when configured, copywriting requests are sent to that dedicated Dify app with the original user text
+  - poster override is optional; when configured, poster requests use the existing `poster-service` async job and the result is uploaded to Feishu as an image
 
 ## Run
 
