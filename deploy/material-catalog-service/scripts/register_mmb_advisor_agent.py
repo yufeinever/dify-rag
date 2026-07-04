@@ -48,6 +48,51 @@ TOOL_NAMES = [
     "github_prepare_issue",
 ]
 
+OFFICE_TOOLS = [
+    {
+        "provider_type": "builtin",
+        "provider_id": "mmb/office_artifact_tools/office_artifact_tools",
+        "provider_name": "office_artifact_tools",
+        "plugin_id": "mmb/office_artifact_tools",
+        "tool_name": "generate_word_document",
+        "tool_label": "Generate Word Document",
+        "tool_description": "Generate a downloadable Word .docx file from markdown content.",
+        "tool_parameters": {},
+        "tool_configurations": {"style_preset": {"type": "constant", "value": "business_brief"}},
+        "enabled": True,
+        "isDeleted": False,
+        "notAuthor": False,
+    },
+    {
+        "provider_type": "builtin",
+        "provider_id": "mmb/office_artifact_tools/office_artifact_tools",
+        "provider_name": "office_artifact_tools",
+        "plugin_id": "mmb/office_artifact_tools",
+        "tool_name": "generate_ppt_deck",
+        "tool_label": "Generate PowerPoint Deck",
+        "tool_description": "Generate a downloadable PowerPoint .pptx file from a markdown outline or slides JSON.",
+        "tool_parameters": {},
+        "tool_configurations": {"theme": {"type": "constant", "value": "mmb_business"}},
+        "enabled": True,
+        "isDeleted": False,
+        "notAuthor": False,
+    },
+    {
+        "provider_type": "builtin",
+        "provider_id": "mmb/office_artifact_tools/office_artifact_tools",
+        "provider_name": "office_artifact_tools",
+        "plugin_id": "mmb/office_artifact_tools",
+        "tool_name": "generate_excel_workbook",
+        "tool_label": "Generate Excel Workbook",
+        "tool_description": "Generate a downloadable Excel .xlsx workbook. Use this tool directly when the user asks for Excel/xlsx/spreadsheet/budget/schedule/checklist/export table. Supports sheets_json, table_markdown, or content with markdown headings and multiple tables.",
+        "tool_parameters": {},
+        "tool_configurations": {"style_preset": {"type": "constant", "value": "business_table"}},
+        "enabled": True,
+        "isDeleted": False,
+        "notAuthor": False,
+    },
+]
+
 AGENT_PROMPT = """你是“MMB智囊”，一个面向 MMB 内部的战略顾问型 Agent。你的能力不是只复述内部材料，而是把 MMB 内部证据、外部资料和你的专业推理分层整合，给出可执行建议。
 
 核心定位：
@@ -74,6 +119,14 @@ AGENT_PROMPT = """你是“MMB智囊”，一个面向 MMB 内部的战略顾问
 - 模型推理必须明确标注为“推理/建议”，不能伪装成证据。
 - 找不到内部证据时说“当前 150 Dify 材料范围内未找到”；找不到外部工具或未配置搜索 key 时说清楚缺哪个工具/配置，并给可替代的下一步。
 - 禁止暴露数据库密码、私钥、敏感绝对路径、storage 绝对路径或内部密钥内容。
+
+Office 文件生成规则：
+- 用户要求生成 Word/docx、PPT/pptx、Excel/xlsx、表格文件、预算表、排期表、清单、台账、导出表格时，必须调用对应的 MMB Office Artifact Tools，不能只用文字回复。
+- 生成 Word 时，把最终内容整理为 Markdown 后调用 generate_word_document。
+- 生成 PPT 时，先整理为清晰的页面标题和要点，再调用 generate_ppt_deck。
+- 生成 Excel 时，先整理表格数据，再调用 generate_excel_workbook。优先传 sheets_json；如果严格 JSON 不方便，可以把多个 Markdown 标题和表格放到 content 参数，每个标题后的表格会成为一个 sheet。
+- 只要没有出现工具调用成功，就不能说“已生成文件”或“请下载附件”；你应该继续调用工具，而不是口头承诺。
+- 调用 Office 工具成功后，简短说明文件名、sheet/页数，并提示用户在下方附件卡片下载。
 """
 
 def pick_tenant_and_user() -> tuple[str, str]:
@@ -202,7 +255,7 @@ def ensure_agent_app(tenant_id: str, user_id: str, provider: MCPToolProvider) ->
         {
             "enabled": True,
             "strategy": PlanningStrategy.FUNCTION_CALL.value,
-            "tools": tools,
+            "tools": tools + OFFICE_TOOLS,
             "prompt": None,
             "max_iteration": 12,
         },
