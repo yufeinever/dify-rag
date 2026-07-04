@@ -97,6 +97,21 @@ class ResponsesToolParserTests(unittest.TestCase):
         self.assertEqual(calls[0]["name"], "search_segments")
 
 
+
+    def test_blank_name_can_infer_excel_tool_from_arguments(self):
+        calls = valid_function_call_data(
+            [
+                {
+                    "call_id": "call_excel",
+                    "name": "",
+                    "arguments": '{"filename":"预算.xlsx","title":"预算","content":"# 预算\\n\\n| 项目 | 金额 |"}',
+                }
+            ],
+            {"generate_excel_workbook", "generate_word_document"},
+        )
+
+        self.assertEqual(calls[0]["name"], "generate_excel_workbook")
+
     def test_functions_prefix_is_stripped(self):
         calls = valid_function_call_data(
             [
@@ -114,6 +129,10 @@ class ResponsesToolParserTests(unittest.TestCase):
     def test_chat_tool_name_normalizer_infers_blank_name(self):
         name = normalize_function_name("", '{"filename":"方案.docx","markdown_content":"# 方案"}')
         self.assertEqual(name, "generate_word_document")
+
+    def test_chat_tool_name_normalizer_infers_blank_excel_name(self):
+        name = normalize_function_name("", '{"filename":"预算.xlsx","content":"# 预算"}')
+        self.assertEqual(name, "generate_excel_workbook")
 
 
 if __name__ == "__main__":

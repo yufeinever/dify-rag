@@ -109,6 +109,11 @@ def infer_tool_name_from_arguments(arguments: str, allowed_names: set[str]) -> s
         return "generate_word_document"
     if "generate_ppt_deck" in allowed_names and ({"markdown_outline"} & keys or {"slides"} & keys):
         return "generate_ppt_deck"
+    if "generate_excel_workbook" in allowed_names and (
+        {"sheets_json", "content", "table_markdown"} & keys
+        or str(payload.get("filename") or "").lower().endswith(".xlsx")
+    ):
+        return "generate_excel_workbook"
     if "search_segments" in allowed_names and "query" in keys and ("limit" in keys or "dataset_id" in keys or "document_id" in keys):
         return "search_segments"
     if "search_files" in allowed_names and "query" in keys and "file_type" in keys:
@@ -144,6 +149,7 @@ def normalize_function_name(
     inference_names = allowed_names or {
         "generate_word_document",
         "generate_ppt_deck",
+        "generate_excel_workbook",
         "search_segments",
         "search_files",
         "read_document_chunks",
