@@ -225,7 +225,7 @@ class MessageCycleManager:
                         time.sleep(0.05)
 
         if message_file and message_file.url is not None:
-            if message_file.transfer_method == FileTransferMethod.TOOL_FILE and tool_file is None:
+            if message_file.transfer_method == FileTransferMethod.TOOL_FILE:
                 return None
 
             self._message_has_file.add(message_file.message_id)
