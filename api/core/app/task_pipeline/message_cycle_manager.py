@@ -212,17 +212,17 @@ class MessageCycleManager:
         with Session(db.engine, expire_on_commit=False) as session:
             message_file = session.scalar(select(MessageFile).where(MessageFile.id == event.message_file_id))
             tool_file = None
-            if (
-                message_file
-                and message_file.transfer_method == FileTransferMethod.TOOL_FILE
-                and message_file.upload_file_id
-            ):
-                tool_file_id = str(message_file.upload_file_id)
-                for retry_index in range(5):
-                    tool_file = session.scalar(select(ToolFile).where(ToolFile.id == tool_file_id))
-                    if tool_file or retry_index == 4:
-                        break
-                    time.sleep(0.05)
+            if message_file and message_file.transfer_method == FileTransferMethod.TOOL_FILE:
+                tool_file_id = str(message_file.upload_file_id) if message_file.upload_file_id else None
+                if not tool_file_id and message_file.url:
+                    file_part = message_file.url.split("/")[-1].split("?")[0]
+                    tool_file_id = file_part.rsplit(".", 1)[0] if "." in file_part else file_part
+                if tool_file_id:
+                    for retry_index in range(5):
+                        tool_file = session.scalar(select(ToolFile).where(ToolFile.id == tool_file_id))
+                        if tool_file or retry_index == 4:
+                            break
+                        time.sleep(0.05)
 
         if message_file and message_file.url is not None:
             self._message_has_file.add(message_file.message_id)
