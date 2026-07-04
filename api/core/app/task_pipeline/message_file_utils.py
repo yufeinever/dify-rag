@@ -3,7 +3,8 @@ from typing import TypedDict
 from core.tools.signature import sign_tool_file
 from graphon.file import FileTransferMethod
 from graphon.file import helpers as file_helpers
-from models.model import MessageFile, ToolFile, UploadFile
+from models.model import MessageFile, UploadFile
+from models.tools import ToolFile
 
 MAX_TOOL_FILE_EXTENSION_LENGTH = 10
 

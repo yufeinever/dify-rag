@@ -61,7 +61,8 @@ from graphon.model_runtime.entities.message_entities import (
 )
 from graphon.model_runtime.model_providers.base.large_language_model import LargeLanguageModel
 from libs.datetime_utils import naive_utc_now
-from models.model import AppMode, Conversation, Message, MessageAgentThought, MessageFile, ToolFile, UploadFile
+from models.model import AppMode, Conversation, Message, MessageAgentThought, MessageFile, UploadFile
+from models.tools import ToolFile
 
 logger = logging.getLogger(__name__)
 

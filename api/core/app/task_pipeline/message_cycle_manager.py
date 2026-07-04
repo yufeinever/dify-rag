@@ -36,7 +36,8 @@ from extensions.ext_database import db
 from extensions.ext_redis import redis_client
 from graphon.file import FileTransferMethod
 from models.enums import MessageFileBelongsTo
-from models.model import AppMode, Conversation, MessageAnnotation, MessageFile, ToolFile
+from models.model import AppMode, Conversation, MessageAnnotation, MessageFile
+from models.tools import ToolFile
 from services.annotation_service import AppAnnotationService
 
 logger = logging.getLogger(__name__)
