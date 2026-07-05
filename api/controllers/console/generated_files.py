@@ -1,6 +1,9 @@
 from uuid import UUID
 
-from flask import request
+from pathlib import Path
+from urllib.parse import quote
+
+from flask import Response, request
 from flask_restx import Resource
 from pydantic import BaseModel, Field, field_validator
 from werkzeug.exceptions import NotFound
@@ -8,6 +11,7 @@ from werkzeug.exceptions import NotFound
 from controllers.common.fields import SimpleResultResponse
 from controllers.common.schema import register_response_schema_models, register_schema_models
 from controllers.console import console_ns
+from controllers.console.datasets.error import InvalidActionError
 from controllers.console.wraps import account_initialization_required, setup_required
 from extensions.ext_database import db
 from libs.helper import uuid_value
@@ -16,6 +20,7 @@ from services.generated_file_service import (
     backfill_generated_files_for_user,
     build_generated_file_download_url,
     build_generated_file_preview_config,
+    convert_generated_file_to_pdf,
     get_generated_file_for_user,
     list_generated_files,
     soft_delete_generated_file,
@@ -129,3 +134,33 @@ class GeneratedFileDownloadApi(Resource):
         if not generated_file:
             raise NotFound("Generated file not found.")
         return {"url": build_generated_file_download_url(generated_file)}
+
+
+@console_ns.route("/generated-files/<uuid:file_id>/converted-preview")
+class GeneratedFileConvertedPreviewApi(Resource):
+    @setup_required
+    @login_required
+    @account_initialization_required
+    def get(self, file_id: UUID):
+        current_user, tenant_id = current_account_with_tenant()
+        generated_file = get_generated_file_for_user(
+            db.session,
+            generated_file_id=str(file_id),
+            tenant_id=tenant_id,
+            current_user=current_user,
+        )
+        if not generated_file:
+            raise NotFound("Generated file not found.")
+
+        try:
+            pdf_path = convert_generated_file_to_pdf(db.session, generated_file)
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            raise InvalidActionError(str(exc)) from exc
+
+        pdf_bytes = pdf_path.read_bytes()
+        response = Response(pdf_bytes, mimetype="application/pdf", direct_passthrough=False)
+        response.headers["Accept-Ranges"] = "bytes"
+        response.headers["Content-Length"] = str(len(pdf_bytes))
+        preview_name = f"{Path(generated_file.name).stem or 'generated-file'}.pdf"
+        response.headers["Content-Disposition"] = f"inline; filename*=UTF-8''{quote(preview_name)}"
+        return response

@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+import hashlib
+import logging
+import os
+import shutil
+import subprocess
+import tempfile
 from datetime import datetime
 from mimetypes import guess_extension
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from core.tools.signature import sign_tool_file
+from extensions.ext_storage import storage
 from graphon.file import FileTransferMethod
 from models.account import Account
 from models.enums import MessageFileBelongsTo
@@ -15,9 +23,13 @@ from models.model import App, Message, MessageFile
 from models.tools import GeneratedFile, ToolFile
 
 
+logger = logging.getLogger(__name__)
+
 IMAGE_TYPES = {"bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"}
 TEXT_TYPES = {"csv", "json", "log", "md", "txt", "xml", "yaml", "yml"}
+OFFICE_PREVIEW_TYPES = {"doc", "docx", "ppt", "pptx", "xls", "xlsx"}
 NATIVE_PREVIEW_TYPES = {*IMAGE_TYPES, *TEXT_TYPES, "pdf"}
+GENERATED_FILE_PREVIEW_CACHE_DIR = Path(os.getenv("DOCUMENT_PREVIEW_CACHE_DIR", "/tmp/dify-document-previews"))
 
 
 def classify_file_type(mime_type: str, name: str = "") -> str:
@@ -202,6 +214,17 @@ def build_generated_file_preview_config(generated_file: GeneratedFile) -> dict[s
     extension = _extension_from_name_or_mime(generated_file.name, generated_file.mime_type)
     signed_url = sign_tool_file(generated_file.tool_file_id, extension)
     file_type = extension.lstrip(".").lower()
+    if file_type in OFFICE_PREVIEW_TYPES:
+        return {
+            "mode": "native",
+            "file_type": "pdf",
+            "original_file_type": file_type,
+            "preview_kind": "converted_pdf",
+            "name": generated_file.name,
+            "preview_url": f"/generated-files/{generated_file.id}/converted-preview",
+            "download_url": _as_attachment_url(signed_url),
+        }
+
     preview_kind = "native" if file_type in NATIVE_PREVIEW_TYPES else "unsupported"
     return {
         "mode": "native",
@@ -216,6 +239,72 @@ def build_generated_file_preview_config(generated_file: GeneratedFile) -> dict[s
 def build_generated_file_download_url(generated_file: GeneratedFile) -> str:
     extension = _extension_from_name_or_mime(generated_file.name, generated_file.mime_type)
     return _as_attachment_url(sign_tool_file(generated_file.tool_file_id, extension))
+
+
+def convert_generated_file_to_pdf(session: Session, generated_file: GeneratedFile) -> Path:
+    file_type = _extension_from_name_or_mime(generated_file.name, generated_file.mime_type).lstrip(".").lower()
+    if file_type not in OFFICE_PREVIEW_TYPES:
+        raise ValueError("Generated file type does not support converted preview.")
+
+    tool_file = session.get(ToolFile, generated_file.tool_file_id)
+    if not tool_file:
+        raise FileNotFoundError("Generated file source not found.")
+
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        raise RuntimeError("Generated file preview converter is not installed.")
+
+    output_path = _generated_file_preview_pdf_cache_path(generated_file, tool_file)
+    if output_path.exists() and output_path.stat().st_size > 0:
+        return output_path
+
+    GENERATED_FILE_PREVIEW_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    source_suffix = f".{file_type or 'bin'}"
+
+    with tempfile.TemporaryDirectory(prefix="dify-generated-file-preview-") as temp_dir:
+        temp_path = Path(temp_dir)
+        source_path = temp_path / f"source{source_suffix}"
+        source_path.write_bytes(storage.load_once(tool_file.file_key))
+        profile_dir = temp_path / "libreoffice-profile"
+        output_dir = temp_path / "out"
+        output_dir.mkdir()
+
+        result = subprocess.run(
+            [
+                soffice,
+                "--headless",
+                "--nologo",
+                "--nofirststartwizard",
+                f"-env:UserInstallation=file://{profile_dir}",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(output_dir),
+                str(source_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        converted_files = list(output_dir.glob("*.pdf"))
+        if result.returncode != 0 or not converted_files:
+            logger.warning(
+                "Generated file PDF preview conversion failed: generated_file_id=%s tool_file_id=%s returncode=%s stdout=%s stderr=%s",
+                generated_file.id,
+                tool_file.id,
+                result.returncode,
+                result.stdout[-1000:],
+                result.stderr[-1000:],
+            )
+            raise RuntimeError("Generated file preview conversion failed.")
+
+        temp_output = converted_files[0]
+        temp_cache_path = output_path.with_suffix(".tmp")
+        shutil.copyfile(temp_output, temp_cache_path)
+        os.replace(temp_cache_path, output_path)
+
+    return output_path
 
 
 def soft_delete_generated_file(session: Session, generated_file: GeneratedFile) -> None:
@@ -274,6 +363,13 @@ def _fallback_filename(tool_file: ToolFile) -> str:
 def _as_attachment_url(url: str) -> str:
     separator = "&" if "?" in url else "?"
     return f"{url}{separator}as_attachment=true"
+
+
+def _generated_file_preview_pdf_cache_path(generated_file: GeneratedFile, tool_file: ToolFile) -> Path:
+    cache_key = hashlib.sha256(
+        f"generated-file-preview-pdf-v1:{generated_file.id}:{tool_file.id}:{tool_file.size}".encode()
+    ).hexdigest()
+    return GENERATED_FILE_PREVIEW_CACHE_DIR / f"{cache_key}.pdf"
 
 
 def _to_timestamp(value: datetime | None) -> int | None:
