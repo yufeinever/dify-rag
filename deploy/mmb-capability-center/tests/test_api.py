@@ -169,6 +169,38 @@ class CapabilityApiTest(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["tool"], "save_team_asset")
 
+    def test_create_poster_job_registers_delivery(self) -> None:
+        original = main.clients.create_poster_job
+
+        async def fake_create(request):
+            return {"status": "queued", "job_id": "job-test", "request_id": "job-test"}
+
+        main.clients.create_poster_job = fake_create
+        try:
+            response = self.client.post(
+                "/v1/poster-jobs",
+                json={
+                    "context": {
+                        "tenant_id": "tenant-a",
+                        "bot_id": "bot-a",
+                        "chat_type": "group",
+                        "chat_id": "oc_1",
+                        "sender_open_id": "ou_a",
+                    },
+                    "user_query": "生成海报",
+                },
+            )
+        finally:
+            main.clients.create_poster_job = original
+
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get("/v1/poster-deliveries", params={"limit": 10})
+        self.assertEqual(response.status_code, 200)
+        deliveries = response.json()["deliveries"]
+        delivery = next(item for item in deliveries if item["job_id"] == "job-test")
+        self.assertEqual(delivery["chat_id"], "oc_1")
+        self.assertEqual(delivery["sender_open_id"], "ou_a")
+
 
 if __name__ == "__main__":
     unittest.main()

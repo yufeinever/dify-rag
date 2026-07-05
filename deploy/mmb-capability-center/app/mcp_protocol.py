@@ -239,6 +239,7 @@ async def call_mcp_tool(
     *,
     clients: ServiceClients,
     create_artifact: Callable[[CreateTeamArtifactRequest], dict[str, Any]],
+    register_poster_delivery: Callable[[ToolContext, dict[str, Any]], Any] | None = None,
 ) -> dict[str, Any]:
     args = _clean_args(arguments)
     context = _context(args)
@@ -296,7 +297,7 @@ async def call_mcp_tool(
                 selling_points=args.get("selling_points") or [],
                 brand_constraints="参考 MMB 品牌资料和现有素材；不要生成不可证实的价格、承诺或水印。",
             )
-        return await clients.create_poster_job(
+        result = await clients.create_poster_job(
             CreatePosterJobRequest(
                 context=context,
                 user_query=args["user_query"],
@@ -305,6 +306,9 @@ async def call_mcp_tool(
                 request_id=args.get("request_id"),
             )
         )
+        if register_poster_delivery is not None:
+            await _maybe_await(register_poster_delivery(context, result))
+        return result
     if name == "save_team_asset":
         return await _maybe_await(
             create_artifact(
@@ -327,6 +331,7 @@ async def handle_mcp_request(
     *,
     clients: ServiceClients,
     create_artifact: Callable[[CreateTeamArtifactRequest], dict[str, Any]],
+    register_poster_delivery: Callable[[ToolContext, dict[str, Any]], Any] | None = None,
 ) -> dict[str, Any] | None:
     method = payload.get("method")
     request_id = payload.get("id")
@@ -351,7 +356,13 @@ async def handle_mcp_request(
         if not tool_name:
             return _mcp_error(request_id, -32602, "tools/call requires params.name")
         try:
-            result = await call_mcp_tool(tool_name, params.get("arguments") or {}, clients=clients, create_artifact=create_artifact)
+            result = await call_mcp_tool(
+                tool_name,
+                params.get("arguments") or {},
+                clients=clients,
+                create_artifact=create_artifact,
+                register_poster_delivery=register_poster_delivery,
+            )
             return _mcp_result(request_id, {"ok": True, "tool": tool_name, "data": result})
         except KeyError:
             return _mcp_error(request_id, -32601, f"Unknown tool: {tool_name}")

@@ -138,6 +138,17 @@ class CreatePosterJobRequest(BaseModel):
     request_id: str | None = None
 
 
+class PosterDeliveryRegisterRequest(BaseModel):
+    job_id: str = Field(min_length=1)
+    channel: str = "feishu"
+    chat_id: str | None = None
+    sender_open_id: str | None = None
+    session_id: str | None = None
+    session_key: str | None = None
+    poster_url: str | None = None
+    thumbnail_url: str | None = None
+
+
 class CreateBusinessArtifactRequest(BaseModel):
     context: ToolContext
     artifact_type: Literal["word", "excel", "ppt", "document", "spreadsheet", "presentation", "team_note", "other"] = "other"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import AnyHttpUrl, Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     dify_copywriting_app_api_key: str | None = Field(default=None, alias="DIFY_COPYWRITING_APP_API_KEY")
     dify_business_artifact_app_api_key: str | None = Field(default=None, alias="DIFY_BUSINESS_ARTIFACT_APP_API_KEY")
     http_timeout_seconds: float = Field(default=120.0, alias="CAPABILITY_HTTP_TIMEOUT_SECONDS")
+    feishu_app_id: str | None = Field(default=None, alias="FEISHU_APP_ID")
+    feishu_app_secret: str | None = Field(default=None, alias="FEISHU_APP_SECRET")
+    feishu_api_base_url: HttpUrl = Field(default="https://open.feishu.cn/open-apis", alias="FEISHU_API_BASE_URL")
+    poster_delivery_enabled: bool = Field(default=True, alias="POSTER_DELIVERY_ENABLED")
+    poster_delivery_poll_interval_seconds: float = Field(default=15.0, alias="POSTER_DELIVERY_POLL_INTERVAL_SECONDS")
+    poster_delivery_batch_size: int = Field(default=10, alias="POSTER_DELIVERY_BATCH_SIZE")
+    poster_delivery_max_attempts: int = Field(default=80, alias="POSTER_DELIVERY_MAX_ATTEMPTS")
+    hermes_state_db_path: Path | None = Field(default=None, alias="HERMES_STATE_DB_PATH")
 
 
 @lru_cache

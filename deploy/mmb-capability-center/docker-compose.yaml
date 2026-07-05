@@ -13,10 +13,16 @@ services:
       MATERIAL_CATALOG_URL: ${MATERIAL_CATALOG_URL:-http://material-catalog-service:8091}
       POSTER_SERVICE_URL: ${POSTER_SERVICE_URL:-http://poster-service:8088}
       DIFY_BASE_URL: ${DIFY_BASE_URL:-http://nginx/v1}
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      HERMES_STATE_DB_PATH: ${HERMES_STATE_DB_PATH:-/opt/hermes-state/state.db}
+      POSTER_DELIVERY_ENABLED: ${POSTER_DELIVERY_ENABLED:-true}
+      POSTER_DELIVERY_POLL_INTERVAL_SECONDS: ${POSTER_DELIVERY_POLL_INTERVAL_SECONDS:-15}
     ports:
       - "${MMB_CAPABILITY_CENTER_PORT:-8097}:8097"
     volumes:
       - ./data:/app/data
+      - ${HERMES_DATA_DIR:-../hermes/data}:/opt/hermes-state:ro
     networks:
       default:
       dify:

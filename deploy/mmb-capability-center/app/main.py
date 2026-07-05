@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from pathlib import Path
 from typing import Any
@@ -15,6 +17,7 @@ from .models import (
     CreateBusinessArtifactRequest,
     CreatePosterJobRequest,
     CreateTeamArtifactRequest,
+    PosterDeliveryRegisterRequest,
     GenerateCopywritingRequest,
     ReadKnowledgeRequest,
     ReadMaterialRequest,
@@ -26,6 +29,7 @@ from .models import (
     ToolResponse,
 )
 from .mcp_protocol import handle_mcp_request
+from .poster_delivery import FeishuDeliveryClient, PosterDeliveryWorker, resolve_delivery_target_from_hermes
 
 settings = get_settings()
 audit_store = AuditStore(settings.db_path)
@@ -36,6 +40,7 @@ app = FastAPI(
     version="0.1.0",
     description="Unified tool API for MMB enterprise knowledge, materials, copywriting, posters, artifacts, audit, and shared context.",
 )
+poster_delivery_worker_task: asyncio.Task | None = None
 
 
 def new_request_id() -> str:
@@ -124,6 +129,28 @@ def record_failure(request_id: str, context: ToolContext, tool: str, error: Exce
     audit_store.record_event(request_id=request_id, context=context, tool=tool, status="failed", metadata={"error": str(error)})
 
 
+def register_poster_delivery(context: ToolContext, data: dict[str, Any], *, session_id: str | None = None) -> None:
+    job_id = data.get("job_id")
+    if not isinstance(job_id, str) or not job_id:
+        return
+    audit_store.register_poster_delivery(
+        job_id=job_id,
+        channel="feishu",
+        chat_id=context.chat_id,
+        sender_open_id=context.sender_open_id or context.open_id,
+        session_id=session_id,
+        session_key=context.session_key,
+        poster_url=data.get("poster_url") if isinstance(data.get("poster_url"), str) else None,
+        thumbnail_url=data.get("thumbnail_url") if isinstance(data.get("thumbnail_url"), str) else None,
+    )
+
+
+async def run_poster_delivery_once() -> None:
+    feishu = FeishuDeliveryClient(settings) if settings.feishu_app_id and settings.feishu_app_secret else None
+    worker = PosterDeliveryWorker(settings=settings, store=audit_store, clients=clients, feishu=feishu)
+    await worker.run_once()
+
+
 async def run_tool(request_id: str, context: ToolContext, tool: str, call) -> Any:
     try:
         data = await call()
@@ -134,6 +161,27 @@ async def run_tool(request_id: str, context: ToolContext, tool: str, call) -> An
         record_failure(request_id, context, tool, exc)
         raise
     return data
+
+
+@app.on_event("startup")
+async def start_poster_delivery_worker() -> None:
+    global poster_delivery_worker_task
+    if not settings.poster_delivery_enabled or not (settings.feishu_app_id and settings.feishu_app_secret):
+        return
+    feishu = FeishuDeliveryClient(settings)
+    worker = PosterDeliveryWorker(settings=settings, store=audit_store, clients=clients, feishu=feishu)
+    poster_delivery_worker_task = asyncio.create_task(worker.run_forever())
+
+
+@app.on_event("shutdown")
+async def stop_poster_delivery_worker() -> None:
+    global poster_delivery_worker_task
+    if poster_delivery_worker_task is None:
+        return
+    poster_delivery_worker_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await poster_delivery_worker_task
+    poster_delivery_worker_task = None
 
 
 @app.get("/health")
@@ -250,6 +298,7 @@ async def create_business_artifact(request: CreateBusinessArtifactRequest) -> To
 async def create_poster_job(request: CreatePosterJobRequest) -> ToolResponse:
     request_id = request.request_id or new_request_id()
     data = await run_tool(request_id, request.context, "create_poster_job", lambda: clients.create_poster_job(request))
+    register_poster_delivery(request.context, data)
     record_success(request_id, request.context, "create_poster_job", {"job_id": data.get("job_id"), "status": data.get("status")})
     return ToolResponse(
         request_id=request_id,
@@ -287,11 +336,21 @@ async def mcp_endpoint(request: Request, _: None = Depends(require_auth)):
     if isinstance(payload, list):
         responses = []
         for item in payload:
-            result = await handle_mcp_request(item, clients=clients, create_artifact=audit_store.create_artifact)
+            result = await handle_mcp_request(
+                item,
+                clients=clients,
+                create_artifact=audit_store.create_artifact,
+                register_poster_delivery=register_poster_delivery,
+            )
             if result is not None:
                 responses.append(result)
         return responses
-    result = await handle_mcp_request(payload, clients=clients, create_artifact=audit_store.create_artifact)
+    result = await handle_mcp_request(
+        payload,
+        clients=clients,
+        create_artifact=audit_store.create_artifact,
+        register_poster_delivery=register_poster_delivery,
+    )
     if result is None:
         return Response(status_code=202)
     return result
@@ -304,3 +363,37 @@ def list_audit_events(
     tool: str | None = None,
 ) -> dict[str, Any]:
     return {"events": audit_store.list_events(limit=limit, session_key=session_key, tool=tool)}
+
+
+@app.get("/v1/poster-deliveries", dependencies=[Depends(require_auth)])
+def list_poster_deliveries(limit: int = Query(default=100, ge=1, le=500), status: str | None = None) -> dict[str, Any]:
+    return {"deliveries": audit_store.list_poster_deliveries(limit=limit, status=status)}
+
+
+@app.post("/v1/poster-deliveries", dependencies=[Depends(require_auth)])
+def register_existing_poster_delivery(request: PosterDeliveryRegisterRequest) -> dict[str, Any]:
+    chat_id = request.chat_id
+    sender_open_id = request.sender_open_id
+    session_key = request.session_key
+    if not chat_id and request.session_id:
+        target = resolve_delivery_target_from_hermes(settings.hermes_state_db_path, request.job_id, session_id=request.session_id)
+        chat_id = target.get("chat_id")
+        sender_open_id = sender_open_id or target.get("sender_open_id")
+        session_key = session_key or target.get("session_key")
+    delivery = audit_store.register_poster_delivery(
+        job_id=request.job_id,
+        channel=request.channel,
+        chat_id=chat_id,
+        sender_open_id=sender_open_id,
+        session_id=request.session_id,
+        session_key=session_key,
+        poster_url=request.poster_url,
+        thumbnail_url=request.thumbnail_url,
+    )
+    return {"delivery": delivery}
+
+
+@app.post("/v1/poster-deliveries/run-once", dependencies=[Depends(require_auth)])
+async def run_poster_deliveries_once() -> dict[str, Any]:
+    await run_poster_delivery_once()
+    return {"status": "ok"}

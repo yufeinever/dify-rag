@@ -66,9 +66,31 @@ class AuditStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS poster_deliveries (
+                    job_id TEXT PRIMARY KEY,
+                    channel TEXT NOT NULL,
+                    chat_id TEXT,
+                    sender_open_id TEXT,
+                    session_id TEXT,
+                    session_key TEXT,
+                    status TEXT NOT NULL,
+                    poster_url TEXT,
+                    thumbnail_url TEXT,
+                    image_key TEXT,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    delivered_at TEXT
+                )
+                """
+            )
             connection.execute("CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_events(session_key, created_at)")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_audit_request ON audit_events(request_id)")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_artifact_context ON team_artifacts(tenant_id, bot_id, chat_id)")
+            connection.execute("CREATE INDEX IF NOT EXISTS idx_poster_delivery_status ON poster_deliveries(status, updated_at)")
 
     def record_event(
         self,
@@ -171,3 +193,156 @@ class AuditStore:
             item["metadata"] = json.loads(item["metadata"] or "{}")
             events.append(item)
         return events
+
+    def register_poster_delivery(
+        self,
+        *,
+        job_id: str,
+        channel: str = "feishu",
+        chat_id: str | None = None,
+        sender_open_id: str | None = None,
+        session_id: str | None = None,
+        session_key: str | None = None,
+        poster_url: str | None = None,
+        thumbnail_url: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO poster_deliveries (
+                    job_id, channel, chat_id, sender_open_id, session_id, session_key,
+                    status, poster_url, thumbnail_url, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(job_id) DO UPDATE SET
+                    chat_id = COALESCE(excluded.chat_id, poster_deliveries.chat_id),
+                    sender_open_id = COALESCE(excluded.sender_open_id, poster_deliveries.sender_open_id),
+                    session_id = COALESCE(excluded.session_id, poster_deliveries.session_id),
+                    session_key = COALESCE(excluded.session_key, poster_deliveries.session_key),
+                    poster_url = COALESCE(excluded.poster_url, poster_deliveries.poster_url),
+                    thumbnail_url = COALESCE(excluded.thumbnail_url, poster_deliveries.thumbnail_url),
+                    status = CASE
+                        WHEN poster_deliveries.status IN ('delivered', 'failed') THEN poster_deliveries.status
+                        ELSE 'pending'
+                    END,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    job_id,
+                    channel,
+                    chat_id,
+                    sender_open_id,
+                    session_id,
+                    session_key,
+                    "pending",
+                    poster_url,
+                    thumbnail_url,
+                    now,
+                    now,
+                ),
+            )
+            return dict(connection.execute("SELECT * FROM poster_deliveries WHERE job_id = ?", (job_id,)).fetchone())
+
+    def list_poster_deliveries(self, *, limit: int = 100, status: str | None = None) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        params.append(limit)
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT * FROM poster_deliveries
+                {where_sql}
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_due_poster_deliveries(self, *, limit: int, max_attempts: int) -> list[dict[str, Any]]:
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM poster_deliveries
+                WHERE status IN ('pending', 'running') AND attempt_count < ?
+                ORDER BY updated_at ASC
+                LIMIT ?
+                """,
+                (max_attempts, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_poster_delivery_target(
+        self,
+        job_id: str,
+        *,
+        chat_id: str | None = None,
+        sender_open_id: str | None = None,
+        session_id: str | None = None,
+        session_key: str | None = None,
+    ) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE poster_deliveries
+                SET chat_id = COALESCE(?, chat_id),
+                    sender_open_id = COALESCE(?, sender_open_id),
+                    session_id = COALESCE(?, session_id),
+                    session_key = COALESCE(?, session_key),
+                    updated_at = ?
+                WHERE job_id = ?
+                """,
+                (chat_id, sender_open_id, session_id, session_key, now, job_id),
+            )
+
+    def mark_poster_delivery_attempt(self, job_id: str, *, status: str, error: str | None = None) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE poster_deliveries
+                SET status = ?, attempt_count = attempt_count + 1, last_error = ?, updated_at = ?
+                WHERE job_id = ?
+                """,
+                (status, error, now, job_id),
+            )
+
+    def mark_poster_delivery_delivered(self, job_id: str, *, poster_url: str, image_key: str) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE poster_deliveries
+                SET status = 'delivered', poster_url = ?, image_key = ?, last_error = NULL,
+                    updated_at = ?, delivered_at = ?
+                WHERE job_id = ?
+                """,
+                (poster_url, image_key, now, now, job_id),
+            )
+
+    def mark_poster_delivery_terminal(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        error: str | None = None,
+        poster_url: str | None = None,
+        thumbnail_url: str | None = None,
+    ) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE poster_deliveries
+                SET status = ?, poster_url = COALESCE(?, poster_url), thumbnail_url = COALESCE(?, thumbnail_url),
+                    last_error = ?, updated_at = ?
+                WHERE job_id = ?
+                """,
+                (status, poster_url, thumbnail_url, error, now, job_id),
+            )
