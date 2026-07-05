@@ -4,7 +4,7 @@ from datetime import datetime
 from mimetypes import guess_extension
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from core.tools.signature import sign_tool_file
@@ -118,6 +118,8 @@ def list_generated_files(
     keyword: str | None = None,
     file_type: str | None = None,
     source_app_id: str | None = None,
+    source_app_ids: str | None = None,
+    owner_user_ids: str | None = None,
     include_all: bool = False,
     sort: str = "-created_at",
 ) -> dict[str, Any]:
@@ -129,8 +131,25 @@ def list_generated_files(
         filters.append(GeneratedFile.name.ilike(f"%{keyword.strip()}%"))
     if file_type and file_type != "all":
         filters.append(GeneratedFile.file_type == file_type)
+
+    facet_filters = list(filters)
+
+    owner_ids = _split_filter_values(owner_user_ids)
+    if owner_ids:
+        filters.append(GeneratedFile.owner_user_id.in_(owner_ids))
+
+    app_ids = _split_filter_values(source_app_ids)
     if source_app_id:
-        filters.append(GeneratedFile.source_app_id == source_app_id)
+        app_ids.append(source_app_id)
+    app_ids = list(dict.fromkeys(app_ids))
+    if app_ids:
+        explicit_app_ids = [app_id for app_id in app_ids if app_id != "unknown"]
+        if "unknown" in app_ids and explicit_app_ids:
+            filters.append(or_(GeneratedFile.source_app_id.in_(explicit_app_ids), GeneratedFile.source_app_id.is_(None)))
+        elif "unknown" in app_ids:
+            filters.append(GeneratedFile.source_app_id.is_(None))
+        else:
+            filters.append(GeneratedFile.source_app_id.in_(explicit_app_ids))
 
     order_column = GeneratedFile.created_at.asc() if sort == "created_at" else GeneratedFile.created_at.desc()
     total = session.scalar(select(func.count()).select_from(GeneratedFile).where(*filters)) or 0
@@ -157,6 +176,7 @@ def list_generated_files(
         "limit": limit,
         "total": total,
         "has_more": page * limit < total,
+        "facets": _build_generated_file_facets(session, facet_filters),
         "stats": {
             "total": total,
             "total_size": int(total_size),
@@ -258,3 +278,54 @@ def _as_attachment_url(url: str) -> str:
 
 def _to_timestamp(value: datetime | None) -> int | None:
     return int(value.timestamp()) if value else None
+
+
+def _split_filter_values(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[str, list[dict[str, Any]]]:
+    account_rows = session.execute(
+        select(
+            GeneratedFile.owner_user_id,
+            Account.name,
+            func.count(GeneratedFile.id),
+        )
+        .outerjoin(Account, Account.id == GeneratedFile.owner_user_id)
+        .where(*filters)
+        .group_by(GeneratedFile.owner_user_id, Account.name)
+        .order_by(func.count(GeneratedFile.id).desc(), Account.name.asc())
+    ).all()
+    app_rows = session.execute(
+        select(
+            GeneratedFile.source_app_id,
+            App.name,
+            func.count(GeneratedFile.id),
+        )
+        .outerjoin(App, App.id == GeneratedFile.source_app_id)
+        .where(*filters)
+        .group_by(GeneratedFile.source_app_id, App.name)
+        .order_by(func.count(GeneratedFile.id).desc(), App.name.asc())
+    ).all()
+
+    return {
+        "accounts": [
+            {
+                "id": str(owner_id),
+                "name": owner_name or "未知账户",
+                "count": count,
+            }
+            for owner_id, owner_name, count in account_rows
+            if owner_id
+        ],
+        "apps": [
+            {
+                "id": str(app_id) if app_id else "unknown",
+                "name": app_name or "未知应用",
+                "count": count,
+            }
+            for app_id, app_name, count in app_rows
+        ],
+    }

@@ -28,15 +28,26 @@ class GeneratedFileListQuery(BaseModel):
     keyword: str | None = None
     file_type: str | None = None
     source_app_id: str | None = None
+    source_app_ids: str | None = None
+    owner_user_ids: str | None = None
     include_all: bool = False
     sort: str = "-created_at"
 
-    @field_validator("source_app_id")
+    @field_validator("source_app_id", "source_app_ids", "owner_user_ids")
     @classmethod
-    def validate_uuid(cls, value: str | None) -> str | None:
+    def validate_uuid_filter(cls, value: str | None) -> str | None:
         if not value:
             return None
-        return uuid_value(value)
+        values = []
+        for item in value.split(","):
+            item = item.strip()
+            if item == "unknown":
+                values.append(item)
+            elif item:
+                values.append(uuid_value(item))
+        if not values:
+            return None
+        return ",".join(values)
 
 
 register_schema_models(console_ns, GeneratedFileListQuery)
@@ -61,6 +72,8 @@ class GeneratedFileListApi(Resource):
             keyword=query.keyword,
             file_type=query.file_type,
             source_app_id=query.source_app_id,
+            source_app_ids=query.source_app_ids,
+            owner_user_ids=query.owner_user_ids,
             include_all=query.include_all,
             sort=query.sort,
         )

@@ -21,6 +21,12 @@ export type GeneratedFile = {
   download_url: string
 }
 
+export type GeneratedFileFacet = {
+  id: string
+  name: string
+  count: number
+}
+
 export type GeneratedFileListResponse = {
   data: GeneratedFile[]
   page: number
@@ -32,6 +38,10 @@ export type GeneratedFileListResponse = {
     total_size: number
     by_type: Record<string, number>
   }
+  facets?: {
+    accounts: GeneratedFileFacet[]
+    apps: GeneratedFileFacet[]
+  }
 }
 
 export type GeneratedFileListParams = {
@@ -40,6 +50,8 @@ export type GeneratedFileListParams = {
   keyword?: string
   file_type?: string
   source_app_id?: string
+  source_app_ids?: string
+  owner_user_ids?: string
   include_all?: boolean
   sort?: string
 }

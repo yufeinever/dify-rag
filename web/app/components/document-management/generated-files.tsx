@@ -1,15 +1,17 @@
 'use client'
 
-import type { GeneratedFile } from '@/service/generated-files'
+import type { GeneratedFile, GeneratedFileFacet } from '@/service/generated-files'
 import { toast } from '@langgenius/dify-ui/toast'
 import {
+  RiApps2Line,
   RiDownload2Line,
   RiFileList3Line,
   RiRefreshLine,
   RiSearchLine,
+  RiUser3Line,
 } from '@remixicon/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { deleteGeneratedFile, fetchGeneratedFileDownloadUrl, fetchGeneratedFiles } from '@/service/generated-files'
 import { asyncRunSafe } from '@/utils'
 import { downloadUrl } from '@/utils/download'
@@ -84,10 +86,75 @@ const StatCard = ({ label, value }: { label: string, value: string | number }) =
   </div>
 )
 
+const FilterCheckbox = ({
+  checked,
+  label,
+  count,
+  onChange,
+}: {
+  checked: boolean
+  label: string
+  count?: number
+  onChange: () => void
+}) => (
+  <button
+    type="button"
+    className={`flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-state-base-hover ${checked ? 'text-text-primary' : 'text-text-secondary'}`}
+    onClick={onChange}
+  >
+    <span className={`flex size-4 shrink-0 items-center justify-center rounded border text-[10px] leading-none ${checked ? 'border-components-button-primary-bg bg-components-button-primary-bg text-text-primary-on-surface' : 'border-divider-regular bg-background-default'}`}>
+      {checked ? '✓' : ''}
+    </span>
+    <span className="min-w-0 flex-1 truncate" title={label}>{label}</span>
+    {typeof count === 'number' && <span className="shrink-0 text-xs text-text-tertiary tabular-nums">{count}</span>}
+  </button>
+)
+
+const FilterSection = ({
+  title,
+  icon,
+  items,
+  selectedIds,
+  onToggle,
+  onSelectAll,
+}: {
+  title: string
+  icon: ReactNode
+  items: GeneratedFileFacet[]
+  selectedIds: string[]
+  onToggle: (id: string) => void
+  onSelectAll: () => void
+}) => {
+  const total = items.reduce((sum, item) => sum + item.count, 0)
+
+  return (
+    <section className="space-y-1.5">
+      <div className="flex items-center gap-1.5 px-2 text-xs font-medium text-text-tertiary">
+        {icon}
+        <span>{title}</span>
+      </div>
+      <FilterCheckbox checked={selectedIds.length === 0} label="全量" count={total} onChange={onSelectAll} />
+      <div className="max-h-[220px] space-y-1 overflow-auto pr-1">
+        {items.map(item => (
+          <FilterCheckbox
+            key={item.id}
+            checked={selectedIds.includes(item.id)}
+            label={item.name}
+            count={item.count}
+            onChange={() => onToggle(item.id)}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
 const GeneratedFilesLibrary = () => {
   const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
   const [fileType, setFileType] = useState('all')
+  const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([])
+  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([])
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const queryParams = useMemo(() => ({
@@ -95,8 +162,11 @@ const GeneratedFilesLibrary = () => {
     limit: 100,
     keyword: keyword.trim() || undefined,
     file_type: fileType,
+    owner_user_ids: selectedOwnerIds.length ? selectedOwnerIds.join(',') : undefined,
+    source_app_ids: selectedAppIds.length ? selectedAppIds.join(',') : undefined,
+    include_all: true,
     sort: '-created_at',
-  }), [fileType, keyword])
+  }), [fileType, keyword, selectedAppIds, selectedOwnerIds])
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['document-management', 'generated-files', queryParams],
@@ -139,8 +209,18 @@ const GeneratedFilesLibrary = () => {
     deleteMutation.mutate(file.id)
   }
 
+  const toggleSelected = (id: string, selectedIds: string[], setSelectedIds: (ids: string[]) => void) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter(item => item !== id))
+      return
+    }
+    setSelectedIds([...selectedIds, id])
+  }
+
   const files = data?.data ?? []
   const stats = data?.stats
+  const accountFacets = data?.facets?.accounts ?? []
+  const appFacets = data?.facets?.apps ?? []
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
@@ -151,116 +231,138 @@ const GeneratedFilesLibrary = () => {
         <StatCard label="占用空间" value={formatSize(stats?.total_size)} />
       </div>
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg shadow-xs">
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-divider-subtle bg-background-default px-3 py-2.5">
-          <div className="relative min-w-[240px] flex-1">
-            <RiSearchLine className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-quaternary" />
-            <input
-              value={keyword}
-              onChange={event => setKeyword(event.target.value)}
-              placeholder="搜索文件名"
-              className="h-8 w-full rounded-lg border border-transparent bg-components-input-bg-normal pr-3 pl-8 text-sm text-text-primary outline-none placeholder:text-text-quaternary hover:border-components-input-border-hover focus:border-components-input-border-active"
-            />
-          </div>
-          <select
-            value={fileType}
-            onChange={event => setFileType(event.target.value)}
-            className="border-components-input-border h-8 rounded-lg border bg-components-input-bg-normal px-2.5 text-sm text-text-secondary outline-none"
-          >
-            {fileTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-          <button
-            type="button"
-            disabled={isFetching}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-xs font-medium text-components-button-secondary-text shadow-xs hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={() => refetch()}
-          >
-            <RiRefreshLine className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            刷新
-          </button>
-        </div>
+      <div className="flex min-h-0 flex-1 gap-3">
+        <aside className="flex w-[260px] shrink-0 flex-col gap-4 overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg p-3 shadow-xs">
+          <FilterSection
+            title="账户"
+            icon={<RiUser3Line className="size-3.5" />}
+            items={accountFacets}
+            selectedIds={selectedOwnerIds}
+            onToggle={id => toggleSelected(id, selectedOwnerIds, setSelectedOwnerIds)}
+            onSelectAll={() => setSelectedOwnerIds([])}
+          />
+          <div className="h-px shrink-0 bg-divider-subtle" />
+          <FilterSection
+            title="应用"
+            icon={<RiApps2Line className="size-3.5" />}
+            items={appFacets}
+            selectedIds={selectedAppIds}
+            onToggle={id => toggleSelected(id, selectedAppIds, setSelectedAppIds)}
+            onSelectAll={() => setSelectedAppIds([])}
+          />
+        </aside>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          {isLoading
-            ? (
-                <div className="flex h-full items-center justify-center text-sm text-text-tertiary">加载中...</div>
-              )
-            : files.length === 0
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg shadow-xs">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-divider-subtle bg-background-default px-3 py-2.5">
+            <div className="relative min-w-[240px] flex-1">
+              <RiSearchLine className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-quaternary" />
+              <input
+                value={keyword}
+                onChange={event => setKeyword(event.target.value)}
+                placeholder="搜索文件名"
+                className="h-8 w-full rounded-lg border border-transparent bg-components-input-bg-normal pr-3 pl-8 text-sm text-text-primary outline-none placeholder:text-text-quaternary hover:border-components-input-border-hover focus:border-components-input-border-active"
+              />
+            </div>
+            <select
+              value={fileType}
+              onChange={event => setFileType(event.target.value)}
+              className="border-components-input-border h-8 rounded-lg border bg-components-input-bg-normal px-2.5 text-sm text-text-secondary outline-none"
+            >
+              {fileTypeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <button
+              type="button"
+              disabled={isFetching}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-xs font-medium text-components-button-secondary-text shadow-xs hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => refetch()}
+            >
+              <RiRefreshLine className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              刷新
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-auto">
+            {isLoading
               ? (
-                  <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-                    <div className="flex size-10 items-center justify-center rounded-xl bg-background-section text-text-quaternary">
-                      <RiFileList3Line className="size-5" />
-                    </div>
-                    <div className="mt-3 text-sm font-medium text-text-secondary">暂无生成文件</div>
-                    <div className="mt-1 text-xs text-text-tertiary">通过 Agent 生成的 Word、PPT、Excel 或图片会出现在这里。</div>
-                  </div>
+                  <div className="flex h-full items-center justify-center text-sm text-text-tertiary">加载中...</div>
                 )
-              : (
-                  <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
-                    <thead className="sticky top-0 z-10 border-b border-divider-subtle bg-background-default-subtle text-xs font-medium text-text-tertiary">
-                      <tr>
-                        <th className="w-[420px] px-3 py-2.5 text-left">文件</th>
-                        <th className="w-[110px] px-3 py-2.5 text-left">类型</th>
-                        <th className="w-[220px] px-3 py-2.5 text-left">来源</th>
-                        <th className="w-[100px] px-3 py-2.5 text-right">大小</th>
-                        <th className="w-[150px] px-3 py-2.5 text-left">生成时间</th>
-                        <th className="w-[180px] px-3 py-2.5 text-left">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {files.map(file => (
-                        <tr key={file.id} className="group border-b border-divider-subtle last:border-b-0 hover:bg-state-base-hover">
-                          <td className="px-3 py-2.5 align-middle">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <GeneratedFileIcon file={file} />
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-medium text-text-primary" title={file.name}>{file.name}</div>
-                                <div className="mt-0.5 text-xs text-text-tertiary">.{file.extension || 'bin'}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 align-middle text-text-secondary">{fileTypeLabel[file.file_type] || file.file_type}</td>
-                          <td className="px-3 py-2.5 align-middle text-text-secondary">
-                            <span className="truncate" title={file.source_app_name || '未知来源'}>{file.source_app_name || '未知来源'}</span>
-                          </td>
-                          <td className="px-3 py-2.5 text-right align-middle text-text-secondary tabular-nums">{formatSize(file.size)}</td>
-                          <td className="px-3 py-2.5 align-middle text-text-tertiary">{formatTime(file.created_at)}</td>
-                          <td className="px-3 py-2.5 align-middle whitespace-nowrap">
-                            <div className="flex items-center gap-1.5 whitespace-nowrap">
-                              <button
-                                type="button"
-                                disabled={!isPreviewable(file)}
-                                className="inline-flex h-7 shrink-0 items-center rounded-lg px-2 text-xs font-medium text-text-secondary hover:bg-state-base-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                onClick={() => handlePreview(file)}
-                              >
-                                预览
-                              </button>
-                              <button
-                                type="button"
-                                disabled={downloadingId === file.id}
-                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium text-text-secondary hover:bg-state-base-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                onClick={() => handleDownload(file)}
-                              >
-                                <RiDownload2Line className="size-3.5" />
-                                {downloadingId === file.id ? '准备中' : '下载'}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={deleteMutation.isPending}
-                                className="inline-flex h-7 shrink-0 items-center rounded-lg px-2 text-xs font-medium text-text-tertiary hover:bg-state-destructive-hover hover:text-text-destructive disabled:cursor-not-allowed disabled:opacity-40"
-                                onClick={() => handleRemove(file)}
-                              >
-                                移除
-                              </button>
-                            </div>
-                          </td>
+              : files.length === 0
+                ? (
+                    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                      <div className="flex size-10 items-center justify-center rounded-xl bg-background-section text-text-quaternary">
+                        <RiFileList3Line className="size-5" />
+                      </div>
+                      <div className="mt-3 text-sm font-medium text-text-secondary">暂无生成文件</div>
+                      <div className="mt-1 text-xs text-text-tertiary">通过 Agent 生成的 Word、PPT、Excel 或图片会出现在这里。</div>
+                    </div>
+                  )
+                : (
+                    <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
+                      <thead className="sticky top-0 z-10 border-b border-divider-subtle bg-background-default-subtle text-xs font-medium text-text-tertiary">
+                        <tr>
+                          <th className="w-[420px] px-3 py-2.5 text-left">文件</th>
+                          <th className="w-[110px] px-3 py-2.5 text-left">类型</th>
+                          <th className="w-[220px] px-3 py-2.5 text-left">来源</th>
+                          <th className="w-[100px] px-3 py-2.5 text-right">大小</th>
+                          <th className="w-[150px] px-3 py-2.5 text-left">生成时间</th>
+                          <th className="w-[180px] px-3 py-2.5 text-left">操作</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-        </div>
-      </main>
+                      </thead>
+                      <tbody>
+                        {files.map(file => (
+                          <tr key={file.id} className="group border-b border-divider-subtle last:border-b-0 hover:bg-state-base-hover">
+                            <td className="px-3 py-2.5 align-middle">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <GeneratedFileIcon file={file} />
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-medium text-text-primary" title={file.name}>{file.name}</div>
+                                  <div className="mt-0.5 text-xs text-text-tertiary">.{file.extension || 'bin'}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 align-middle text-text-secondary">{fileTypeLabel[file.file_type] || file.file_type}</td>
+                            <td className="px-3 py-2.5 align-middle text-text-secondary">
+                              <span className="truncate" title={file.source_app_name || '未知来源'}>{file.source_app_name || '未知来源'}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right align-middle text-text-secondary tabular-nums">{formatSize(file.size)}</td>
+                            <td className="px-3 py-2.5 align-middle text-text-tertiary">{formatTime(file.created_at)}</td>
+                            <td className="px-3 py-2.5 align-middle whitespace-nowrap">
+                              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  disabled={!isPreviewable(file)}
+                                  className="inline-flex h-7 shrink-0 items-center rounded-lg px-2 text-xs font-medium text-text-secondary hover:bg-state-base-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                  onClick={() => handlePreview(file)}
+                                >
+                                  预览
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={downloadingId === file.id}
+                                  className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium text-text-secondary hover:bg-state-base-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                  onClick={() => handleDownload(file)}
+                                >
+                                  <RiDownload2Line className="size-3.5" />
+                                  {downloadingId === file.id ? '准备中' : '下载'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={deleteMutation.isPending}
+                                  className="inline-flex h-7 shrink-0 items-center rounded-lg px-2 text-xs font-medium text-text-tertiary hover:bg-state-destructive-hover hover:text-text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                  onClick={() => handleRemove(file)}
+                                >
+                                  移除
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
