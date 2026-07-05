@@ -8,6 +8,7 @@ import Loading from '@/app/components/base/loading'
 import useDocumentTitle from '@/hooks/use-document-title'
 import { useSearchParams } from '@/next/navigation'
 import { fetchDocumentConvertedPreviewBlob, fetchDocumentOfficePreviewConfig } from '@/service/datasets'
+import { fetchGeneratedFilePreviewConfig } from '@/service/generated-files'
 import { downloadUrl } from '@/utils/download'
 
 const isImage = (fileType: string) => ['bmp', 'gif', 'jpeg', 'jpg', 'png', 'svg', 'webp'].includes(fileType)
@@ -115,15 +116,18 @@ const DocumentOriginalPreview = () => {
   const searchParams = useSearchParams()
   const datasetId = searchParams.get('datasetId') || ''
   const documentId = searchParams.get('documentId') || ''
+  const generatedFileId = searchParams.get('generatedFileId') || ''
 
   const { data, isLoading, refetch, isFetching, error } = useQuery({
-    queryKey: ['document-original-preview', datasetId, documentId],
-    queryFn: () => fetchDocumentOfficePreviewConfig({ datasetId, documentId }),
-    enabled: !!datasetId && !!documentId,
+    queryKey: ['document-original-preview', datasetId, documentId, generatedFileId],
+    queryFn: () => generatedFileId
+      ? fetchGeneratedFilePreviewConfig(generatedFileId)
+      : fetchDocumentOfficePreviewConfig({ datasetId, documentId }),
+    enabled: !!generatedFileId || (!!datasetId && !!documentId),
     staleTime: 30 * 1000,
   })
 
-  if (!datasetId || !documentId) {
+  if (!generatedFileId && (!datasetId || !documentId)) {
     return (
       <div className="flex h-full items-center justify-center bg-background-body text-sm text-text-tertiary">
         缺少文档参数

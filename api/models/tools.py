@@ -501,6 +501,44 @@ class ToolFile(TypeBase):
     size: Mapped[int] = mapped_column(sa.Integer, default=-1)
 
 
+class GeneratedFile(TypeBase):
+    """Durable index for assistant-generated files shown in document management."""
+
+    __tablename__ = "generated_files"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="generated_file_pkey"),
+        sa.UniqueConstraint("tool_file_id", name="generated_file_tool_file_unique"),
+        sa.Index("generated_file_tenant_owner_created_at_idx", "tenant_id", "owner_user_id", "created_at"),
+        sa.Index("generated_file_tenant_file_type_created_at_idx", "tenant_id", "file_type", "created_at"),
+        sa.Index("generated_file_source_app_idx", "source_app_id"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        StringUUID, insert_default=lambda: str(uuid4()), default_factory=lambda: str(uuid4()), init=False
+    )
+    tenant_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    owner_user_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    tool_file_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    source_app_id: Mapped[str | None] = mapped_column(StringUUID, nullable=True, default=None)
+    source_conversation_id: Mapped[str | None] = mapped_column(StringUUID, nullable=True, default=None)
+    source_message_id: Mapped[str | None] = mapped_column(StringUUID, nullable=True, default=None)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    mime_type: Mapped[str] = mapped_column(String(255), nullable=False, default="application/octet-stream")
+    file_type: Mapped[str] = mapped_column(String(64), nullable=False, default="other")
+    size: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=-1)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, server_default=func.current_timestamp(), init=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        init=False,
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True, default=None)
+
+
 @deprecated
 class DeprecatedPublishedAppTool(TypeBase):
     """

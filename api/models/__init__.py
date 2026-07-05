@@ -121,6 +121,7 @@ from .task import CeleryTask, CeleryTaskSet
 from .tools import (
     ApiToolProvider,
     BuiltinToolProvider,
+    GeneratedFile,
     ToolConversationVariables,
     ToolFile,
     ToolLabelBinding,
@@ -254,6 +255,7 @@ __all__ = [
     "TidbAuthBinding",
     "ToolConversationVariables",
     "ToolFile",
+    "GeneratedFile",
     "ToolLabelBinding",
     "ToolModelInvoke",
     "TraceAppConfig",

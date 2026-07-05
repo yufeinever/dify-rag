@@ -87,6 +87,7 @@ from models.enums import CreatorUserRole, MessageFileBelongsTo, MessageStatus
 from models.execution_extra_content import HumanInputContent
 from models.model import AppMode
 from models.workflow import Workflow
+from services.generated_file_service import register_generated_file_from_message_file
 
 logger = logging.getLogger(__name__)
 
@@ -1063,6 +1064,9 @@ class AdvancedChatAppGenerateTaskPipeline(GraphRuntimeStateSupport):
                 )
             )
         session.add_all(message_files)
+        session.flush()
+        for message_file in message_files:
+            register_generated_file_from_message_file(session, message_file, message=message)
 
     def _seed_graph_runtime_state_from_queue_manager(self) -> None:
         """Bootstrap the cached runtime state from the queue manager when present."""

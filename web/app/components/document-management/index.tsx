@@ -13,6 +13,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import Loading from '@/app/components/base/loading'
+import GeneratedFilesLibrary from '@/app/components/document-management/generated-files'
 import useDocumentTitle from '@/hooks/use-document-title'
 import { DataSourceType } from '@/models/datasets'
 import Link from '@/next/link'
@@ -156,6 +157,7 @@ const fetchDocumentManagementData = async (): Promise<DocumentManagementData> =>
 
 const DocumentManagement = () => {
   useDocumentTitle('文档管理')
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'generated'>('knowledge')
   const [keyword, setKeyword] = useState('')
   const [datasetId, setDatasetId] = useState('all')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -262,9 +264,27 @@ const DocumentManagement = () => {
             刷新
           </button>
         </div>
+        <div className="mt-4 flex items-center gap-1 rounded-lg bg-background-section p-1">
+          <button
+            type="button"
+            className={`h-8 rounded-md px-3 text-sm font-medium ${activeTab === 'knowledge' ? 'bg-background-default text-text-primary shadow-xs' : 'text-text-secondary hover:text-text-primary'}`}
+            onClick={() => setActiveTab('knowledge')}
+          >
+            知识库材料
+          </button>
+          <button
+            type="button"
+            className={`h-8 rounded-md px-3 text-sm font-medium ${activeTab === 'generated' ? 'bg-background-default text-text-primary shadow-xs' : 'text-text-secondary hover:text-text-primary'}`}
+            onClick={() => setActiveTab('generated')}
+          >
+            生成文件
+          </button>
+        </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-3 p-4">
+      {activeTab === 'knowledge'
+        ? (
+          <div className="flex min-h-0 flex-1 gap-3 p-4">
         <aside className="hidden w-[264px] shrink-0 flex-col overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg shadow-xs md:flex">
           <div className="border-b border-divider-subtle px-3 py-3">
             <div className="flex items-center justify-between gap-2">
@@ -419,6 +439,8 @@ const DocumentManagement = () => {
           </div>
         </main>
       </div>
+          )
+        : <GeneratedFilesLibrary />}
     </div>
   )
 }
