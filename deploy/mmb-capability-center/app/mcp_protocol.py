@@ -137,7 +137,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "create_poster_job",
         "title": "Create MMB poster job",
-        "description": "Create an asynchronous MMB poster generation job after the poster brief is clear.",
+        "description": "Create an asynchronous MMB poster generation job after the poster brief is clear. Return a job_id for tracking and downstream polling/delivery; this tool does not upload images to Feishu or any other channel directly.",
         "inputSchema": _schema(
             {
                 **CONTEXT_PROPERTIES,
