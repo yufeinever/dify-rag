@@ -4,6 +4,12 @@ server {
     listen ${NGINX_PORT};
     server_name ${NGINX_SERVER_NAME};
 
+    location = /mmb-favicon-refresh-20260705.ico {
+      proxy_pass http://web:3000/favicon.ico;
+      include proxy.conf;
+      add_header Cache-Control "public, max-age=86400" always;
+    }
+
     location = /custom-assets/mmb-logo/signin-logo-patch.js {
       proxy_pass http://web:3000;
       include proxy.conf;
