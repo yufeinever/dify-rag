@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     dify_default_app_api_key: str | None = Field(default=None, alias="DIFY_DEFAULT_APP_API_KEY")
     dify_copywriting_app_api_key: str | None = Field(default=None, alias="DIFY_COPYWRITING_APP_API_KEY")
     dify_business_artifact_app_api_key: str | None = Field(default=None, alias="DIFY_BUSINESS_ARTIFACT_APP_API_KEY")
+    dify_office_app_api_key: str | None = Field(default=None, alias="DIFY_OFFICE_APP_API_KEY")
+    dify_visual_ppt_app_api_key: str | None = Field(default=None, alias="DIFY_VISUAL_PPT_APP_API_KEY")
     http_timeout_seconds: float = Field(default=120.0, alias="CAPABILITY_HTTP_TIMEOUT_SECONDS")
     feishu_app_id: str | None = Field(default=None, alias="FEISHU_APP_ID")
     feishu_app_secret: str | None = Field(default=None, alias="FEISHU_APP_SECRET")

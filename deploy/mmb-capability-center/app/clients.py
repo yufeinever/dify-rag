@@ -215,12 +215,66 @@ class ServiceClients:
             json=payload,
         )
 
-    async def create_business_artifact(self, request: CreateBusinessArtifactRequest) -> dict[str, Any]:
-        api_key = self.settings.dify_business_artifact_app_api_key or self.settings.dify_default_app_api_key
+    async def create_visual_ppt(
+        self,
+        *,
+        context: ToolContext,
+        title: str,
+        outline: str,
+        slides_json: str | None = None,
+        filename: str | None = None,
+        slide_count: int | None = None,
+        style_preset: str | None = None,
+    ) -> dict[str, Any]:
+        api_key = self.settings.dify_visual_ppt_app_api_key
         if not api_key:
             return {
                 "status": "not_configured",
-                "message": "DIFY_BUSINESS_ARTIFACT_APP_API_KEY or DIFY_DEFAULT_APP_API_KEY is not configured; no real Office file was created.",
+                "message": "DIFY_VISUAL_PPT_APP_API_KEY is not configured; no real visual PPT file was created.",
+                "artifact_type": "visual_ppt",
+                "title": title,
+            }
+        query_parts = [
+            "请调用 MMB视觉PPT助手的 create_visual_ppt_deck 能力生成真实 .pptx 附件，不要只返回文字大纲。",
+            f"标题：{title}",
+            f"大纲：{outline}",
+        ]
+        if slides_json:
+            query_parts.append(f"Slides JSON：{slides_json}")
+        if filename:
+            query_parts.append(f"文件名：{filename}")
+        if slide_count:
+            query_parts.append(f"目标页数：{slide_count}")
+        if style_preset:
+            query_parts.append(f"视觉风格：{style_preset}")
+        return await self._chat_app(
+            api_key=api_key,
+            query="\n".join(query_parts),
+            user=context.user_key,
+            session_key=context.session_key,
+            inputs={
+                "title": title,
+                "outline": outline,
+                "slides_json": slides_json or "",
+                "filename": filename or "",
+                "slide_count": str(slide_count or ""),
+                "style_preset": style_preset or "",
+            },
+        )
+
+    async def create_business_artifact(self, request: CreateBusinessArtifactRequest) -> dict[str, Any]:
+        if request.artifact_type in {"ppt", "presentation"}:
+            return {
+                "status": "not_supported",
+                "message": "create_office_file is limited to Word and Excel. Use create_visual_ppt for PPT generation.",
+                "artifact_type": request.artifact_type,
+                "title": request.title,
+            }
+        api_key = self.settings.dify_office_app_api_key or self.settings.dify_business_artifact_app_api_key or self.settings.dify_default_app_api_key
+        if not api_key:
+            return {
+                "status": "not_configured",
+                "message": "DIFY_OFFICE_APP_API_KEY, DIFY_BUSINESS_ARTIFACT_APP_API_KEY, or DIFY_DEFAULT_APP_API_KEY is not configured; no real Word/Excel file was created.",
                 "artifact_type": request.artifact_type,
                 "title": request.title,
                 "content": request.content,
@@ -229,12 +283,12 @@ class ServiceClients:
 
         query = "\n".join(
             [
-                "请根据以下内容生成真实业务产物附件。",
+                "请根据以下内容生成真实 Word 或 Excel 附件。",
                 f"产物类型：{request.artifact_type}",
                 f"标题：{request.title}",
                 f"内容：{request.content}",
                 f"补充要求：{request.instructions or '无'}",
-                "如果需要生成 Word/Excel/PPT，请直接调用可用的 Office artifact 工具生成附件，不要只返回文字说明。",
+                "请直接调用可用的 office_artifact_tools/create_office_artifact 生成附件，不要只返回文字说明。PPT 不在本工具范围内。",
             ]
         )
         return await self._chat_app(

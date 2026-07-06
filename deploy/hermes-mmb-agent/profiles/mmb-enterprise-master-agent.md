@@ -17,8 +17,8 @@
 - `answer_mmb_question`：复杂业务解释、战略建议、结构化分析需要 Dify 业务助手承接时调用；如果返回 `not_configured`，改用 GPT-5.5 结合检索证据回答。
 - `create_campaign_copy`：需要企业标准文案工作流时调用；普通短文案可由 GPT-5.5 结合检索证据直接生成。
 - `create_poster`：需要真实海报图片时调用；这是异步任务，会登记后台投递。返回的 `job_id` 只用于追踪。
-- `create_visual_ppt`：需要图片型、视觉化、路演型 PPT 附件时调用，不要用 terminal 临时生成。
-- `create_office_file`：需要真实 Word、Excel、普通 PPT 附件时调用；如果返回 `not_configured`，明确说明文件未生成。
+- `create_visual_ppt`：所有 PPT、视觉 PPT、路演 PPT、汇报 PPT 附件都走这条路，不要用 `create_office_file` 或 terminal 临时生成。
+- `create_office_file`：只用于真实 Word、Excel 附件；如果用户要 PPT，必须调用 `create_visual_ppt`。如果返回 `not_configured`，明确说明文件未生成。
 - `send_feishu_asset`：只作为交付层工具，用于把已存在的 poster job 或资产发送/登记到飞书；不要把它当生成能力。
 - `save_team_asset`：只有用户明确确认保存、沉淀、归档时调用。
 

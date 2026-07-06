@@ -59,11 +59,6 @@ OFFICE_TYPE_ALIASES: dict[str, str] = {
     "spreadsheet": "excel",
     "xlsx": "excel",
     "excel": "excel",
-    "presentation": "ppt",
-    "powerpoint": "ppt",
-    "pptx": "ppt",
-    "ppt": "ppt",
-    "visual_ppt": "ppt",
 }
 
 
@@ -197,10 +192,10 @@ TOOLS: list[dict[str, Any]] = [
         "name": "create_visual_ppt",
         "title": "Create MMB visual PowerPoint deck",
         "description": (
-            "Use this workflow tool when the user asks for a beautiful, visual, image-first PPT, pitch deck, financing roadshow, "
-            "presentation, report deck, or slide deck where the expected output is a real .pptx attachment. Do not answer with text only. "
-            "Prepare a clear outline or slides_json first. This routes to MMB visual PPT capability when configured; otherwise it returns "
-            "not_configured instead of using terminal fallback."
+            "Use this workflow tool for all PPT generation requests, especially beautiful, visual, image-first PPT, pitch decks, "
+            "financing roadshows, presentations, report decks, and slide decks where the expected output is a real .pptx attachment. "
+            "Do not answer with text only. Prepare a clear outline or slides_json first. This routes to MMB视觉PPT助手 when configured; "
+            "otherwise it returns not_configured instead of using terminal fallback."
         ),
         "inputSchema": _schema(
             {
@@ -222,15 +217,15 @@ TOOLS: list[dict[str, Any]] = [
         "name": "create_office_file",
         "title": "Create MMB Office file",
         "description": (
-            "Use this workflow tool when the user asks for a real Word, Excel, or ordinary PowerPoint file: proposal, report, plan, "
-            "meeting minutes, schedule, budget table, checklist, or non-visual slide deck. Do not use it when the user only wants chat text. "
-            "For visual/image-first PPT, prefer create_visual_ppt. Provide stable content, artifact_type, title, and any format instructions. "
+            "Use this workflow tool only when the user asks for a real Word or Excel file: proposal, report, plan, meeting minutes, "
+            "schedule, budget table, checklist, workbook, or spreadsheet. Do not use it for PPT; all PPT requests must use create_visual_ppt. "
+            "Do not use it when the user only wants chat text. Provide stable content, artifact_type, title, and any format instructions. "
             "If the backend Office/Dify artifact app is not configured, return not_configured and do not claim a file was created."
         ),
         "inputSchema": _schema(
             {
                 **CONTEXT_PROPERTIES,
-                "artifact_type": {"type": "string", "enum": ["word", "excel", "ppt", "document", "spreadsheet", "presentation"], "default": "word"},
+                "artifact_type": {"type": "string", "enum": ["word", "excel", "document", "spreadsheet"], "default": "word"},
                 "title": {"type": "string", "description": "File title."},
                 "content": {"type": "string", "description": "Markdown body, table content, or slide outline."},
                 "instructions": {"type": "string", "description": "Optional formatting, audience, tone, delivery, or file requirements."},
@@ -435,32 +430,14 @@ async def call_mcp_tool(
             await _maybe_await(register_poster_delivery(context, result))
         return result
     if tool_name == "create_visual_ppt":
-        content_parts = []
-        if args.get("outline"):
-            content_parts.append(str(args["outline"]))
-        if args.get("slides_json"):
-            content_parts.append("\nSlides JSON:\n" + str(args["slides_json"]))
-        instructions = "生成图片型/视觉化 PPT。优先复用 MMB视觉PPT助手或 visual_ppt_tools；不要只返回文字说明。"
-        if args.get("slide_count"):
-            instructions += f" 目标页数：{args['slide_count']}。"
-        if args.get("style_preset"):
-            instructions += f" 视觉风格：{args['style_preset']}。"
-        return await clients.create_business_artifact(
-            CreateBusinessArtifactRequest(
-                context=context,
-                artifact_type="ppt",
-                title=args["title"],
-                content="\n\n".join(content_parts) or args["title"],
-                instructions=instructions,
-                metadata={
-                    "capability": "create_visual_ppt",
-                    "filename": args.get("filename"),
-                    "slide_count": args.get("slide_count"),
-                    "style_preset": args.get("style_preset"),
-                    "slides_json": args.get("slides_json"),
-                },
-                request_id=args.get("request_id"),
-            )
+        return await clients.create_visual_ppt(
+            context=context,
+            title=args["title"],
+            outline=args.get("outline") or args["title"],
+            slides_json=args.get("slides_json"),
+            filename=args.get("filename"),
+            slide_count=args.get("slide_count"),
+            style_preset=args.get("style_preset"),
         )
     if tool_name == "create_office_file":
         metadata = {"capability": "create_office_file"}
