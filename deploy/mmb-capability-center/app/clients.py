@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -142,6 +143,64 @@ class ServiceClients:
             "raw": data,
         }
 
+    async def _chat_app_streaming(
+        self,
+        *,
+        api_key: str,
+        query: str,
+        user: str,
+        session_key: str,
+        inputs: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload = {
+            "inputs": {**(inputs or {}), "session_key": session_key},
+            "query": query,
+            "user": user,
+            "response_mode": "streaming",
+        }
+        url = f"{_base_url(self.settings.dify_base_url)}/chat-messages"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        answer_parts: list[str] = []
+        files: list[dict[str, Any]] = []
+        raw_events: list[dict[str, Any]] = []
+
+        timeout = httpx.Timeout(self.settings.http_timeout_seconds)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                if response.status_code >= 400:
+                    body = (await response.aread()).decode("utf-8", errors="replace")
+                    raise CapabilityClientError(f"POST {url} failed: {response.status_code} {body}")
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    event_payload = line.removeprefix("data:").strip()
+                    if event_payload == "[DONE]":
+                        continue
+                    try:
+                        event = json.loads(event_payload)
+                    except ValueError:
+                        continue
+                    if not isinstance(event, dict):
+                        continue
+                    raw_events.append(event)
+                    answer = event.get("answer")
+                    if isinstance(answer, str) and answer:
+                        answer_parts.append(answer)
+                    if event.get("event") == "message_file":
+                        files.append(event)
+                    event_files = event.get("files")
+                    if isinstance(event_files, list):
+                        files.extend(item for item in event_files if isinstance(item, dict))
+
+        answer = "".join(answer_parts).strip()
+        return {
+            "status": "requested",
+            "answer": answer or "Dify streaming request completed without text answer. Check files/raw_events for generated assets.",
+            "files": files,
+            "raw_events": raw_events[-30:],
+        }
+
     async def answer_mmb_question(self, *, context: ToolContext, question: str, extra_context: str | None = None) -> dict[str, Any]:
         api_key = self.settings.dify_default_app_api_key
         if not api_key:
@@ -247,7 +306,7 @@ class ServiceClients:
             query_parts.append(f"目标页数：{slide_count}")
         if style_preset:
             query_parts.append(f"视觉风格：{style_preset}")
-        return await self._chat_app(
+        return await self._chat_app_streaming(
             api_key=api_key,
             query="\n".join(query_parts),
             user=context.user_key,

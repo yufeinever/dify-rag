@@ -215,11 +215,12 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "create_office_file",
-        "title": "Create MMB Office file",
+        "title": "Create MMB Word or Excel file",
         "description": (
-            "Use this workflow tool only when the user asks for a real Word or Excel file: proposal, report, plan, meeting minutes, "
-            "schedule, budget table, checklist, workbook, or spreadsheet. Do not use it for PPT; all PPT requests must use create_visual_ppt. "
-            "Do not use it when the user only wants chat text. Provide stable content, artifact_type, title, and any format instructions. "
+            "Use this workflow tool only when the user asks for a real Word document or Excel spreadsheet: proposal, report, plan, "
+            "meeting minutes, schedule, budget table, checklist, workbook, or spreadsheet. Do not use it for PPT, slides, decks, "
+            "roadshows, or presentations; every PPT request must use create_visual_ppt. Do not use it when the user only wants chat text. "
+            "Provide stable content, artifact_type, title, and any format instructions. "
             "If the backend Office/Dify artifact app is not configured, return not_configured and do not claim a file was created."
         ),
         "inputSchema": _schema(
@@ -227,8 +228,8 @@ TOOLS: list[dict[str, Any]] = [
                 **CONTEXT_PROPERTIES,
                 "artifact_type": {"type": "string", "enum": ["word", "excel", "document", "spreadsheet"], "default": "word"},
                 "title": {"type": "string", "description": "File title."},
-                "content": {"type": "string", "description": "Markdown body, table content, or slide outline."},
-                "instructions": {"type": "string", "description": "Optional formatting, audience, tone, delivery, or file requirements."},
+                "content": {"type": "string", "description": "Markdown body, document content, table content, or spreadsheet data. Never pass PPT slide outlines here."},
+                "instructions": {"type": "string", "description": "Optional Word/Excel formatting, audience, tone, delivery, or file requirements."},
                 "filename": {"type": "string", "description": "Optional requested filename."},
                 "request_id": {"type": "string"},
             },
