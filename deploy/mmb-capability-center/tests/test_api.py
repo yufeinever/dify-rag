@@ -5,6 +5,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.clients import _attach_tool_file_downloads
 
 
 def p2p_context() -> dict[str, object]:
@@ -176,6 +177,24 @@ class CapabilityApiTest(unittest.TestCase):
         self.assertTrue(data["ok"])
         self.assertEqual(data["requested_tool"], "search_knowledge")
         self.assertEqual(data["tool"], "search_mmb_context")
+
+    def test_tool_file_download_links_use_attachment_filename(self) -> None:
+        url = (
+            "https://ai.meinmalzebier.shop/files/tools/abc.pptx"
+            "?timestamp=1&nonce=n&sign=s%3D"
+        )
+        text = f"[点击下载 PPT]({url})"
+        result = _attach_tool_file_downloads(
+            {
+                "answer": text,
+                "files": [{"url": url}],
+            }
+        )
+
+        self.assertIn("as_attachment=true", result["answer"])
+        self.assertIn("sign=s%3D", result["answer"])
+        self.assertTrue(result["files"][0]["url"].endswith("sign=s%3D&as_attachment=true"))
+        self.assertEqual(_attach_tool_file_downloads("https://example.com/a.pptx"), "https://example.com/a.pptx")
 
     def test_mcp_save_team_asset(self) -> None:
         response = self.client.post(

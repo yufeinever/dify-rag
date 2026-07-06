@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -22,6 +24,9 @@ from .models import (
 
 class CapabilityClientError(RuntimeError):
     pass
+
+
+_TOOL_FILE_URL_RE = re.compile(r"(?P<url>(?:https?://[^\s)\]<>\"']+|/files/tools/[^\s)\]<>\"']+))")
 
 
 def _base_url(value: object) -> str:
@@ -56,6 +61,27 @@ def answer_from_dify(payload: dict[str, Any]) -> str:
     if isinstance(text, str) and text.strip():
         return text
     return str(payload)
+
+
+def _tool_file_attachment_url(url: str) -> str:
+    if "/files/tools/" not in url:
+        return url
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    if query.get("as_attachment") == "true":
+        return url
+    query["as_attachment"] = "true"
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _attach_tool_file_downloads(value: Any) -> Any:
+    if isinstance(value, str):
+        return _TOOL_FILE_URL_RE.sub(lambda match: _tool_file_attachment_url(match.group("url")), value)
+    if isinstance(value, list):
+        return [_attach_tool_file_downloads(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _attach_tool_file_downloads(item) for key, item in value.items()}
+    return value
 
 
 class ServiceClients:
@@ -150,7 +176,7 @@ class ServiceClients:
             )
         return {
             "status": "requested",
-            "answer": answer_from_dify(data),
+            "answer": _attach_tool_file_downloads(answer_from_dify(data)),
             "raw": data,
         }
 
@@ -204,11 +230,11 @@ class ServiceClients:
                     if isinstance(event_files, list):
                         files.extend(item for item in event_files if isinstance(item, dict))
 
-        answer = "".join(answer_parts).strip()
+        answer = _attach_tool_file_downloads("".join(answer_parts).strip())
         return {
             "status": "requested",
             "answer": answer or "Dify streaming request completed without text answer. Check files/raw_events for generated assets.",
-            "files": files,
+            "files": _attach_tool_file_downloads(files),
             "raw_events": raw_events[-30:],
         }
 
