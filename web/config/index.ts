@@ -15,11 +15,21 @@ const getStringConfig = (
   return defaultValue
 }
 
-export const API_PREFIX = getStringConfig(
+const getServerAwareApiPrefix = (
+  envVar: string | undefined,
+  defaultValue: string,
+) => {
+  if (typeof window === 'undefined' && envVar?.startsWith('/'))
+    return `http://api:5001${envVar}`
+
+  return getStringConfig(envVar, defaultValue)
+}
+
+export const API_PREFIX = getServerAwareApiPrefix(
   env.NEXT_PUBLIC_API_PREFIX,
   'http://localhost:5001/console/api',
 )
-export const PUBLIC_API_PREFIX = getStringConfig(
+export const PUBLIC_API_PREFIX = getServerAwareApiPrefix(
   env.NEXT_PUBLIC_PUBLIC_API_PREFIX,
   'http://localhost:5001/api',
 )
