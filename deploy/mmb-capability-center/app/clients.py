@@ -131,12 +131,23 @@ class ServiceClients:
             "user": user,
             "response_mode": "blocking",
         }
-        data = await self._request_json(
-            "POST",
-            f"{_base_url(self.settings.dify_base_url)}/chat-messages",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload,
-        )
+        try:
+            data = await self._request_json(
+                "POST",
+                f"{_base_url(self.settings.dify_base_url)}/chat-messages",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+        except CapabilityClientError as exc:
+            if "Agent Chat App does not support blocking mode" not in str(exc):
+                raise
+            return await self._chat_app_streaming(
+                api_key=api_key,
+                query=query,
+                user=user,
+                session_key=session_key,
+                inputs=inputs,
+            )
         return {
             "status": "requested",
             "answer": answer_from_dify(data),

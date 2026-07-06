@@ -59,6 +59,11 @@ OFFICE_TYPE_ALIASES: dict[str, str] = {
     "spreadsheet": "excel",
     "xlsx": "excel",
     "excel": "excel",
+    "ppt": "ppt",
+    "pptx": "ppt",
+    "powerpoint": "ppt",
+    "slides": "presentation",
+    "presentation": "presentation",
 }
 
 
