@@ -1,0 +1,14 @@
+release=v1.0.0
+project=dify-mmb
+baseline_type=retroactive-production-baseline
+compose_project=mmb-dify-v010
+source_path=/opt/mmb-dify/current
+baseline_commit=597823fb
+previous_recorded_release=v0.1.0
+previous_recorded_commit=c7c2ec2312e3c15f69ca1c15885c250b969566ac
+web_image=mmbai/dify-web:channel-main-agent-613f97d0f1
+web_image_id=sha256:7b7beb1a19b3dfe9c4052b40614bd60b2eb2b7250fa19b37158a6f698ee75bd0
+api_image=mmbai/dify-api:channel-main-agent-3768115ce2
+api_image_id=sha256:fa9d0ab0b0b032c895eaa6ed80aebb5ea8c0bbda7fc55b3f57f44cff1a4868a5
+deployed_at=2026-07-06T00:00:00+08:00
+notes=Retroactively registered from the real 150 production deployment before the v1.0.1 enterprise permission console release.
