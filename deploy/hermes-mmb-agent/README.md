@@ -27,6 +27,12 @@ Validation URLs:
 - Hermes API Server: `http://<host>:8642/v1`
 - Hermes Dashboard: `http://<host>:9119`
 
+## Code Sandbox
+
+Hermes native terminal and code execution tools use the Docker backend in this stack. Code runs in short-lived sandbox containers under `/workspace` with CPU, memory, process, and timeout limits. The sandbox does not mount Dify storage, poster-service data, server `.env` files, databases, or the deployment root.
+
+Enterprise MMB data must be accessed through the configured MCP server and Capability Center, not by reading host files from code tools. If rollback is needed, set `terminal.backend` back to `local`, remove the Docker socket mount from the Hermes service, and restart only Hermes.
+
 ## Validation Rule
 
 Do not route the first-stage test through Dify Studio. Use Open WebUI or Hermes native UI/API so the test measures Hermes itself, not a Dify-Agent-to-Hermes wrapper.

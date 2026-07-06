@@ -3,6 +3,23 @@
 
 default_profile: "MMB企业主助手"
 
+terminal:
+  backend: "docker"
+  cwd: "/workspace"
+  timeout: 180
+  home_mode: "auto"
+  docker_mount_cwd_to_workspace: false
+  lifetime_seconds: 600
+  docker_image: "nikolaik/python-nodejs:python3.11-nodejs20"
+  docker_forward_env: []
+  docker_extra_args:
+    - "--memory"
+    - "1g"
+    - "--cpus"
+    - "1"
+    - "--pids-limit"
+    - "256"
+
 providers:
   openai_compatible:
     type: openai_compatible
