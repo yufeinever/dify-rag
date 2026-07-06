@@ -11,6 +11,7 @@ from .models import (
     CreateBusinessArtifactRequest,
     GenerateCopywritingRequest,
     PosterBrief,
+    ToolContext,
     ReadKnowledgeRequest,
     ReadMaterialRequest,
     SearchEnterpriseKnowledgeRequest,
@@ -122,10 +123,52 @@ class ServiceClients:
             params={"relative_path": request.relative_path, "max_chars": request.max_chars},
         )
 
+    async def _chat_app(self, *, api_key: str, query: str, user: str, session_key: str, inputs: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload = {
+            "inputs": {**(inputs or {}), "session_key": session_key},
+            "query": query,
+            "user": user,
+            "response_mode": "blocking",
+        }
+        data = await self._request_json(
+            "POST",
+            f"{_base_url(self.settings.dify_base_url)}/chat-messages",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        return {
+            "status": "requested",
+            "answer": answer_from_dify(data),
+            "raw": data,
+        }
+
+    async def answer_mmb_question(self, *, context: ToolContext, question: str, extra_context: str | None = None) -> dict[str, Any]:
+        api_key = self.settings.dify_default_app_api_key
+        if not api_key:
+            return {
+                "status": "not_configured",
+                "message": "DIFY_DEFAULT_APP_API_KEY is not configured; answer directly with GPT-5.5 using retrieved MMB context.",
+                "question": question,
+            }
+        query_parts = ["请作为 MMB 企业业务助手回答用户问题。", f"用户问题：{question}"]
+        if extra_context:
+            query_parts.append(f"补充上下文：{extra_context}")
+        return await self._chat_app(
+            api_key=api_key,
+            query="\n".join(query_parts),
+            user=context.user_key,
+            session_key=context.session_key,
+            inputs={"extra_context": extra_context or ""},
+        )
+
     async def generate_copywriting(self, request: GenerateCopywritingRequest) -> dict[str, Any]:
         api_key = self.settings.dify_copywriting_app_api_key or self.settings.dify_default_app_api_key
         if not api_key:
-            raise CapabilityClientError("DIFY_COPYWRITING_APP_API_KEY or DIFY_DEFAULT_APP_API_KEY is required")
+            return {
+                "status": "not_configured",
+                "message": "DIFY_COPYWRITING_APP_API_KEY or DIFY_DEFAULT_APP_API_KEY is not configured; draft copy directly with GPT-5.5 and retrieved MMB context.",
+                "user_query": request.user_query,
+            }
 
         query_parts = ["请生成可直接使用的 MMB 文案。", f"用户需求：{request.user_query}"]
         if request.platform:
@@ -137,28 +180,18 @@ class ServiceClients:
         if request.extra_context:
             query_parts.append(f"补充资料：{request.extra_context}")
 
-        payload = {
-            "inputs": {
+        return await self._chat_app(
+            api_key=api_key,
+            query="\n".join(query_parts),
+            user=request.context.user_key,
+            session_key=request.context.session_key,
+            inputs={
                 "platform": request.platform or "",
                 "audience": request.audience or "",
                 "style": request.style or "",
                 "extra_context": request.extra_context or "",
-                "session_key": request.context.session_key,
             },
-            "query": "\n".join(query_parts),
-            "user": request.context.user_key,
-            "response_mode": "blocking",
-        }
-        data = await self._request_json(
-            "POST",
-            f"{_base_url(self.settings.dify_base_url)}/chat-messages",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload,
         )
-        return {
-            "answer": answer_from_dify(data),
-            "raw": data,
-        }
 
     async def create_poster_job(self, request: CreatePosterJobRequest) -> dict[str, Any]:
         brief = request.brief or PosterBrief(
@@ -186,8 +219,8 @@ class ServiceClients:
         api_key = self.settings.dify_business_artifact_app_api_key or self.settings.dify_default_app_api_key
         if not api_key:
             return {
-                "status": "stored",
-                "message": "DIFY_BUSINESS_ARTIFACT_APP_API_KEY is not configured; stored the artifact brief only.",
+                "status": "not_configured",
+                "message": "DIFY_BUSINESS_ARTIFACT_APP_API_KEY or DIFY_DEFAULT_APP_API_KEY is not configured; no real Office file was created.",
                 "artifact_type": request.artifact_type,
                 "title": request.title,
                 "content": request.content,
@@ -204,28 +237,17 @@ class ServiceClients:
                 "如果需要生成 Word/Excel/PPT，请直接调用可用的 Office artifact 工具生成附件，不要只返回文字说明。",
             ]
         )
-        payload = {
-            "inputs": {
+        return await self._chat_app(
+            api_key=api_key,
+            query=query,
+            user=request.context.user_key,
+            session_key=request.context.session_key,
+            inputs={
                 "artifact_type": request.artifact_type,
                 "title": request.title,
                 "instructions": request.instructions or "",
-                "session_key": request.context.session_key,
             },
-            "query": query,
-            "user": request.context.user_key,
-            "response_mode": "blocking",
-        }
-        data = await self._request_json(
-            "POST",
-            f"{_base_url(self.settings.dify_base_url)}/chat-messages",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json=payload,
         )
-        return {
-            "status": "requested",
-            "answer": answer_from_dify(data),
-            "raw": data,
-        }
 
     async def get_poster_job(self, job_id: str) -> dict[str, Any]:
         return await self._request_json(

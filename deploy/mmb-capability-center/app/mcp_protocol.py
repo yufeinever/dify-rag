@@ -14,6 +14,8 @@ from .models import (
     CreateBusinessArtifactRequest,
     CreatePosterJobRequest,
     CreateTeamArtifactRequest,
+    GenerateCopywritingRequest,
+    PosterBrief,
     ReadKnowledgeRequest,
     ReadMaterialRequest,
     ResourceScope,
@@ -24,15 +26,6 @@ from .models import (
 
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-
-
-def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required or [],
-        "additionalProperties": False,
-    }
 
 
 CONTEXT_PROPERTIES: dict[str, Any] = {
@@ -50,114 +43,233 @@ CONTEXT_PROPERTIES: dict[str, Any] = {
 }
 
 
+LEGACY_TOOL_ALIASES: dict[str, str] = {
+    "search_knowledge": "search_mmb_context",
+    "search_materials": "search_mmb_materials",
+    "create_artifact": "create_office_file",
+    "create_poster_job": "create_poster",
+    "generate_copywriting": "create_campaign_copy",
+}
+
+
+OFFICE_TYPE_ALIASES: dict[str, str] = {
+    "document": "word",
+    "docx": "word",
+    "word": "word",
+    "spreadsheet": "excel",
+    "xlsx": "excel",
+    "excel": "excel",
+    "presentation": "ppt",
+    "powerpoint": "ppt",
+    "pptx": "ppt",
+    "ppt": "ppt",
+    "visual_ppt": "ppt",
+}
+
+
+def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required or [],
+        "additionalProperties": False,
+    }
+
+
+def _object_schema(properties: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {"type": "object", "properties": properties or {}, "additionalProperties": True}
+
+
 TOOLS: list[dict[str, Any]] = [
     {
-        "name": "search_knowledge",
-        "title": "Search MMB knowledge",
-        "description": "Search approved MMB enterprise, department, or project knowledge before answering factual internal questions.",
+        "name": "search_mmb_context",
+        "title": "Search MMB enterprise context",
+        "description": (
+            "Use this tool before answering factual questions about MMB internal knowledge, brand facts, product plans, "
+            "financing material, policies, cases, training content, or indexed company documents. Do not use it for public "
+            "real-time facts unless the user is combining public facts with MMB private context. Return source-aware evidence; "
+            "if the result is thin, answer with uncertainty or ask a short clarification instead of inventing facts."
+        ),
         "inputSchema": _schema(
             {
                 **CONTEXT_PROPERTIES,
-                "query": {"type": "string", "description": "Search query."},
-                "dataset_id": {"type": "string"},
-                "document_id": {"type": "string"},
+                "query": {"type": "string", "description": "Natural-language MMB internal question or evidence query."},
+                "dataset_id": {"type": "string", "description": "Optional Dify dataset UUID when a specific knowledge base is required."},
+                "document_id": {"type": "string", "description": "Optional document UUID to restrict evidence search."},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 30, "default": 8},
             },
             ["query"],
         ),
-        "annotations": {"readOnlyHint": True},
+        "outputSchema": _object_schema({"hits": {"type": "array", "items": {"type": "object", "additionalProperties": True}}}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False},
     },
     {
-        "name": "read_knowledge",
-        "title": "Read MMB knowledge document",
-        "description": "Read nearby chunks from a known MMB knowledge document after search_knowledge returns a document id.",
-        "inputSchema": _schema(
-            {
-                **CONTEXT_PROPERTIES,
-                "document_id": {"type": "string"},
-                "center_position": {"type": "integer"},
-                "before": {"type": "integer", "minimum": 0, "maximum": 10, "default": 2},
-                "after": {"type": "integer", "minimum": 0, "maximum": 10, "default": 2},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
-            },
-            ["document_id"],
+        "name": "search_mmb_materials",
+        "title": "Search MMB materials and visual assets",
+        "description": (
+            "Use this tool when the user asks to find source files, images, logos, brand assets, PPT/PDF/Word files, "
+            "historical campaign references, store photos, founder/team photos, or visual assets. Do not use it for normal "
+            "business Q&A unless the user needs actual files or asset candidates. Prefer concrete keywords and extension filters."
         ),
-        "annotations": {"readOnlyHint": True},
-    },
-    {
-        "name": "search_materials",
-        "title": "Search MMB materials",
-        "description": "Find MMB source materials, images, files, visual assets, and asset records.",
         "inputSchema": _schema(
             {
                 **CONTEXT_PROPERTIES,
-                "query": {"type": "string"},
-                "extension": {"type": "string", "description": "Optional file extension filter, for example pdf, docx, png."},
+                "query": {"type": "string", "description": "Optional filename, person, topic, visual asset, or material keyword."},
+                "extension": {"type": "string", "description": "Optional extension filter such as png, jpg, pdf, pptx, docx."},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
             }
         ),
-        "annotations": {"readOnlyHint": True},
+        "outputSchema": _object_schema({"files": {"type": "array", "items": {"type": "object", "additionalProperties": True}}}),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False},
     },
     {
-        "name": "read_material",
-        "title": "Read MMB material file",
-        "description": "Read text from a known material file path returned by search_materials.",
-        "inputSchema": _schema(
-            {
-                **CONTEXT_PROPERTIES,
-                "relative_path": {"type": "string"},
-                "max_chars": {"type": "integer", "minimum": 1, "maximum": 50000, "default": 12000},
-            },
-            ["relative_path"],
+        "name": "answer_mmb_question",
+        "title": "Answer MMB business question",
+        "description": (
+            "Use this high-level workflow only for complex MMB business explanations, strategy advice, structured analysis, "
+            "or decisions that need an MMB app/workflow rather than simple retrieval. For one-off factual questions, call "
+            "search_mmb_context first. If no Dify business app key is configured, this tool returns not_configured; then answer "
+            "directly with GPT-5.5 using retrieved evidence instead of pretending the workflow ran."
         ),
-        "annotations": {"readOnlyHint": True},
-    },
-    {
-        "name": "create_artifact",
-        "title": "Create MMB business artifact",
-        "description": "Create or request a real MMB Word, Excel, PPT, or structured business artifact from prepared content.",
         "inputSchema": _schema(
             {
                 **CONTEXT_PROPERTIES,
-                "artifact_type": {
-                    "type": "string",
-                    "enum": ["word", "excel", "ppt", "document", "spreadsheet", "presentation", "team_note", "other"],
-                    "default": "other",
-                },
-                "title": {"type": "string"},
-                "content": {"type": "string"},
-                "instructions": {"type": "string"},
-                "metadata": {"type": "object", "additionalProperties": True},
+                "question": {"type": "string", "description": "The user's complete MMB business question."},
+                "extra_context": {"type": "string", "description": "Optional retrieved evidence or conversation context."},
+            },
+            ["question"],
+        ),
+        "outputSchema": _object_schema({"status": {"type": "string"}, "answer": {"type": "string"}}),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False},
+    },
+    {
+        "name": "create_campaign_copy",
+        "title": "Create MMB campaign copy",
+        "description": (
+            "Use this tool when the user explicitly asks for reusable MMB marketing copy such as WeChat Moments, Xiaohongshu, "
+            "community posts, sales scripts, customer messages, or campaign announcements. Do not use it for posters, Office files, "
+            "or pure factual Q&A. If a dedicated copywriting Dify app is not configured, return not_configured so the agent can draft "
+            "directly with GPT-5.5 and retrieved MMB context."
+        ),
+        "inputSchema": _schema(
+            {
+                **CONTEXT_PROPERTIES,
+                "user_query": {"type": "string", "description": "The user's copywriting request."},
+                "platform": {"type": "string", "description": "Optional platform such as WeChat Moments, Xiaohongshu, group, sales."},
+                "audience": {"type": "string", "description": "Optional target audience."},
+                "style": {"type": "string", "description": "Optional tone or style."},
+                "extra_context": {"type": "string", "description": "Optional retrieved MMB evidence or material notes."},
+            },
+            ["user_query"],
+        ),
+        "outputSchema": _object_schema({"status": {"type": "string"}, "answer": {"type": "string"}}),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False},
+    },
+    {
+        "name": "create_poster",
+        "title": "Create MMB poster",
+        "description": (
+            "Use this workflow tool when the user asks to create, generate, design, or produce a real MMB poster, campaign image, "
+            "share image, event visual, or promotional graphic. Do not use it for text-only copywriting, strategy plans, or ordinary "
+            "image search. Before calling, extract theme, audience, title, subtitle, selling points, size, and useful material references; "
+            "ask one short clarification only if the core theme is missing. This creates an asynchronous poster job and registers Feishu "
+            "background delivery when chat context is available. Return the job_id as a tracking id and never claim the final image is ready "
+            "until status is succeeded with poster_url."
+        ),
+        "inputSchema": _schema(
+            {
+                **CONTEXT_PROPERTIES,
+                "user_query": {"type": "string", "description": "Original user poster request."},
+                "theme": {"type": "string", "description": "Poster theme or campaign topic."},
+                "audience": {"type": "string", "description": "Target audience."},
+                "main_title": {"type": "string", "description": "Main visible title if the user supplied one."},
+                "subtitle": {"type": "string", "description": "Optional subtitle."},
+                "selling_points": {"type": "array", "items": {"type": "string"}, "description": "Short selling points or visual messages."},
+                "size": {"type": "string", "default": "1080x1440", "description": "Poster size, default vertical social poster."},
+                "request_id": {"type": "string", "description": "Optional idempotency/request id."},
+            },
+            ["user_query"],
+        ),
+        "outputSchema": _object_schema({"job_id": {"type": "string"}, "status": {"type": "string"}}),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False},
+    },
+    {
+        "name": "create_visual_ppt",
+        "title": "Create MMB visual PowerPoint deck",
+        "description": (
+            "Use this workflow tool when the user asks for a beautiful, visual, image-first PPT, pitch deck, financing roadshow, "
+            "presentation, report deck, or slide deck where the expected output is a real .pptx attachment. Do not answer with text only. "
+            "Prepare a clear outline or slides_json first. This routes to MMB visual PPT capability when configured; otherwise it returns "
+            "not_configured instead of using terminal fallback."
+        ),
+        "inputSchema": _schema(
+            {
+                **CONTEXT_PROPERTIES,
+                "title": {"type": "string", "description": "Deck title."},
+                "outline": {"type": "string", "description": "Markdown outline with slide titles and short visual bullets."},
+                "slides_json": {"type": "string", "description": "Optional JSON array of slide objects for precise slide control."},
+                "filename": {"type": "string", "description": "Optional output filename ending with .pptx."},
+                "slide_count": {"type": "integer", "minimum": 1, "maximum": 12, "default": 6},
+                "style_preset": {"type": "string", "description": "Optional visual style preset such as mmb_modern_pitch or finance_pitch."},
+                "request_id": {"type": "string"},
+            },
+            ["title"],
+        ),
+        "outputSchema": _object_schema({"status": {"type": "string"}, "file_url": {"type": "string"}}),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False},
+    },
+    {
+        "name": "create_office_file",
+        "title": "Create MMB Office file",
+        "description": (
+            "Use this workflow tool when the user asks for a real Word, Excel, or ordinary PowerPoint file: proposal, report, plan, "
+            "meeting minutes, schedule, budget table, checklist, or non-visual slide deck. Do not use it when the user only wants chat text. "
+            "For visual/image-first PPT, prefer create_visual_ppt. Provide stable content, artifact_type, title, and any format instructions. "
+            "If the backend Office/Dify artifact app is not configured, return not_configured and do not claim a file was created."
+        ),
+        "inputSchema": _schema(
+            {
+                **CONTEXT_PROPERTIES,
+                "artifact_type": {"type": "string", "enum": ["word", "excel", "ppt", "document", "spreadsheet", "presentation"], "default": "word"},
+                "title": {"type": "string", "description": "File title."},
+                "content": {"type": "string", "description": "Markdown body, table content, or slide outline."},
+                "instructions": {"type": "string", "description": "Optional formatting, audience, tone, delivery, or file requirements."},
+                "filename": {"type": "string", "description": "Optional requested filename."},
                 "request_id": {"type": "string"},
             },
             ["title", "content"],
         ),
+        "outputSchema": _object_schema({"status": {"type": "string"}, "file_url": {"type": "string"}}),
         "annotations": {"readOnlyHint": False, "destructiveHint": False},
     },
     {
-        "name": "create_poster_job",
-        "title": "Create MMB poster job",
-        "description": "Create an asynchronous MMB poster generation job after the poster brief is clear. Return a job_id for tracking and downstream polling/delivery; this tool does not upload images to Feishu or any other channel directly.",
+        "name": "send_feishu_asset",
+        "title": "Send existing asset to Feishu",
+        "description": (
+            "Use this delivery-layer tool only after a real image/file/job already exists and the user asks to send it to Feishu or the "
+            "current Feishu chat should receive the finished asset. It does not generate business content. First version supports registering "
+            "poster jobs for Feishu background delivery; arbitrary file upload returns not_configured until a file delivery backend is enabled."
+        ),
         "inputSchema": _schema(
             {
                 **CONTEXT_PROPERTIES,
-                "user_query": {"type": "string"},
-                "theme": {"type": "string"},
-                "audience": {"type": "string"},
-                "main_title": {"type": "string"},
-                "subtitle": {"type": "string"},
-                "selling_points": {"type": "array", "items": {"type": "string"}},
-                "size": {"type": "string", "default": "1080x1440"},
-                "request_id": {"type": "string"},
-            },
-            ["user_query"],
+                "asset_type": {"type": "string", "enum": ["poster_job", "image", "file"], "default": "poster_job"},
+                "job_id": {"type": "string", "description": "Existing poster job id to register for Feishu delivery."},
+                "asset_url": {"type": "string", "description": "Existing image/file URL when supported by delivery backend."},
+                "title": {"type": "string", "description": "Optional asset title."},
+                "session_id": {"type": "string", "description": "Optional Hermes session id for target resolution."},
+            }
         ),
+        "outputSchema": _object_schema({"status": {"type": "string"}, "message": {"type": "string"}}),
         "annotations": {"readOnlyHint": False, "destructiveHint": False},
     },
     {
         "name": "save_team_asset",
         "title": "Save MMB team asset",
-        "description": "Save a confirmed output as a team, project, or personal asset. Use only after the user confirms saving.",
+        "description": (
+            "Save a confirmed output as a team, project, or personal asset. Use only after the user explicitly asks to save, archive, "
+            "沉淀, 归档, or continue the result later. Do not use it for private drafts or intermediate reasoning without confirmation."
+        ),
         "inputSchema": _schema(
             {
                 **CONTEXT_PROPERTIES,
@@ -170,6 +282,7 @@ TOOLS: list[dict[str, Any]] = [
             },
             ["title", "content"],
         ),
+        "outputSchema": _object_schema({"artifact_id": {"type": "string"}}),
         "annotations": {"readOnlyHint": False, "destructiveHint": False},
     },
 ]
@@ -233,6 +346,23 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+def _office_type(value: str | None) -> str:
+    return OFFICE_TYPE_ALIASES.get((value or "word").lower(), "other")
+
+
+def _poster_brief(args: dict[str, Any]) -> PosterBrief | None:
+    if not (args.get("theme") or args.get("main_title") or args.get("audience") or args.get("subtitle") or args.get("selling_points")):
+        return None
+    return PosterBrief(
+        theme=args.get("theme") or args["user_query"],
+        audience=args.get("audience"),
+        main_title=args.get("main_title"),
+        subtitle=args.get("subtitle"),
+        selling_points=args.get("selling_points") or [],
+        brand_constraints="参考 MMB 品牌资料和现有素材；不要生成不可证实的价格、承诺或水印。",
+    )
+
+
 async def call_mcp_tool(
     name: str,
     arguments: dict[str, Any] | None,
@@ -243,7 +373,9 @@ async def call_mcp_tool(
 ) -> dict[str, Any]:
     args = _clean_args(arguments)
     context = _context(args)
-    if name == "search_knowledge":
+    tool_name = LEGACY_TOOL_ALIASES.get(name, name)
+
+    if tool_name == "search_mmb_context":
         return await clients.search_enterprise_knowledge(
             SearchEnterpriseKnowledgeRequest(
                 context=context,
@@ -264,7 +396,7 @@ async def call_mcp_tool(
                 limit=args.get("limit", 20),
             )
         )
-    if name == "search_materials":
+    if tool_name == "search_mmb_materials":
         return await clients.search_materials(
             SearchMaterialsRequest(context=context, query=args.get("query"), extension=args.get("extension"), limit=args.get("limit", 20))
         )
@@ -272,36 +404,29 @@ async def call_mcp_tool(
         return await clients.read_material(
             ReadMaterialRequest(context=context, relative_path=args["relative_path"], max_chars=args.get("max_chars", 12000))
         )
-    if name == "create_artifact":
-        return await clients.create_business_artifact(
-            CreateBusinessArtifactRequest(
+    if tool_name == "answer_mmb_question":
+        return await clients.answer_mmb_question(
+            context=context,
+            question=args["question"],
+            extra_context=args.get("extra_context"),
+        )
+    if tool_name == "create_campaign_copy":
+        return await clients.generate_copywriting(
+            GenerateCopywritingRequest(
                 context=context,
-                artifact_type=args.get("artifact_type", "other"),
-                title=args["title"],
-                content=args["content"],
-                instructions=args.get("instructions"),
-                metadata=args.get("metadata") or {},
-                request_id=args.get("request_id"),
+                user_query=args["user_query"],
+                platform=args.get("platform"),
+                audience=args.get("audience"),
+                style=args.get("style"),
+                extra_context=args.get("extra_context"),
             )
         )
-    if name == "create_poster_job":
-        brief = None
-        if args.get("theme") or args.get("main_title") or args.get("audience"):
-            from .models import PosterBrief
-
-            brief = PosterBrief(
-                theme=args.get("theme") or args["user_query"],
-                audience=args.get("audience"),
-                main_title=args.get("main_title"),
-                subtitle=args.get("subtitle"),
-                selling_points=args.get("selling_points") or [],
-                brand_constraints="参考 MMB 品牌资料和现有素材；不要生成不可证实的价格、承诺或水印。",
-            )
+    if tool_name == "create_poster":
         result = await clients.create_poster_job(
             CreatePosterJobRequest(
                 context=context,
                 user_query=args["user_query"],
-                brief=brief,
+                brief=_poster_brief(args),
                 size=args.get("size", "1080x1440"),
                 request_id=args.get("request_id"),
             )
@@ -309,7 +434,71 @@ async def call_mcp_tool(
         if register_poster_delivery is not None:
             await _maybe_await(register_poster_delivery(context, result))
         return result
-    if name == "save_team_asset":
+    if tool_name == "create_visual_ppt":
+        content_parts = []
+        if args.get("outline"):
+            content_parts.append(str(args["outline"]))
+        if args.get("slides_json"):
+            content_parts.append("\nSlides JSON:\n" + str(args["slides_json"]))
+        instructions = "生成图片型/视觉化 PPT。优先复用 MMB视觉PPT助手或 visual_ppt_tools；不要只返回文字说明。"
+        if args.get("slide_count"):
+            instructions += f" 目标页数：{args['slide_count']}。"
+        if args.get("style_preset"):
+            instructions += f" 视觉风格：{args['style_preset']}。"
+        return await clients.create_business_artifact(
+            CreateBusinessArtifactRequest(
+                context=context,
+                artifact_type="ppt",
+                title=args["title"],
+                content="\n\n".join(content_parts) or args["title"],
+                instructions=instructions,
+                metadata={
+                    "capability": "create_visual_ppt",
+                    "filename": args.get("filename"),
+                    "slide_count": args.get("slide_count"),
+                    "style_preset": args.get("style_preset"),
+                    "slides_json": args.get("slides_json"),
+                },
+                request_id=args.get("request_id"),
+            )
+        )
+    if tool_name == "create_office_file":
+        metadata = {"capability": "create_office_file"}
+        if args.get("filename"):
+            metadata["filename"] = args.get("filename")
+        return await clients.create_business_artifact(
+            CreateBusinessArtifactRequest(
+                context=context,
+                artifact_type=_office_type(args.get("artifact_type")),
+                title=args["title"],
+                content=args["content"],
+                instructions=args.get("instructions"),
+                metadata=metadata,
+                request_id=args.get("request_id"),
+            )
+        )
+    if tool_name == "send_feishu_asset":
+        asset_type = args.get("asset_type") or "poster_job"
+        job_id = args.get("job_id")
+        if asset_type == "poster_job" and job_id and register_poster_delivery is not None:
+            delivery_data = {
+                "job_id": job_id,
+                "status": "registered_for_delivery",
+                "poster_url": args.get("asset_url"),
+                "title": args.get("title"),
+            }
+            await _maybe_await(register_poster_delivery(context, delivery_data))
+            return {
+                "status": "registered_for_delivery",
+                "message": "已登记飞书后台回传；海报任务完成后会发送到当前飞书会话。",
+                "job_id": job_id,
+            }
+        return {
+            "status": "not_configured",
+            "message": "第一版 send_feishu_asset 仅支持登记 poster_job 后台回传；任意文件/图片即时发送后端尚未启用。",
+            "asset_type": asset_type,
+        }
+    if tool_name == "save_team_asset":
         return await _maybe_await(
             create_artifact(
                 CreateTeamArtifactRequest(
@@ -343,7 +532,12 @@ async def handle_mcp_request(
             "result": {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "mmb-capability-center", "version": "0.2.0"},
+                "serverInfo": {"name": "mmb-capability-center", "version": "0.3.0"},
+                "instructions": (
+                    "MMB Capability Center exposes high-level business workflow tools. Dify workflows, plugins, knowledge bases, "
+                    "and Feishu delivery are implementation layers behind these tools. Prefer workflow tools for standard enterprise "
+                    "deliverables and retrieval tools only for evidence/material exploration."
+                ),
             },
         }
     if method == "notifications/initialized":
@@ -363,14 +557,14 @@ async def handle_mcp_request(
                 create_artifact=create_artifact,
                 register_poster_delivery=register_poster_delivery,
             )
-            return _mcp_result(request_id, {"ok": True, "tool": tool_name, "data": result})
+            return _mcp_result(request_id, {"ok": True, "tool": LEGACY_TOOL_ALIASES.get(tool_name, tool_name), "requested_tool": tool_name, "data": result})
         except KeyError:
             return _mcp_error(request_id, -32601, f"Unknown tool: {tool_name}")
         except (ValidationError, ValueError) as exc:
             return _mcp_error(request_id, -32602, str(exc))
         except CapabilityClientError as exc:
-            return _mcp_result(request_id, {"ok": False, "tool": tool_name, "error": str(exc)})
+            return _mcp_result(request_id, {"ok": False, "tool": LEGACY_TOOL_ALIASES.get(tool_name, tool_name), "requested_tool": tool_name, "error": str(exc)})
         except Exception as exc:
-            return _mcp_result(request_id, {"ok": False, "tool": tool_name, "error": str(exc)})
+            return _mcp_result(request_id, {"ok": False, "tool": LEGACY_TOOL_ALIASES.get(tool_name, tool_name), "requested_tool": tool_name, "error": str(exc)})
 
     return _mcp_error(request_id, -32601, f"Unsupported MCP method: {method}")

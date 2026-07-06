@@ -112,9 +112,15 @@ class CapabilityApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         names = {tool["name"] for tool in response.json()["result"]["tools"]}
-        self.assertIn("search_knowledge", names)
-        self.assertIn("create_artifact", names)
+        self.assertIn("search_mmb_context", names)
+        self.assertIn("search_mmb_materials", names)
+        self.assertIn("create_poster", names)
+        self.assertIn("create_visual_ppt", names)
+        self.assertIn("create_office_file", names)
+        self.assertIn("send_feishu_asset", names)
         self.assertIn("save_team_asset", names)
+        self.assertNotIn("search_knowledge", names)
+        self.assertNotIn("create_artifact", names)
 
     def test_mcp_search_knowledge_call(self) -> None:
         original = main.clients.search_enterprise_knowledge
@@ -132,6 +138,33 @@ class CapabilityApiTest(unittest.TestCase):
                     "jsonrpc": "2.0",
                     "id": 3,
                     "method": "tools/call",
+                    "params": {"name": "search_mmb_context", "arguments": {"query": "MMB 品牌", "user_id": "u1"}},
+                },
+            )
+        finally:
+            main.clients.search_enterprise_knowledge = original
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["result"]["structuredContent"]
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["tool"], "search_mmb_context")
+
+
+    def test_mcp_legacy_search_knowledge_alias(self) -> None:
+        original = main.clients.search_enterprise_knowledge
+
+        async def fake_search(request):
+            self.assertEqual(request.query, "MMB 品牌")
+            return {"query": request.query, "hits": []}
+
+        main.clients.search_enterprise_knowledge = fake_search
+        try:
+            response = self.client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 31,
+                    "method": "tools/call",
                     "params": {"name": "search_knowledge", "arguments": {"query": "MMB 品牌", "user_id": "u1"}},
                 },
             )
@@ -141,7 +174,8 @@ class CapabilityApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()["result"]["structuredContent"]
         self.assertTrue(data["ok"])
-        self.assertEqual(data["tool"], "search_knowledge")
+        self.assertEqual(data["requested_tool"], "search_knowledge")
+        self.assertEqual(data["tool"], "search_mmb_context")
 
     def test_mcp_save_team_asset(self) -> None:
         response = self.client.post(
