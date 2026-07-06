@@ -184,6 +184,9 @@ class AdminUiPolicyPayload(BaseModel):
 
 class WorkspaceUiPolicyResponse(ResponseModel):
     show_unauthorized_resource_cards: bool
+    default_access_enabled: bool = False
+    default_permission_group_id: str | None = None
+    default_permission_template_id: str | None = None
 
 
 class AppPermissionMemberPayload(BaseModel):
@@ -211,6 +214,7 @@ class PermissionGroupItem(ResponseModel):
     description: str | None = None
     member_ids: list[str]
     member_count: int
+    is_default: bool = False
     created_at: int | None = None
     updated_at: int | None = None
 
@@ -253,6 +257,7 @@ class PermissionTemplateItem(ResponseModel):
     app_count: int
     dataset_count: int
     explore_app_count: int
+    is_default: bool = False
     created_at: int | None = None
     updated_at: int | None = None
 
@@ -282,6 +287,18 @@ class PermissionTemplateApplyResult(ResponseModel):
 
 class PermissionTemplateApplyResponse(ResponseModel):
     data: PermissionTemplateApplyResult
+
+
+class DefaultAccessPolicyResult(ResponseModel):
+    default_access_enabled: bool
+    group: PermissionGroupItem
+    template: PermissionTemplateItem
+    app_count: int
+    explore_app_count: int
+
+
+class DefaultAccessPolicyResponse(ResponseModel):
+    data: DefaultAccessPolicyResult
 
 
 class EffectivePermissionSourceItem(ResponseModel):
@@ -617,6 +634,8 @@ register_schema_models(
     PermissionTemplateListResponse,
     PermissionTemplateApplyResult,
     PermissionTemplateApplyResponse,
+    DefaultAccessPolicyResult,
+    DefaultAccessPolicyResponse,
     EffectivePermissionSourceItem,
     EffectivePermissionResourceItem,
     EffectivePermissionAccountItem,
@@ -1158,6 +1177,24 @@ class AdminUiPolicyApi(Resource):
             tenant_id,
             payload.show_unauthorized_resource_cards,
         ), 200
+
+
+@console_ns.route("/admin/default-access/ensure")
+class AdminDefaultAccessPolicyApi(Resource):
+    @console_ns.doc("ensure_default_access_policy")
+    @console_ns.doc(description="Create or return the workspace default permission group and template")
+    @console_ns.response(200, "Success", console_ns.models[DefaultAccessPolicyResponse.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def post(self):
+        current_user, tenant_id = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+
+        result = EnterprisePermissionTemplateService.ensure_default_access_policy(tenant_id, current_user)
+        return DefaultAccessPolicyResponse(data=result).model_dump(mode="json"), 200
 
 
 @console_ns.route("/admin/permission-groups")

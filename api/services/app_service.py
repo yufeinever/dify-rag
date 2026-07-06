@@ -39,6 +39,7 @@ from services.billing_service import BillingService
 from services.enterprise.enterprise_service import EnterpriseService
 from services.feature_service import FeatureService
 from services.tag_service import TagService
+from services.ui_policy_service import UiPolicyService
 from tasks.remove_app_and_related_data_task import remove_app_and_related_data_task
 
 logger = logging.getLogger(__name__)
@@ -190,7 +191,7 @@ class AppService:
         )
         template_app_ids = self._get_template_app_ids(user_id, tenant_id)
         if not explicit_permission_count and not template_app_ids:
-            return None
+            return [] if UiPolicyService.is_default_access_enabled(tenant_id) else None
 
         permitted_app_ids = db.session.scalars(
             select(AppPermission.app_id).where(
@@ -215,7 +216,7 @@ class AppService:
         )
         template_app_ids = self._get_template_app_ids(user_id, tenant_id)
         if not explicit_permission_count and not template_app_ids:
-            return True
+            return not UiPolicyService.is_default_access_enabled(tenant_id)
 
         return bool(
             db.session.scalar(
@@ -241,7 +242,7 @@ class AppService:
         )
         template_app_ids = self._get_template_explore_app_ids(user_id, tenant_id)
         if not explicit_permission_count and not template_app_ids:
-            return True
+            return not UiPolicyService.is_default_access_enabled(tenant_id)
 
         return bool(
             db.session.scalar(

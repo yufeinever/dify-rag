@@ -1,5 +1,5 @@
 import type { TracingProvider } from '@/app/(commonLayout)/app/(appDetailLayout)/[appId]/overview/tracing/type'
-import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DSLImportMode, DSLImportResponse, EffectivePermissionResponse, PartialMemberListResponse, PermissionGroupListResponse, PermissionGroupPayload, PermissionGroupResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse, WorkspaceUiPolicy, WorkspaceUiPolicyPayload } from '@/models/app'
+import type { AppDetailResponse, AppListResponse, AuditLogListResponse, CreateApiKeyResponse, DefaultAccessPolicyResponse, DSLImportMode, DSLImportResponse, EffectivePermissionResponse, PartialMemberListResponse, PermissionGroupListResponse, PermissionGroupPayload, PermissionGroupResponse, PermissionTemplateApplyResponse, PermissionTemplateListResponse, PermissionTemplatePayload, PermissionTemplateResponse, TracingConfig, TracingStatus, UpdateAppModelConfigResponse, UpdateAppSiteCodeResponse, WebhookTriggerResponse, WorkspaceUiPolicy, WorkspaceUiPolicyPayload } from '@/models/app'
 import type { CommonResponse } from '@/models/common'
 import type { AppIconType, AppModeEnum, ModelConfig } from '@/types/app'
 import { del, get, patch, post, put } from './base'
@@ -240,4 +240,8 @@ export const fetchWorkspaceUiPolicy = (): Promise<WorkspaceUiPolicy> => {
 
 export const updateAdminUiPolicy = (body: WorkspaceUiPolicyPayload): Promise<WorkspaceUiPolicy> => {
   return put<WorkspaceUiPolicy>('admin/ui-policy', { body })
+}
+
+export const ensureDefaultAccessPolicy = (): Promise<DefaultAccessPolicyResponse> => {
+  return post<DefaultAccessPolicyResponse>('admin/default-access/ensure', { body: {} })
 }

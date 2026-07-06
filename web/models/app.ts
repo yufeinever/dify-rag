@@ -28,6 +28,9 @@ export enum DSLImportStatus {
 
 export type WorkspaceUiPolicy = {
   show_unauthorized_resource_cards: boolean
+  default_access_enabled?: boolean
+  default_permission_group_id?: string | null
+  default_permission_template_id?: string | null
 }
 
 export type WorkspaceUiPolicyPayload = WorkspaceUiPolicy
@@ -66,6 +69,7 @@ export type PermissionGroup = {
   description?: string | null
   member_ids: string[]
   member_count: number
+  is_default?: boolean
   created_at?: number | null
   updated_at?: number | null
 }
@@ -99,6 +103,7 @@ export type PermissionTemplate = {
   app_count: number
   dataset_count: number
   explore_app_count: number
+  is_default?: boolean
   created_at?: number | null
   updated_at?: number | null
 }
@@ -130,6 +135,16 @@ export type PermissionTemplateApplyResponse = {
     app_permission_count: number
     explore_app_permission_count: number
     dataset_permission_count: number
+  }
+}
+
+export type DefaultAccessPolicyResponse = {
+  data: {
+    default_access_enabled: boolean
+    group: PermissionGroup
+    template: PermissionTemplate
+    app_count: number
+    explore_app_count: number
   }
 }
 

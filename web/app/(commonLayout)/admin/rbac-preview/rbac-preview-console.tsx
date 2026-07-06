@@ -2,19 +2,22 @@
 
 import type { ReactNode } from 'react'
 import type { AuditLogItem, EffectivePermissionResource, PermissionGroup, PermissionGroupPayload, PermissionTemplate, PermissionTemplatePayload, RbacPreviewTab } from '@/models/app'
-import type { Member } from '@/models/common'
+import type { InvitationResult, Member } from '@/models/common'
 import type { DataSet } from '@/models/datasets'
 import type { InstalledApp } from '@/models/explore'
 import type { App } from '@/types/app'
 import { toast } from '@langgenius/dify-ui/toast'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import InviteModal from '@/app/components/header/account-setting/members-page/invite-modal'
+import InvitedModal from '@/app/components/header/account-setting/members-page/invited-modal'
 import { useAppContext } from '@/context/app-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
-import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchEffectivePermissions, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, fetchWorkspaceUiPolicy, updateAdminUiPolicy, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
+import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, ensureDefaultAccessPolicy, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchEffectivePermissions, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, fetchWorkspaceUiPolicy, updateAdminUiPolicy, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { fetchInstalledAppList } from '@/service/explore'
+import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { useMembers } from '@/service/use-common'
 
 const roleLabelMap: Record<Member['role'], string> = { owner: '所有者', admin: '管理员', editor: '编辑者', dataset_operator: '知识库管理员', normal: '普通成员' }
@@ -68,6 +71,9 @@ export default function RbacPreviewConsole() {
   const [updatingUiPolicy, setUpdatingUiPolicy] = useState(false)
   const [editorPanel, setEditorPanel] = useState<'group' | 'template' | 'resource' | 'effective' | 'audit' | null>(null)
   const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLogItem | null>(null)
+  const [inviteModalVisible, setInviteModalVisible] = useState(false)
+  const [invitedModalVisible, setInvitedModalVisible] = useState(false)
+  const [invitationResults, setInvitationResults] = useState<InvitationResult[]>([])
   const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
   const hasAnyPermission = canAny ?? (() => false)
   const canEnterAdmin = hasAnyPermission(['workspace.member.view', 'workspace.member.manage']) || isCurrentWorkspaceManager
@@ -80,6 +86,7 @@ export default function RbacPreviewConsole() {
   const templatesQuery = useQuery({ queryKey: ['rbac-preview', 'templates'], queryFn: fetchPermissionTemplates, enabled: canEnterAdmin })
   const auditQuery = useQuery({ queryKey: ['rbac-preview', 'audit'], queryFn: fetchAdminAuditLogs, enabled: canEnterAdmin })
   const uiPolicyQuery = useQuery({ queryKey: ['rbac-preview', 'ui-policy'], queryFn: fetchWorkspaceUiPolicy, enabled: canEnterAdmin })
+  const systemFeaturesQuery = useQuery({ ...systemFeaturesQueryOptions(), enabled: canEnterAdmin })
   const activeEffectiveMemberId = effectiveMemberId || members[0]?.id || ''
   const effectiveQuery = useQuery({ queryKey: ['rbac-preview', 'effective', activeEffectiveMemberId], queryFn: () => fetchEffectivePermissions(activeEffectiveMemberId), enabled: canEnterAdmin && (activeTab === 'effective' || editorPanel === 'effective') && !!activeEffectiveMemberId })
   const apps = useMemo(() => appsQuery.data?.data ?? [], [appsQuery.data?.data])
@@ -89,6 +96,8 @@ export default function RbacPreviewConsole() {
   const templates = useMemo(() => templatesQuery.data?.data ?? [], [templatesQuery.data?.data])
   const auditLogs = useMemo(() => auditQuery.data?.data ?? [], [auditQuery.data?.data])
   const currentTab = tabs.find(tab => tab.key === activeTab) ?? tabs[0]!
+  const defaultGroup = useMemo(() => groups.find(group => group.is_default), [groups])
+  const defaultTemplate = useMemo(() => templates.find(template => template.is_default), [templates])
   const showUnauthorizedResourceCards = uiPolicyQuery.data?.show_unauthorized_resource_cards ?? false
   const groupsByMember = useMemo(() => {
     const map = new Map<string, PermissionGroup[]>()
@@ -148,13 +157,30 @@ export default function RbacPreviewConsole() {
     return ids.size
   }, [groups, templateForm.group_ids, templateForm.member_ids])
   const refreshAll = async () => {
-    await Promise.all([refetchMembers(), appsQuery.refetch(), exploreQuery.refetch(), datasetsQuery.refetch(), groupsQuery.refetch(), templatesQuery.refetch(), auditQuery.refetch()])
+    await Promise.all([refetchMembers(), appsQuery.refetch(), exploreQuery.refetch(), datasetsQuery.refetch(), groupsQuery.refetch(), templatesQuery.refetch(), auditQuery.refetch(), uiPolicyQuery.refetch()])
     toast.success('数据已刷新')
   }
   const updateMemberSort = (key: MemberSortKey) => {
     setMemberSort(current => current.key === key
       ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
       : { key, direction: key === 'created_at' ? 'desc' : 'asc' })
+  }
+  const handleEnsureDefaultAccess = async () => {
+    if (saving)
+      return
+
+    setSaving(true)
+    try {
+      const result = await ensureDefaultAccessPolicy()
+      await Promise.all([groupsQuery.refetch(), templatesQuery.refetch(), uiPolicyQuery.refetch(), effectiveQuery.refetch(), auditQuery.refetch()])
+      toast.success(`默认可见范围已初始化：${result.data.explore_app_count + result.data.app_count} 个应用`)
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '默认可见范围初始化失败')
+    }
+    finally {
+      setSaving(false)
+    }
   }
   const handleToggleUnauthorizedCards = async () => {
     if (updatingUiPolicy)
@@ -354,7 +380,18 @@ export default function RbacPreviewConsole() {
             新建模板
           </button>
         )
-      : null
+      : activeTab === 'members'
+        ? (
+            <button
+              type="button"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-components-button-primary-bg px-3 text-xs font-medium text-components-button-primary-text shadow-xs hover:bg-components-button-primary-bg-hover"
+              onClick={() => setInviteModalVisible(true)}
+            >
+              <span className="i-ri-user-add-line size-4" aria-hidden />
+              添加成员
+            </button>
+          )
+        : null
 
   if (!canEnterAdmin)
     return <div className="flex h-full items-center justify-center bg-background-body text-sm text-text-tertiary">当前账号没有进入企业权限后台的权限。</div>
@@ -477,7 +514,7 @@ export default function RbacPreviewConsole() {
               }}
             />
           )}
-          {activeTab === 'general' && <GeneralSettingsPanel showUnauthorizedResourceCards={showUnauthorizedResourceCards} loading={uiPolicyQuery.isLoading || updatingUiPolicy} onToggle={() => void handleToggleUnauthorizedCards()} />}
+          {activeTab === 'general' && <GeneralSettingsPanel showUnauthorizedResourceCards={showUnauthorizedResourceCards} loading={uiPolicyQuery.isLoading || updatingUiPolicy || saving} defaultGroup={defaultGroup} defaultTemplate={defaultTemplate} onToggle={() => void handleToggleUnauthorizedCards()} onEnsureDefaultAccess={() => void handleEnsureDefaultAccess()} />}
         </main>
       </div>
       {editorPanel === 'group' && (
@@ -504,6 +541,20 @@ export default function RbacPreviewConsole() {
         <EditorDrawer title="审计详情" description={fmt(selectedAuditLog.created_at)} onClose={() => setEditorPanel(null)}>
           <AuditLogDetail log={selectedAuditLog} />
         </EditorDrawer>
+      )}
+      {inviteModalVisible && (
+        <InviteModal
+          isEmailSetup={systemFeaturesQuery.data?.is_email_setup ?? false}
+          onCancel={() => setInviteModalVisible(false)}
+          onSend={(results) => {
+            setInvitationResults(results)
+            setInvitedModalVisible(true)
+            void Promise.all([refetchMembers(), groupsQuery.refetch(), templatesQuery.refetch(), effectiveQuery.refetch(), auditQuery.refetch()])
+          }}
+        />
+      )}
+      {invitedModalVisible && (
+        <InvitedModal invitationResults={invitationResults} onCancel={() => setInvitedModalVisible(false)} />
       )}
     </div>
   )
@@ -644,7 +695,10 @@ function GroupsPanel({ groups, templateCountByGroup, saving, onEdit, onCopy, onR
       {groups.map(group => (
         <div key={group.id} className="grid grid-cols-[1fr_120px_120px_180px] items-center gap-4 px-6 py-4 hover:bg-background-default-hover max-lg:grid-cols-1">
           <div>
-            <div className="font-medium">{group.name}</div>
+            <div className="flex flex-wrap items-center gap-2 font-medium">
+              <span>{group.name}</span>
+              {group.is_default && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">默认组</span>}
+            </div>
             <div className="mt-1 text-xs text-text-tertiary">{group.description || '暂无说明'}</div>
           </div>
           <div className="text-sm">
@@ -658,7 +712,7 @@ function GroupsPanel({ groups, templateCountByGroup, saving, onEdit, onCopy, onR
           <div className="flex justify-end gap-2">
             <button className="h-8 rounded-md border border-divider-deep px-2 text-xs" onClick={() => onEdit(group)}>编辑</button>
             <button disabled={saving} className="h-8 rounded-md border border-divider-deep px-2 text-xs disabled:opacity-60" onClick={() => void onCopy(group)}>复制</button>
-            <button disabled={saving} className="h-8 rounded-md border border-red-200 bg-red-50 px-2 text-xs text-red-700 disabled:opacity-60" onClick={() => void onRemove(group)}>删除</button>
+            <button disabled={saving || group.is_default} className="h-8 rounded-md border border-red-200 bg-red-50 px-2 text-xs text-red-700 disabled:opacity-60" onClick={() => void onRemove(group)}>删除</button>
           </div>
         </div>
       ))}
@@ -673,7 +727,10 @@ function TemplatesPanel({ templates, saving, onEdit, onCopy, onRemove, onApply }
       {templates.map(t => (
         <div key={t.id} className="grid grid-cols-[1fr_90px_90px_90px_90px_250px] items-center gap-4 px-6 py-4 hover:bg-background-default-hover max-xl:grid-cols-1">
           <div>
-            <div className="font-medium">{t.name}</div>
+            <div className="flex flex-wrap items-center gap-2 font-medium">
+              <span>{t.name}</span>
+              {t.is_default && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">默认模板</span>}
+            </div>
             <div className="mt-1 text-xs text-text-tertiary">{t.description || '暂无说明'}</div>
           </div>
           <div className="text-sm">
@@ -696,7 +753,7 @@ function TemplatesPanel({ templates, saving, onEdit, onCopy, onRemove, onApply }
             <button className="h-8 rounded-md border border-divider-deep px-2 text-xs" onClick={() => onEdit(t)}>编辑</button>
             <button disabled={saving} className="h-8 rounded-md border border-divider-deep px-2 text-xs disabled:opacity-60" onClick={() => void onCopy(t)}>复制</button>
             <button disabled={saving} className="h-8 rounded-md bg-components-button-primary-bg px-2 text-xs text-components-button-primary-text disabled:opacity-60" onClick={() => void onApply(t)}>同步</button>
-            <button disabled={saving} className="h-8 rounded-md border border-red-200 bg-red-50 px-2 text-xs text-red-700 disabled:opacity-60" onClick={() => void onRemove(t)}>删除</button>
+            <button disabled={saving || t.is_default} className="h-8 rounded-md border border-red-200 bg-red-50 px-2 text-xs text-red-700 disabled:opacity-60" onClick={() => void onRemove(t)}>删除</button>
           </div>
         </div>
       ))}
@@ -906,9 +963,39 @@ function ResourceEditor({ selectedResource, members, memberIds, saving, onToggle
     </div>
   )
 }
-function GeneralSettingsPanel({ showUnauthorizedResourceCards, loading, onToggle }: { showUnauthorizedResourceCards: boolean, loading: boolean, onToggle: () => void }) {
+function GeneralSettingsPanel({ showUnauthorizedResourceCards, loading, defaultGroup, defaultTemplate, onToggle, onEnsureDefaultAccess }: { showUnauthorizedResourceCards: boolean, loading: boolean, defaultGroup?: PermissionGroup, defaultTemplate?: PermissionTemplate, onToggle: () => void, onEnsureDefaultAccess: () => void }) {
+  const defaultAppCount = (defaultTemplate?.explore_app_count ?? 0) + (defaultTemplate?.app_count ?? 0)
+
   return (
-    <div className="p-5">
+    <div className="space-y-4 p-5">
+      <div className="overflow-hidden rounded-xl border border-divider-subtle bg-background-section shadow-xs">
+        <div className="flex items-center justify-between gap-6 px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                <span className="i-ri-group-line size-4" aria-hidden />
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-text-primary">默认成员可见范围</div>
+                <div className="mt-0.5 text-xs text-text-tertiary">
+                  {defaultGroup && defaultTemplate
+                    ? `${defaultGroup.name} · ${defaultTemplate.name} · ${defaultAppCount} 个应用默认可见`
+                    : '初始化后会创建默认成员组和默认权限模板，并把当前应用纳入默认可见范围。'}
+                </div>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onEnsureDefaultAccess}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-divider-subtle bg-background-section px-3 text-xs font-medium text-text-secondary disabled:opacity-60"
+          >
+            <span className="i-ri-refresh-line size-4" aria-hidden />
+            初始化/刷新
+          </button>
+        </div>
+      </div>
       <div className="overflow-hidden rounded-xl border border-divider-subtle bg-background-section shadow-xs">
         <div className="flex items-center justify-between gap-6 px-5 py-4">
           <div className="min-w-0">

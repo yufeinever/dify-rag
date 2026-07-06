@@ -29,9 +29,13 @@ from models import (
     TenantAccountJoin,
     TenantAccountRole,
 )
+from services.ui_policy_service import UiPolicyService
 
 
 class EnterprisePermissionTemplateService:
+    DEFAULT_GROUP_NAME = "默认成员组"
+    DEFAULT_TEMPLATE_NAME = "默认可见应用"
+
     """Manage reusable workspace permission templates.
 
     Templates are a management layer only. Applying a template merges its members
@@ -439,6 +443,7 @@ class EnterprisePermissionTemplateService:
         member_ids, app_ids, dataset_ids, explore_app_ids = cls._binding_ids(tenant_id, template.id)
         group_ids = cls._binding_group_ids(tenant_id, template.id)
         effective_member_ids = cls._effective_member_ids_from_bindings(tenant_id, member_ids, group_ids)
+        default_template_id = UiPolicyService.get_policy(tenant_id)["default_permission_template_id"]
         return {
             "id": template.id,
             "name": template.name,
@@ -454,6 +459,7 @@ class EnterprisePermissionTemplateService:
             "app_count": len(app_ids),
             "dataset_count": len(dataset_ids),
             "explore_app_count": len(explore_app_ids),
+            "is_default": template.id == default_template_id,
             "created_at": template.created_at,
             "updated_at": template.updated_at,
         }
@@ -484,12 +490,14 @@ class EnterprisePermissionTemplateService:
     @classmethod
     def _serialize_group(cls, tenant_id: str, group: EnterprisePermissionGroup) -> dict[str, Any]:
         member_ids = cls._direct_group_member_ids(tenant_id, group.id)
+        default_group_id = UiPolicyService.get_policy(tenant_id)["default_permission_group_id"]
         return {
             "id": group.id,
             "name": group.name,
             "description": group.description,
             "member_ids": member_ids,
             "member_count": len(member_ids),
+            "is_default": group.id == default_group_id,
             "created_at": group.created_at,
             "updated_at": group.updated_at,
         }
@@ -650,6 +658,9 @@ class EnterprisePermissionTemplateService:
 
     @classmethod
     def delete_group(cls, tenant_id: str, group_id: str, operator: Account) -> None:
+        if group_id == UiPolicyService.get_policy(tenant_id)["default_permission_group_id"]:
+            raise BadRequest("Default permission group cannot be deleted")
+
         group = cls._get_group(tenant_id, group_id)
         snapshots = [
             cls._template_permission_snapshot(tenant_id, template)
@@ -846,6 +857,9 @@ class EnterprisePermissionTemplateService:
 
     @classmethod
     def delete_template(cls, tenant_id: str, template_id: str, operator: Account) -> None:
+        if template_id == UiPolicyService.get_policy(tenant_id)["default_permission_template_id"]:
+            raise BadRequest("Default permission template cannot be deleted")
+
         template = cls._get_template(tenant_id, template_id)
         old_member_ids, old_app_ids, old_dataset_ids, old_explore_app_ids = cls._binding_ids(tenant_id, template.id)
         old_group_ids = cls._binding_group_ids(tenant_id, template.id)
@@ -1335,3 +1349,193 @@ class EnterprisePermissionTemplateService:
             ])
             permission_count += len(member_ids)
         return permission_count
+
+    @staticmethod
+    def _first_group_by_name(tenant_id: str, name: str) -> EnterprisePermissionGroup | None:
+        return db.session.scalar(
+            select(EnterprisePermissionGroup)
+            .where(EnterprisePermissionGroup.tenant_id == tenant_id, EnterprisePermissionGroup.name == name)
+            .limit(1)
+        )
+
+    @staticmethod
+    def _first_template_by_name(tenant_id: str, name: str) -> EnterprisePermissionTemplate | None:
+        return db.session.scalar(
+            select(EnterprisePermissionTemplate)
+            .where(EnterprisePermissionTemplate.tenant_id == tenant_id, EnterprisePermissionTemplate.name == name)
+            .limit(1)
+        )
+
+    @staticmethod
+    def _policy_group(tenant_id: str, group_id: str | None) -> EnterprisePermissionGroup | None:
+        if not group_id:
+            return None
+        return db.session.scalar(
+            select(EnterprisePermissionGroup)
+            .where(EnterprisePermissionGroup.tenant_id == tenant_id, EnterprisePermissionGroup.id == group_id)
+            .limit(1)
+        )
+
+    @staticmethod
+    def _policy_template(tenant_id: str, template_id: str | None) -> EnterprisePermissionTemplate | None:
+        if not template_id:
+            return None
+        return db.session.scalar(
+            select(EnterprisePermissionTemplate)
+            .where(EnterprisePermissionTemplate.tenant_id == tenant_id, EnterprisePermissionTemplate.id == template_id)
+            .limit(1)
+        )
+
+    @staticmethod
+    def _default_member_ids(tenant_id: str) -> list[str]:
+        return list(
+            db.session.scalars(
+                select(TenantAccountJoin.account_id).where(
+                    TenantAccountJoin.tenant_id == tenant_id,
+                    TenantAccountJoin.role != TenantAccountRole.OWNER,
+                )
+            ).all()
+        )
+
+    @staticmethod
+    def _current_workspace_app_ids(tenant_id: str) -> list[str]:
+        return [
+            str(app_id)
+            for app_id in db.session.scalars(
+                select(App.id).where(App.tenant_id == tenant_id, App.is_universal == sa.false())
+            ).all()
+        ]
+
+    @staticmethod
+    def _current_explore_app_ids(tenant_id: str) -> list[str]:
+        return [
+            str(app_id)
+            for app_id in db.session.scalars(
+                select(InstalledApp.app_id).where(InstalledApp.tenant_id == tenant_id)
+            ).all()
+        ]
+
+    @classmethod
+    def ensure_default_access_policy(cls, tenant_id: str, operator: Account) -> dict[str, Any]:
+        policy = UiPolicyService.get_policy(tenant_id)
+        group = cls._policy_group(tenant_id, policy["default_permission_group_id"])
+        template = cls._policy_template(tenant_id, policy["default_permission_template_id"])
+
+        if policy["default_access_enabled"] and group and template:
+            _, app_ids, _, explore_app_ids = cls._binding_ids(tenant_id, template.id)
+            return {
+                "default_access_enabled": True,
+                "group": cls._serialize_group(tenant_id, group),
+                "template": cls._serialize_template(tenant_id, template),
+                "app_count": len(app_ids),
+                "explore_app_count": len(explore_app_ids),
+            }
+
+        member_ids = cls._default_member_ids(tenant_id)
+        app_ids = cls._current_workspace_app_ids(tenant_id)
+        explore_app_ids = cls._current_explore_app_ids(tenant_id)
+
+        try:
+            if not group:
+                group = cls._first_group_by_name(tenant_id, cls.DEFAULT_GROUP_NAME)
+            if not group:
+                group = EnterprisePermissionGroup(
+                    tenant_id=tenant_id,
+                    name=cls.DEFAULT_GROUP_NAME,
+                    description="新成员默认进入此组；用于控制基础可见应用。",
+                    created_by=operator.id,
+                )
+                db.session.add(group)
+                db.session.flush()
+
+            cls._replace_group_members(tenant_id, group.id, cls._normalize_ids(member_ids))
+
+            if not template:
+                template = cls._first_template_by_name(tenant_id, cls.DEFAULT_TEMPLATE_NAME)
+            if not template:
+                template = EnterprisePermissionTemplate(
+                    tenant_id=tenant_id,
+                    name=cls.DEFAULT_TEMPLATE_NAME,
+                    description="默认成员组可见的基础应用；后续新增应用不会自动加入。",
+                    created_by=operator.id,
+                )
+                db.session.add(template)
+                db.session.flush()
+
+            old_member_ids, old_app_ids, old_dataset_ids, old_explore_app_ids = cls._binding_ids(tenant_id, template.id)
+            old_group_ids = cls._binding_group_ids(tenant_id, template.id)
+            cls._replace_bindings(
+                tenant_id,
+                template.id,
+                old_member_ids,
+                cls._normalize_ids([*old_group_ids, group.id]),
+                cls._normalize_ids([*old_app_ids, *app_ids]),
+                old_dataset_ids,
+                cls._normalize_ids([*old_explore_app_ids, *explore_app_ids]),
+            )
+            db.session.add(OperationLog(
+                tenant_id=tenant_id,
+                account_id=operator.id,
+                action="default_access_policy.ensured",
+                content={
+                    "group_id": group.id,
+                    "template_id": template.id,
+                    "member_count": len(member_ids),
+                    "app_count": len(app_ids),
+                    "explore_app_count": len(explore_app_ids),
+                },
+                created_ip=extract_remote_ip(request),
+            ))
+            db.session.commit()
+            UiPolicyService.set_default_access_policy(tenant_id, group.id, template.id)
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return {
+            "default_access_enabled": True,
+            "group": cls._serialize_group(tenant_id, group),
+            "template": cls._serialize_template(tenant_id, template),
+            "app_count": len(app_ids),
+            "explore_app_count": len(explore_app_ids),
+        }
+
+    @classmethod
+    def add_member_to_default_group(cls, tenant_id: str, account_id: str) -> bool:
+        policy = UiPolicyService.get_policy(tenant_id)
+        if not policy["default_access_enabled"] or not policy["default_permission_group_id"]:
+            return False
+
+        group = cls._policy_group(tenant_id, policy["default_permission_group_id"])
+        if not group:
+            return False
+
+        is_workspace_member = db.session.scalar(
+            select(TenantAccountJoin.id).where(
+                TenantAccountJoin.tenant_id == tenant_id,
+                TenantAccountJoin.account_id == account_id,
+            )
+        )
+        if not is_workspace_member:
+            return False
+
+        exists = db.session.scalar(
+            select(EnterprisePermissionGroupMember.id).where(
+                EnterprisePermissionGroupMember.tenant_id == tenant_id,
+                EnterprisePermissionGroupMember.group_id == group.id,
+                EnterprisePermissionGroupMember.account_id == account_id,
+            )
+        )
+        if exists:
+            return True
+
+        try:
+            db.session.add(
+                EnterprisePermissionGroupMember(tenant_id=tenant_id, group_id=group.id, account_id=account_id)
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+
+        return True

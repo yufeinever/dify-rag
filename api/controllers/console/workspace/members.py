@@ -1,3 +1,4 @@
+import logging
 from urllib import parse
 from uuid import UUID
 
@@ -33,8 +34,11 @@ from libs.helper import extract_remote_ip
 from libs.login import current_account_with_tenant, login_required
 from models.account import Account, TenantAccountRole
 from services.account_service import AccountService, RegisterService, TenantService
+from services.enterprise_permission_template_service import EnterprisePermissionTemplateService
 from services.errors.account import AccountAlreadyInTenantError
 from services.feature_service import FeatureService
+
+logger = logging.getLogger(__name__)
 
 
 class MemberInvitePayload(BaseModel):
@@ -138,6 +142,15 @@ class MemberInviteEmailApi(Resource):
         if not workspace_members.is_available(len(invitee_emails)):
             raise WorkspaceMembersLimitExceeded()
 
+        def add_to_default_group(email: str) -> None:
+            account = AccountService.get_account_by_email_with_case_fallback(email)
+            if not account or not inviter.current_tenant:
+                return
+            try:
+                EnterprisePermissionTemplateService.add_member_to_default_group(inviter.current_tenant.id, account.id)
+            except Exception:
+                logger.exception("Failed to add invited member %s to default permission group", account.id)
+
         for invitee_email in invitee_emails:
             normalized_invitee_email = invitee_email.lower()
             try:
@@ -150,6 +163,7 @@ class MemberInviteEmailApi(Resource):
                     role=invitee_role,
                     inviter=inviter,
                 )
+                add_to_default_group(normalized_invitee_email)
                 encoded_invitee_email = parse.quote(normalized_invitee_email)
                 invitation_results.append(
                     {
@@ -159,6 +173,7 @@ class MemberInviteEmailApi(Resource):
                     }
                 )
             except AccountAlreadyInTenantError:
+                add_to_default_group(normalized_invitee_email)
                 invitation_results.append(
                     {"status": "success", "email": normalized_invitee_email, "url": f"{console_web_url}/signin"}
                 )
