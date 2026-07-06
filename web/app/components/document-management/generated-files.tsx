@@ -234,7 +234,7 @@ const GeneratedFilesLibrary = () => {
       <div className="flex min-h-0 flex-1 gap-3">
         <aside className="flex w-[260px] shrink-0 flex-col gap-4 overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg p-3 shadow-xs">
           <FilterSection
-            title="账户"
+            title="使用者"
             icon={<RiUser3Line className="size-3.5" />}
             items={accountFacets}
             selectedIds={selectedOwnerIds}

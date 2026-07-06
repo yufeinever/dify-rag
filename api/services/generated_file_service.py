@@ -19,9 +19,8 @@ from extensions.ext_storage import storage
 from graphon.file import FileTransferMethod
 from models.account import Account
 from models.enums import MessageFileBelongsTo
-from models.model import App, Message, MessageFile
+from models.model import App, EndUser, Message, MessageFile
 from models.tools import GeneratedFile, ToolFile
-
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +156,12 @@ def list_generated_files(
     if app_ids:
         explicit_app_ids = [app_id for app_id in app_ids if app_id != "unknown"]
         if "unknown" in app_ids and explicit_app_ids:
-            filters.append(or_(GeneratedFile.source_app_id.in_(explicit_app_ids), GeneratedFile.source_app_id.is_(None)))
+            filters.append(
+                or_(
+                    GeneratedFile.source_app_id.in_(explicit_app_ids),
+                    GeneratedFile.source_app_id.is_(None),
+                )
+            )
         elif "unknown" in app_ids:
             filters.append(GeneratedFile.source_app_id.is_(None))
         else:
@@ -173,9 +177,10 @@ def list_generated_files(
     )
 
     rows = session.execute(
-        select(GeneratedFile, App.name, Account.name)
+        select(GeneratedFile, App.name, Account.name, EndUser.session_id, EndUser.type, EndUser.name)
         .outerjoin(App, App.id == GeneratedFile.source_app_id)
         .outerjoin(Account, Account.id == GeneratedFile.owner_user_id)
+        .outerjoin(EndUser, EndUser.id == GeneratedFile.owner_user_id)
         .where(*filters)
         .order_by(order_column)
         .offset((page - 1) * limit)
@@ -183,7 +188,20 @@ def list_generated_files(
     ).all()
 
     return {
-        "data": [_serialize_generated_file(row[0], source_app_name=row[1], owner_name=row[2]) for row in rows],
+        "data": [
+            _serialize_generated_file(
+                row[0],
+                source_app_name=row[1],
+                owner_name=_owner_display_name(
+                    owner_id=str(row[0].owner_user_id),
+                    account_name=row[2],
+                    end_user_session_id=row[3],
+                    end_user_type=row[4],
+                    end_user_name=row[5],
+                ),
+            )
+            for row in rows
+        ],
         "page": page,
         "limit": limit,
         "total": total,
@@ -290,7 +308,8 @@ def convert_generated_file_to_pdf(session: Session, generated_file: GeneratedFil
         converted_files = list(output_dir.glob("*.pdf"))
         if result.returncode != 0 or not converted_files:
             logger.warning(
-                "Generated file PDF preview conversion failed: generated_file_id=%s tool_file_id=%s returncode=%s stdout=%s stderr=%s",
+                "Generated file PDF preview conversion failed: generated_file_id=%s "
+                "tool_file_id=%s returncode=%s stdout=%s stderr=%s",
                 generated_file.id,
                 tool_file.id,
                 result.returncode,
@@ -387,12 +406,16 @@ def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[s
         select(
             GeneratedFile.owner_user_id,
             Account.name,
+            EndUser.session_id,
+            EndUser.type,
+            EndUser.name,
             func.count(GeneratedFile.id),
         )
         .outerjoin(Account, Account.id == GeneratedFile.owner_user_id)
+        .outerjoin(EndUser, EndUser.id == GeneratedFile.owner_user_id)
         .where(*filters)
-        .group_by(GeneratedFile.owner_user_id, Account.name)
-        .order_by(func.count(GeneratedFile.id).desc(), Account.name.asc())
+        .group_by(GeneratedFile.owner_user_id, Account.name, EndUser.session_id, EndUser.type, EndUser.name)
+        .order_by(func.count(GeneratedFile.id).desc(), Account.name.asc(), EndUser.session_id.asc())
     ).all()
     app_rows = session.execute(
         select(
@@ -410,10 +433,16 @@ def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[s
         "accounts": [
             {
                 "id": str(owner_id),
-                "name": owner_name or "未知账户",
+                "name": _owner_display_name(
+                    owner_id=str(owner_id),
+                    account_name=owner_name,
+                    end_user_session_id=end_user_session_id,
+                    end_user_type=end_user_type,
+                    end_user_name=end_user_name,
+                ),
                 "count": count,
             }
-            for owner_id, owner_name, count in account_rows
+            for owner_id, owner_name, end_user_session_id, end_user_type, end_user_name, count in account_rows
             if owner_id
         ],
         "apps": [
@@ -425,3 +454,29 @@ def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[s
             for app_id, app_name, count in app_rows
         ],
     }
+
+
+def _owner_display_name(
+    *,
+    owner_id: str,
+    account_name: str | None,
+    end_user_session_id: str | None,
+    end_user_type: str | None,
+    end_user_name: str | None,
+) -> str:
+    if account_name:
+        return account_name
+    if end_user_name:
+        return end_user_name
+    if end_user_session_id:
+        suffix = _short_identity(end_user_session_id)
+        if end_user_type == "service-api":
+            return f"飞书/Hermes 用户 · {suffix}"
+        if end_user_type == "web-app":
+            return f"WebApp 用户 · {suffix}"
+        return f"外部用户 · {suffix}"
+    return f"外部用户 · {_short_identity(owner_id)}"
+
+
+def _short_identity(value: str) -> str:
+    return value[:8] if len(value) > 8 else value

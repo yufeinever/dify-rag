@@ -15,7 +15,7 @@ export type GeneratedFile = {
   source_conversation_id?: string | null
   source_message_id?: string | null
   owner_user_id: string
-  owner_name?: string | null
+  owner_name: string
   preview_kind: 'native' | 'converted_pdf' | 'unsupported'
   preview_url: string
   download_url: string
