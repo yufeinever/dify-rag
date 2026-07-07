@@ -30,6 +30,12 @@ The codebase is split into:
 - After every production release, update `VERSION`, `DEPLOYMENT_VERSION`, and `版本迭代说明.md` with the next sequential version number, deployment time, image tags, restarted services, database impact, verification, and rollback instructions.
 - Before reporting completion, verify the relevant production UI/API entrypoints and inspect service status/logs as needed with the `mmb-dify-v010` compose project.
 
+## Dify Compose Safety Guardrail
+
+- On the 150 production host, the Dify Docker Compose project is fixed to `mmb-dify-v010`.
+- Do not run `docker compose up/down/stop/restart/ps/build` without `-p mmb-dify-v010` in `/opt/mmb-dify/current/docker` or any 150 Dify compose directory; the default project name can create or touch unintended `docker-*` containers and networks.
+- Use explicit production commands, for example: `docker compose -p mmb-dify-v010 -f docker/docker-compose.yaml --env-file docker/.env ps`.
+- If `docker-*` default-project containers or networks are found, perform read-only audit first. Do not clean containers, networks, volumes, bind mounts, or database directories until Postgres, Redis, Weaviate, app bindings, backup, and rollback have been verified.
 
 ## Related Windows Upload Client
 
