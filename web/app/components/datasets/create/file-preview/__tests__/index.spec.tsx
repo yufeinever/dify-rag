@@ -43,9 +43,9 @@ const renderFilePreview = (props: Partial<{ file?: File, hidePreview: () => void
   }
 }
 
-// Helper to find the loading spinner element
-const findLoadingSpinner = (container: HTMLElement) => {
-  return container.querySelector('.spin-animation')
+// Helper to find the loading indicator element
+const findLoadingIndicator = (container: HTMLElement) => {
+  return container.querySelector('.mmb-loading-asset')
 }
 
 // FilePreview Component Tests
@@ -117,8 +117,8 @@ describe('FilePreview', () => {
 
       const { container } = renderFilePreview()
 
-      // Assert - Loading should be visible initially (using spin-animation class)
-      const loadingElement = findLoadingSpinner(container)
+      // Assert - Loading should be visible initially (using MMB loading asset)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement)!.toBeInTheDocument()
     })
 
@@ -131,7 +131,7 @@ describe('FilePreview', () => {
         expect(screen.getByText('Loaded content'))!.toBeInTheDocument()
       })
       // Loading should be gone
-      const loadingElement = findLoadingSpinner(container)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement).not.toBeInTheDocument()
     })
 
@@ -153,7 +153,7 @@ describe('FilePreview', () => {
 
       // First file loading - spinner should be visible
       // First file loading - spinner should be visible
-      expect(findLoadingSpinner(container))!.toBeInTheDocument()
+      expect(findLoadingIndicator(container))!.toBeInTheDocument()
 
       // Resolve first file
       await act(async () => {
@@ -169,7 +169,7 @@ describe('FilePreview', () => {
 
       // Should show loading again
       await waitFor(() => {
-        expect(findLoadingSpinner(container))!.toBeInTheDocument()
+        expect(findLoadingIndicator(container))!.toBeInTheDocument()
       })
 
       // Resolve second file
@@ -260,7 +260,7 @@ describe('FilePreview', () => {
 
       // Assert - Should still render without loading
       await waitFor(() => {
-        const loadingElement = findLoadingSpinner(container)
+        const loadingElement = findLoadingIndicator(container)
         expect(loadingElement).not.toBeInTheDocument()
       })
     })
@@ -307,7 +307,7 @@ describe('FilePreview', () => {
 
       const { container } = renderFilePreview()
 
-      const loadingElement = findLoadingSpinner(container)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement)!.toBeInTheDocument()
     })
 
@@ -342,7 +342,7 @@ describe('FilePreview', () => {
 
       // Assert - Loading should be shown again
       await waitFor(() => {
-        const loadingElement = findLoadingSpinner(container)
+        const loadingElement = findLoadingIndicator(container)
         expect(loadingElement)!.toBeInTheDocument()
       })
     })

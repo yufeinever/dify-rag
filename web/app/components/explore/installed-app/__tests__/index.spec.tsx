@@ -172,8 +172,8 @@ describe('InstalledApp', () => {
       })
 
       const { container } = render(<InstalledApp id="installed-app-123" />)
-      const svg = container.querySelector('svg.spin-animation')
-      expect(svg).toBeInTheDocument()
+      const loadingElement = container.querySelector('.mmb-loading-asset')
+      expect(loadingElement).toBeInTheDocument()
     })
 
     it('should render loading state when fetching app meta', () => {
@@ -184,8 +184,8 @@ describe('InstalledApp', () => {
       })
 
       const { container } = render(<InstalledApp id="installed-app-123" />)
-      const svg = container.querySelector('svg.spin-animation')
-      expect(svg).toBeInTheDocument()
+      const loadingElement = container.querySelector('.mmb-loading-asset')
+      expect(loadingElement).toBeInTheDocument()
     })
 
     it('should render loading state when fetching web app access mode', () => {
@@ -196,16 +196,16 @@ describe('InstalledApp', () => {
       })
 
       const { container } = render(<InstalledApp id="installed-app-123" />)
-      const svg = container.querySelector('svg.spin-animation')
-      expect(svg).toBeInTheDocument()
+      const loadingElement = container.querySelector('.mmb-loading-asset')
+      expect(loadingElement).toBeInTheDocument()
     })
 
     it('should render loading state when fetching installed apps', () => {
       setupMocks([mockInstalledApp], { isPending: true })
 
       const { container } = render(<InstalledApp id="installed-app-123" />)
-      const svg = container.querySelector('svg.spin-animation')
-      expect(svg).toBeInTheDocument()
+      const loadingElement = container.querySelector('.mmb-loading-asset')
+      expect(loadingElement).toBeInTheDocument()
     })
 
     it('should render app not found (404) when installedApp does not exist', () => {
@@ -610,8 +610,8 @@ describe('InstalledApp', () => {
       setupMocks([], { isFetching: true })
 
       const { container } = render(<InstalledApp id="nonexistent-app" />)
-      const svg = container.querySelector('svg.spin-animation')
-      expect(svg).toBeInTheDocument()
+      const loadingElement = container.querySelector('.mmb-loading-asset')
+      expect(loadingElement).toBeInTheDocument()
       expect(screen.queryByText(/404/)).not.toBeInTheDocument()
     })
   })

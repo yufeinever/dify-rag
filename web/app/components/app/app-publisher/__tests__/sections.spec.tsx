@@ -178,7 +178,7 @@ describe('app-publisher sections', () => {
       />,
     )
 
-    expect(document.querySelector('.spin-animation')).toBeInTheDocument()
+    expect(document.querySelector('.mmb-loading-asset')).toBeInTheDocument()
 
     rerender(
       <PublisherAccessSection

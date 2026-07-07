@@ -113,7 +113,7 @@ describe('Marketplace', () => {
       )
 
       // Assert
-      expect(document.querySelector('svg.spin-animation')).toBeInTheDocument()
+      expect(document.querySelector('.mmb-loading-asset')).toBeInTheDocument()
       expect(screen.queryByTestId('marketplace-list')).not.toBeInTheDocument()
     })
 

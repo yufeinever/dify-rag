@@ -198,7 +198,7 @@ describe('SpecificGroupsOrMembers', () => {
     const { container } = render(<SpecificGroupsOrMembers />)
 
     await waitFor(() => {
-      expect(container.querySelector('.spin-animation')).toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset')).toBeInTheDocument()
     })
   })
 
@@ -273,7 +273,7 @@ describe('AddMemberOrGroupDialog', () => {
 
     await user.click(screen.getByText('common.operation.add'))
     await user.type(screen.getByPlaceholderText('app.accessControlDialog.operateGroupAndMember.searchPlaceholder'), 'Group')
-    expect(document.querySelector('.spin-animation')).toBeInTheDocument()
+    expect(document.querySelector('.mmb-loading-asset')).toBeInTheDocument()
 
     const groupOption = screen.getByRole('option', { name: /Group One/ })
     fireEvent.click(groupOption)

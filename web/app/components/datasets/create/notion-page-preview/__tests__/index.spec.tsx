@@ -70,7 +70,7 @@ const renderNotionPagePreview = async (
   if (waitForContent && defaultProps.currentPage) {
     await waitFor(() => {
       // Wait for loading to finish
-      expect(result.container.querySelector('.spin-animation')).not.toBeInTheDocument()
+      expect(result.container.querySelector('.mmb-loading-asset')).not.toBeInTheDocument()
     })
   }
 
@@ -80,9 +80,9 @@ const renderNotionPagePreview = async (
   }
 }
 
-// Helper to find the loading spinner element
-const findLoadingSpinner = (container: HTMLElement) => {
-  return container.querySelector('.spin-animation')
+// Helper to find the loading indicator element
+const findLoadingIndicator = (container: HTMLElement) => {
+  return container.querySelector('.mmb-loading-asset')
 }
 
 // NotionPagePreview Component Tests
@@ -195,7 +195,7 @@ describe('NotionPagePreview', () => {
       const { container } = await renderNotionPagePreview({}, false)
 
       // Assert - Loading should be visible initially
-      const loadingElement = findLoadingSpinner(container)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement).toBeInTheDocument()
     })
 
@@ -206,7 +206,7 @@ describe('NotionPagePreview', () => {
 
       expect(screen.getByText('Loaded content')).toBeInTheDocument()
       // Loading should be gone
-      const loadingElement = findLoadingSpinner(container)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement).not.toBeInTheDocument()
     })
 
@@ -227,7 +227,7 @@ describe('NotionPagePreview', () => {
       )
 
       // First page loading - spinner should be visible
-      expect(findLoadingSpinner(container)).toBeInTheDocument()
+      expect(findLoadingIndicator(container)).toBeInTheDocument()
 
       // Resolve first page
       await act(async () => {
@@ -243,7 +243,7 @@ describe('NotionPagePreview', () => {
 
       // Should show loading again
       await waitFor(() => {
-        expect(findLoadingSpinner(container)).toBeInTheDocument()
+        expect(findLoadingIndicator(container)).toBeInTheDocument()
       })
 
       // Resolve second page
@@ -340,7 +340,7 @@ describe('NotionPagePreview', () => {
       const { container } = await renderNotionPagePreview()
 
       // Assert - Should still render without loading
-      const loadingElement = findLoadingSpinner(container)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement).not.toBeInTheDocument()
     })
   })
@@ -376,7 +376,7 @@ describe('NotionPagePreview', () => {
       // Act - Don't wait for content
       const { container } = await renderNotionPagePreview({}, false)
 
-      const loadingElement = findLoadingSpinner(container)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement).toBeInTheDocument()
     })
 
@@ -411,7 +411,7 @@ describe('NotionPagePreview', () => {
 
       // Assert - Loading should be shown again
       await waitFor(() => {
-        const loadingElement = findLoadingSpinner(container)
+        const loadingElement = findLoadingIndicator(container)
         expect(loadingElement).toBeInTheDocument()
       })
     })
@@ -945,7 +945,7 @@ describe('NotionPagePreview', () => {
 
       const { container } = await renderNotionPagePreview()
 
-      const loadingElement = findLoadingSpinner(container)
+      const loadingElement = findLoadingIndicator(container)
       expect(loadingElement).not.toBeInTheDocument()
       const contentDiv = container.querySelector('[class*="fileContent"]')
       expect(contentDiv).toBeInTheDocument()

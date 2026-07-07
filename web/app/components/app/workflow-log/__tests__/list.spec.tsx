@@ -181,7 +181,7 @@ describe('WorkflowAppLogList', () => {
         <WorkflowAppLogList logs={undefined} appDetail={createMockApp()} onRefresh={defaultOnRefresh} />,
       )
 
-      expect(container.querySelector('.spin-animation'))!.toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset'))!.toBeInTheDocument()
     })
 
     it('should render loading state when appDetail is undefined', () => {
@@ -191,7 +191,7 @@ describe('WorkflowAppLogList', () => {
         <WorkflowAppLogList logs={logs} appDetail={undefined} onRefresh={defaultOnRefresh} />,
       )
 
-      expect(container.querySelector('.spin-animation'))!.toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset'))!.toBeInTheDocument()
     })
 
     it('should render table when data is available', () => {

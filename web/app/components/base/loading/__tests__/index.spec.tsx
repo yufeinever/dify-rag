@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import * as React from 'react'
 import Loading from '../index'
 
@@ -19,11 +19,15 @@ describe('Loading Component', () => {
     expect(container.firstChild).toHaveClass('h-full')
   })
 
-  it('contains SVG with spin-animation class', () => {
+  it('renders the MMB loading asset with an accessible status label', () => {
     const { container } = render(<Loading />)
 
-    const svgElement = container.querySelector('svg')
-    expect(svgElement).toHaveClass('spin-animation')
+    expect(screen.getByRole('status', { name: 'appApi.loading' })).toBeInTheDocument()
+    expect(container.querySelector('.mmb-loading-asset')).toBeInTheDocument()
+    expect(container.querySelector('.mmb-loading-image')).toHaveAttribute(
+      'src',
+      '/custom-assets/mmb-loading/mmb-bear-bottle-transparent.png',
+    )
   })
 
   it('handles undefined props correctly', () => {

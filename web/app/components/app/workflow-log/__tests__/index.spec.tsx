@@ -323,7 +323,7 @@ describe('Logs Container', () => {
       const { container } = renderWithQueryClient(<Logs {...defaultProps} />)
 
       // Assert
-      expect(container.querySelector('.spin-animation')).toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset')).toBeInTheDocument()
     })
 
     it('should not show loading spinner when data is available', () => {
@@ -338,7 +338,7 @@ describe('Logs Container', () => {
       const { container } = renderWithQueryClient(<Logs {...defaultProps} />)
 
       // Assert
-      expect(container.querySelector('.spin-animation')).not.toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset')).not.toBeInTheDocument()
     })
   })
 
@@ -627,7 +627,7 @@ describe('Logs Container', () => {
       const { container } = renderWithQueryClient(<Logs {...defaultProps} />)
 
       // Assert - should show loading state when data is undefined
-      expect(container.querySelector('.spin-animation')).toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset')).toBeInTheDocument()
     })
 
     it('should handle app with different ID', () => {

@@ -72,7 +72,7 @@ describe('SpecificGroupsOrMembers', () => {
     const { container } = render(<SpecificGroupsOrMembers />)
 
     await waitFor(() => {
-      expect(container.querySelector('.spin-animation')).toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset')).toBeInTheDocument()
     })
   })
 
