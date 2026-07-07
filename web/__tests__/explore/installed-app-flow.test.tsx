@@ -183,7 +183,7 @@ describe('Installed App Flow', () => {
 
       const { container } = render(<InstalledApp id="installed-app-1" />)
 
-      expect(container.querySelector('svg.spin-animation')).toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset')).toBeInTheDocument()
       expect(screen.queryByTestId('chat-with-history')).not.toBeInTheDocument()
     })
 
@@ -194,7 +194,7 @@ describe('Installed App Flow', () => {
 
       const { container } = render(<InstalledApp id="nonexistent" />)
 
-      expect(container.querySelector('svg.spin-animation')).toBeInTheDocument()
+      expect(container.querySelector('.mmb-loading-asset')).toBeInTheDocument()
       expect(screen.queryByText(/404/)).not.toBeInTheDocument()
     })
 
