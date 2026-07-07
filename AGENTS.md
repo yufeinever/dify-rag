@@ -13,35 +13,29 @@ The codebase is split into:
 
 ## Development Location
 
-- Canonical development happens on T1000 at `/home/yu/projects/dify-rag`.
-- Do not make feature or product changes in the Windows local mirror `C:\Users\86150\Documents\RAG_for_dify`; treat it as historical/local artifact storage only.
-- When Codex needs to change this project, first SSH to T1000 with `ssh t1000-lan` and work in `/home/yu/projects/dify-rag`, then commit and push from that remote repository.
+- Canonical MMB-Dify development happens on the 150 production host at `/opt/mmb-dify/current`.
+- `/opt/mmb-dify/current` is the only development baseline for this project unless the user explicitly says otherwise.
+- Do not make MMB-Dify feature or product changes in the Windows local mirror `C:\Users\86150\Documents\RAG_for_dify` or the historical T1000 tree `/home/yu/projects/dify-rag`; treat them as historical references or patch-transfer locations only.
+- When Codex needs to change this project, SSH to the 150 production host with `ssh mmb-dify-150` or `ssh root@150.5.132.104`, work in `/opt/mmb-dify/current`, then commit and push from that repository.
 
-## Production Deployment: 118.196.65.83:18088
+## Production Deployment: 150.5.132.104
 
-- The public Dify node `http://118.196.65.83:18088` is the main environment the user checks. Do not assume a source commit is visible there until the Docker deployment has been rebuilt and restarted.
-- Traffic path: public 118 server HAProxy `:18088` -> FRP tunnel `127.0.0.1:18087` -> T1000 Docker Compose nginx -> `web`/`api` services in `/home/yu/projects/dify-rag/docker`.
-- Default to `scripts/deploy-18088.sh` for publishing after changes. Use the manual commands below only when the script is unavailable, needs debugging, or a special one-off deployment is required.
-- After any backend, frontend, migration, or user-visible product change, publish to this node as part of the task unless the user explicitly says not to deploy.
-- If the working tree has unrelated dirty files, create a clean deploy worktree from the intended commit, for example `git worktree add --detach /tmp/dify-rag-deploy-<sha> <sha>`, and build from that clean tree.
-- Build images from the repository root of the intended source state:
-  - `docker build -f api/Dockerfile -t mmbai/dify-api:local .`
-  - `docker build -f web/Dockerfile -t mmbai/dify-web:local .`
-- If API migrations changed, run them from `/home/yu/projects/dify-rag/docker` with `docker compose run --rm --no-deps api flask db upgrade`; verify `alembic_version` when needed.
-- Recreate the runtime services from `/home/yu/projects/dify-rag/docker` with `docker compose up -d --no-build --force-recreate api api_websocket worker worker_beat web`.
-- Restart nginx after recreating api or web because nginx can cache old Docker DNS upstream IPs for both upstreams: `docker compose restart nginx`.
-- Verify both the internal and public UI/API entrypoints before reporting completion:
-  - On T1000: `curl -I http://127.0.0.1/admin` and `curl -I http://127.0.0.1/console/api/setup`
-  - Public: `curl -I http://118.196.65.83:18088/admin` and `curl -I http://118.196.65.83:18088/console/api/setup`
-  - Check logs when relevant: `docker compose logs --tail=100 api web nginx`
-- If the browser still shows the old UI after deployment, tell the user to hard refresh with `Ctrl+F5` because stale Next.js chunks may be cached.
+- The public MMB-Dify production node is hosted on the 150 production machine. Do not assume a source commit is visible to users until the production-equivalent Docker build/restart path has been completed on that machine.
+- Production source path: `/opt/mmb-dify/current`.
+- Production Docker Compose project: `mmb-dify-v010`. Always include `-p mmb-dify-v010` in compose commands on 150 to avoid touching a default project by mistake.
+- Build and restart from the repository root with the production compose file and env file, for example:
+  - `docker compose -p mmb-dify-v010 -f docker/docker-compose.yaml --env-file docker/.env build web`
+  - `docker compose -p mmb-dify-v010 -f docker/docker-compose.yaml --env-file docker/.env up -d web`
+- For API, worker, migration, nginx, plugin daemon, or database changes, state the affected services, database impact, verification commands, and rollback path before deployment.
+- After every production release, update `VERSION`, `DEPLOYMENT_VERSION`, and `版本迭代说明.md` with the next sequential version number, deployment time, image tags, restarted services, database impact, verification, and rollback instructions.
+- Before reporting completion, verify the relevant production UI/API entrypoints and inspect service status/logs as needed with the `mmb-dify-v010` compose project.
 
 
 ## Related Windows Upload Client
 
 - The Windows local file upload/ingestion client is a separate project at T1000 `/home/yu/projects/dify-file-ingestor`.
 - It is a Windows-only WPF tray app for scanning local files, helping users choose approved work documents, and uploading them to a Dify knowledge base.
-- Do not look for or implement this client inside `/home/yu/projects/dify-rag`.
+- Do not look for or implement this client inside this MMB-Dify repository.
 
 ## Backend Workflow
 
