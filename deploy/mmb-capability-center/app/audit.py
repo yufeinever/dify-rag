@@ -90,7 +90,35 @@ class AuditStore:
             connection.execute("CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_events(session_key, created_at)")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_audit_request ON audit_events(request_id)")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_artifact_context ON team_artifacts(tenant_id, bot_id, chat_id)")
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS artifact_deliveries (
+                    artifact_id TEXT PRIMARY KEY,
+                    job_id TEXT,
+                    channel TEXT NOT NULL,
+                    chat_id TEXT,
+                    sender_open_id TEXT,
+                    session_id TEXT,
+                    session_key TEXT,
+                    artifact_type TEXT NOT NULL,
+                    filename TEXT,
+                    mime_type TEXT,
+                    file_url TEXT,
+                    local_path TEXT,
+                    resource_key TEXT,
+                    status TEXT NOT NULL,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    delivered_at TEXT
+                )
+                """
+            )
             connection.execute("CREATE INDEX IF NOT EXISTS idx_poster_delivery_status ON poster_deliveries(status, updated_at)")
+            connection.execute("CREATE INDEX IF NOT EXISTS idx_artifact_delivery_status ON artifact_deliveries(status, updated_at)")
+            connection.execute("CREATE INDEX IF NOT EXISTS idx_artifact_delivery_job ON artifact_deliveries(job_id, channel)")
 
     def record_event(
         self,
@@ -345,4 +373,159 @@ class AuditStore:
                 WHERE job_id = ?
                 """,
                 (status, poster_url, thumbnail_url, error, now, job_id),
+            )
+
+    def register_artifact_delivery(
+        self,
+        *,
+        artifact_id: str | None = None,
+        job_id: str | None = None,
+        channel: str = "feishu",
+        chat_id: str | None = None,
+        sender_open_id: str | None = None,
+        session_id: str | None = None,
+        session_key: str | None = None,
+        artifact_type: str,
+        filename: str | None = None,
+        mime_type: str | None = None,
+        file_url: str | None = None,
+        local_path: str | None = None,
+        status: str = "pending",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now_iso()
+        artifact_id = artifact_id or str(uuid.uuid4())
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO artifact_deliveries (
+                    artifact_id, job_id, channel, chat_id, sender_open_id, session_id, session_key,
+                    artifact_type, filename, mime_type, file_url, local_path, status, metadata,
+                    created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(artifact_id) DO UPDATE SET
+                    job_id = COALESCE(excluded.job_id, artifact_deliveries.job_id),
+                    chat_id = COALESCE(excluded.chat_id, artifact_deliveries.chat_id),
+                    sender_open_id = COALESCE(excluded.sender_open_id, artifact_deliveries.sender_open_id),
+                    session_id = COALESCE(excluded.session_id, artifact_deliveries.session_id),
+                    session_key = COALESCE(excluded.session_key, artifact_deliveries.session_key),
+                    filename = COALESCE(excluded.filename, artifact_deliveries.filename),
+                    mime_type = COALESCE(excluded.mime_type, artifact_deliveries.mime_type),
+                    file_url = COALESCE(excluded.file_url, artifact_deliveries.file_url),
+                    local_path = COALESCE(excluded.local_path, artifact_deliveries.local_path),
+                    status = CASE
+                        WHEN artifact_deliveries.status IN ('delivered', 'failed') THEN artifact_deliveries.status
+                        ELSE excluded.status
+                    END,
+                    metadata = excluded.metadata,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    artifact_id,
+                    job_id,
+                    channel,
+                    chat_id,
+                    sender_open_id,
+                    session_id,
+                    session_key,
+                    artifact_type,
+                    filename,
+                    mime_type,
+                    file_url,
+                    local_path,
+                    status,
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                    now,
+                    now,
+                ),
+            )
+            return dict(connection.execute("SELECT * FROM artifact_deliveries WHERE artifact_id = ?", (artifact_id,)).fetchone())
+
+    def get_artifact_delivery(self, artifact_id: str) -> dict[str, Any] | None:
+        with self._lock, self._connect() as connection:
+            row = connection.execute("SELECT * FROM artifact_deliveries WHERE artifact_id = ?", (artifact_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_artifact_deliveries(self, *, limit: int = 100, status: str | None = None) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        params.append(limit)
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT * FROM artifact_deliveries
+                {where_sql}
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_due_artifact_deliveries(self, *, limit: int, max_attempts: int) -> list[dict[str, Any]]:
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM artifact_deliveries
+                WHERE status IN ('pending', 'running') AND attempt_count < ?
+                ORDER BY updated_at ASC
+                LIMIT ?
+                """,
+                (max_attempts, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_artifact_delivery_target(self, artifact_id: str, *, chat_id: str | None = None, sender_open_id: str | None = None, session_id: str | None = None, session_key: str | None = None) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE artifact_deliveries
+                SET chat_id = COALESCE(?, chat_id), sender_open_id = COALESCE(?, sender_open_id),
+                    session_id = COALESCE(?, session_id), session_key = COALESCE(?, session_key), updated_at = ?
+                WHERE artifact_id = ?
+                """,
+                (chat_id, sender_open_id, session_id, session_key, now, artifact_id),
+            )
+
+    def mark_artifact_delivery_attempt(self, artifact_id: str, *, status: str, error: str | None = None) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE artifact_deliveries
+                SET status = ?, attempt_count = attempt_count + 1, last_error = ?, updated_at = ?
+                WHERE artifact_id = ?
+                """,
+                (status, error, now, artifact_id),
+            )
+
+    def mark_artifact_delivery_delivered(self, artifact_id: str, *, resource_key: str | None = None, file_url: str | None = None) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE artifact_deliveries
+                SET status = 'delivered', resource_key = COALESCE(?, resource_key), file_url = COALESCE(?, file_url),
+                    last_error = NULL, updated_at = ?, delivered_at = ?
+                WHERE artifact_id = ?
+                """,
+                (resource_key, file_url, now, now, artifact_id),
+            )
+
+    def mark_artifact_delivery_terminal(self, artifact_id: str, *, status: str, error: str | None = None, file_url: str | None = None) -> None:
+        now = utc_now_iso()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE artifact_deliveries
+                SET status = ?, file_url = COALESCE(?, file_url), last_error = ?, updated_at = ?
+                WHERE artifact_id = ?
+                """,
+                (status, file_url, error, now, artifact_id),
             )

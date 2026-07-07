@@ -138,6 +138,23 @@ class CreatePosterJobRequest(BaseModel):
     request_id: str | None = None
 
 
+class ArtifactDeliveryRegisterRequest(BaseModel):
+    artifact_type: Literal["poster", "image", "pptx", "word", "excel", "pdf", "file"] = "file"
+    artifact_id: str | None = None
+    job_id: str | None = None
+    channel: str = "feishu"
+    chat_id: str | None = None
+    sender_open_id: str | None = None
+    session_id: str | None = None
+    session_key: str | None = None
+    filename: str | None = None
+    mime_type: str | None = None
+    file_url: str | None = None
+    local_path: str | None = None
+    status: str = "pending"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class PosterDeliveryRegisterRequest(BaseModel):
     job_id: str = Field(min_length=1)
     channel: str = "feishu"

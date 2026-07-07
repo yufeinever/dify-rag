@@ -4,7 +4,7 @@ import json
 import re
 import uuid
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -62,6 +62,127 @@ def answer_from_dify(payload: dict[str, Any]) -> str:
         return text
     return str(payload)
 
+
+
+_ARTIFACT_EXTENSIONS: dict[str, set[str]] = {
+    "poster": {"png", "jpg", "jpeg", "webp"},
+    "image": {"png", "jpg", "jpeg", "webp"},
+    "pptx": {"ppt", "pptx"},
+    "visual_ppt": {"ppt", "pptx"},
+    "word": {"doc", "docx"},
+    "document": {"doc", "docx"},
+    "excel": {"xls", "xlsx", "csv"},
+    "spreadsheet": {"xls", "xlsx", "csv"},
+    "pdf": {"pdf"},
+    "file": set(),
+}
+
+_MIME_BY_EXTENSION: dict[str, str] = {
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "ppt": "application/vnd.ms-powerpoint",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "xls": "application/vnd.ms-excel",
+    "csv": "text/csv",
+    "pdf": "application/pdf",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "webp": "image/webp",
+}
+
+
+def _extension_from_url(url: str) -> str:
+    path = urlsplit(url).path
+    name = unquote(path.rsplit("/", 1)[-1])
+    if "." not in name:
+        return ""
+    return name.rsplit(".", 1)[-1].lower()
+
+
+def _filename_from_url(url: str, default_filename: str | None) -> str:
+    path = urlsplit(url).path
+    name = unquote(path.rsplit("/", 1)[-1])
+    if name:
+        return name
+    return default_filename or "artifact.bin"
+
+
+def _mime_from_filename(filename: str, fallback: str | None = None) -> str:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return fallback or _MIME_BY_EXTENSION.get(ext, "application/octet-stream")
+
+
+def _dify_file_base_url(settings: Settings) -> str:
+    parts = urlsplit(str(settings.dify_base_url))
+    path = parts.path.rstrip("/")
+    if path.endswith("/v1"):
+        path = path[:-3] or ""
+    return urlunsplit((parts.scheme, parts.netloc, path, "", "")).rstrip("/")
+
+
+def _absolute_file_url(url: str, settings: Settings) -> str:
+    url = _tool_file_attachment_url(url)
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/"):
+        return f"{_dify_file_base_url(settings)}{url}"
+    return url
+
+
+def _artifact_allowed(url: str, artifact_type: str) -> bool:
+    allowed = _ARTIFACT_EXTENSIONS.get(artifact_type, set())
+    if not allowed:
+        return True
+    return _extension_from_url(url) in allowed
+
+
+def _iter_file_url_strings(value: Any):
+    if isinstance(value, str):
+        for match in _TOOL_FILE_URL_RE.finditer(value):
+            yield match.group("url")
+        return
+    if isinstance(value, list):
+        for item in value:
+            yield from _iter_file_url_strings(item)
+        return
+    if isinstance(value, dict):
+        for key in ("url", "file_url", "download_url", "signed_url"):
+            item = value.get(key)
+            if isinstance(item, str):
+                yield item
+        for item in value.values():
+            yield from _iter_file_url_strings(item)
+
+
+def extract_generated_artifacts(payload: dict[str, Any], *, artifact_type: str, default_filename: str | None, settings: Settings) -> list[dict[str, Any]]:
+    artifacts: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw_url in _iter_file_url_strings(payload):
+        absolute_url = _absolute_file_url(raw_url, settings)
+        if absolute_url in seen or not _artifact_allowed(absolute_url, artifact_type):
+            continue
+        seen.add(absolute_url)
+        filename = _filename_from_url(absolute_url, default_filename)
+        artifacts.append({"artifact_type": artifact_type, "filename": filename, "mime_type": _mime_from_filename(filename), "file_url": absolute_url})
+    return artifacts
+
+
+def attach_artifact_delivery_metadata(payload: dict[str, Any], *, artifact_type: str, default_filename: str | None, settings: Settings) -> dict[str, Any]:
+    result = dict(payload)
+    artifacts = extract_generated_artifacts(result, artifact_type=artifact_type, default_filename=default_filename, settings=settings)
+    if artifacts:
+        result["generated_artifacts"] = artifacts
+        result["delivery_registered"] = False
+        result["delivery_status"] = "pending_registration"
+        return result
+    if result.get("status") not in {"not_configured", "not_supported"}:
+        result["status"] = "blocked_missing_file"
+        result["delivery_registered"] = False
+        result["delivery_status"] = "blocked_missing_file"
+        result["message"] = "生成工具没有返回可下载文件地址，已阻止声称文件完成；请检查对应 Dify 助手是否返回真实附件。"
+    return result
 
 def _tool_file_attachment_url(url: str) -> str:
     if "/files/tools/" not in url:
@@ -343,7 +464,7 @@ class ServiceClients:
             query_parts.append(f"目标页数：{slide_count}")
         if style_preset:
             query_parts.append(f"视觉风格：{style_preset}")
-        return await self._chat_app_streaming(
+        result = await self._chat_app_streaming(
             api_key=api_key,
             query="\n".join(query_parts),
             user=context.user_key,
@@ -356,6 +477,12 @@ class ServiceClients:
                 "slide_count": str(slide_count or ""),
                 "style_preset": style_preset or "",
             },
+        )
+        return attach_artifact_delivery_metadata(
+            result,
+            artifact_type="pptx",
+            default_filename=filename or f"{title}.pptx",
+            settings=self.settings,
         )
 
     async def create_business_artifact(self, request: CreateBusinessArtifactRequest) -> dict[str, Any]:
@@ -387,7 +514,7 @@ class ServiceClients:
                 "请直接调用可用的 office_artifact_tools/create_office_artifact 生成附件，不要只返回文字说明。PPT 不在本工具范围内。",
             ]
         )
-        return await self._chat_app(
+        result = await self._chat_app(
             api_key=api_key,
             query=query,
             user=request.context.user_key,
@@ -397,6 +524,15 @@ class ServiceClients:
                 "title": request.title,
                 "instructions": request.instructions or "",
             },
+        )
+        delivery_type = "word" if request.artifact_type in {"word", "document"} else "excel"
+        default_extension = "docx" if delivery_type == "word" else "xlsx"
+        default_filename = str(request.metadata.get("filename") or f"{request.title}.{default_extension}")
+        return attach_artifact_delivery_metadata(
+            result,
+            artifact_type=delivery_type,
+            default_filename=default_filename,
+            settings=self.settings,
         )
 
     async def get_poster_job(self, job_id: str) -> dict[str, Any]:

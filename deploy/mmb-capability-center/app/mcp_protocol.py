@@ -200,7 +200,7 @@ TOOLS: list[dict[str, Any]] = [
             "Use this workflow tool for all PPT generation requests, especially beautiful, visual, image-first PPT, pitch decks, "
             "financing roadshows, presentations, report decks, and slide decks where the expected output is a real .pptx attachment. "
             "Do not answer with text only. Prepare a clear outline or slides_json first. This routes to MMB视觉PPT助手 when configured; "
-            "otherwise it returns not_configured instead of using terminal fallback."
+            "otherwise it returns not_configured instead of using terminal fallback. If delivery_registered is true, stop and tell the user the file will be sent automatically; do not use terminal fallback."
         ),
         "inputSchema": _schema(
             {
@@ -226,7 +226,7 @@ TOOLS: list[dict[str, Any]] = [
             "meeting minutes, schedule, budget table, checklist, workbook, or spreadsheet. Do not use it for PPT, slides, decks, "
             "roadshows, or presentations; every PPT request must use create_visual_ppt. Do not use it when the user only wants chat text. "
             "Provide stable content, artifact_type, title, and any format instructions. "
-            "If the backend Office/Dify artifact app is not configured, return not_configured and do not claim a file was created."
+            "If delivery_registered is true, stop and tell the user the file will be sent automatically; do not use terminal fallback. If the backend Office/Dify artifact app is not configured, return not_configured and do not claim a file was created."
         ),
         "inputSchema": _schema(
             {
@@ -249,7 +249,7 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Use this delivery-layer tool only after a real image/file/job already exists and the user asks to send it to Feishu or the "
             "current Feishu chat should receive the finished asset. It does not generate business content. First version supports registering "
-            "poster jobs for Feishu background delivery; arbitrary file upload returns not_configured until a file delivery backend is enabled."
+            "poster jobs, existing image URLs, and existing file URLs for Feishu background delivery. It registers delivery only; it does not generate business content."
         ),
         "inputSchema": _schema(
             {
@@ -371,6 +371,7 @@ async def call_mcp_tool(
     clients: ServiceClients,
     create_artifact: Callable[[CreateTeamArtifactRequest], dict[str, Any]],
     register_poster_delivery: Callable[[ToolContext, dict[str, Any]], Any] | None = None,
+    register_artifact_delivery: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     args = _clean_args(arguments)
     context = _context(args)
@@ -436,7 +437,7 @@ async def call_mcp_tool(
             await _maybe_await(register_poster_delivery(context, result))
         return result
     if tool_name == "create_visual_ppt":
-        return await clients.create_visual_ppt(
+        result = await clients.create_visual_ppt(
             context=context,
             title=args["title"],
             outline=args.get("outline") or args["title"],
@@ -445,11 +446,14 @@ async def call_mcp_tool(
             slide_count=args.get("slide_count"),
             style_preset=args.get("style_preset"),
         )
+        if register_artifact_delivery is not None:
+            await _maybe_await(register_artifact_delivery(context, result, artifact_type="pptx", default_filename=args.get("filename") or f"{args['title']}.pptx"))
+        return result
     if tool_name == "create_office_file":
         metadata = {"capability": "create_office_file"}
         if args.get("filename"):
             metadata["filename"] = args.get("filename")
-        return await clients.create_business_artifact(
+        result = await clients.create_business_artifact(
             CreateBusinessArtifactRequest(
                 context=context,
                 artifact_type=_office_type(args.get("artifact_type")),
@@ -460,6 +464,11 @@ async def call_mcp_tool(
                 request_id=args.get("request_id"),
             )
         )
+        if register_artifact_delivery is not None:
+            delivery_type = "word" if _office_type(args.get("artifact_type")) == "word" else "excel"
+            default_ext = "docx" if delivery_type == "word" else "xlsx"
+            await _maybe_await(register_artifact_delivery(context, result, artifact_type=delivery_type, default_filename=args.get("filename") or f"{args['title']}.{default_ext}"))
+        return result
     if tool_name == "send_feishu_asset":
         asset_type = args.get("asset_type") or "poster_job"
         job_id = args.get("job_id")
@@ -475,10 +484,32 @@ async def call_mcp_tool(
                 "status": "registered_for_delivery",
                 "message": "已登记飞书后台回传；海报任务完成后会发送到当前飞书会话。",
                 "job_id": job_id,
+                "delivery_registered": True,
+            }
+        asset_url = args.get("asset_url")
+        if asset_type in {"image", "file"} and isinstance(asset_url, str) and asset_url and register_artifact_delivery is not None:
+            delivery_type = "image" if asset_type == "image" else "file"
+            delivery_data = {
+                "status": "registered_for_delivery",
+                "generated_artifacts": [
+                    {
+                        "artifact_type": delivery_type,
+                        "filename": args.get("title") or ("image.png" if delivery_type == "image" else "artifact.bin"),
+                        "file_url": asset_url,
+                    }
+                ],
+            }
+            await _maybe_await(register_artifact_delivery(context, delivery_data, artifact_type=delivery_type, default_filename=args.get("title")))
+            return {
+                "status": "registered_for_delivery",
+                "message": "已登记飞书后台回传；文件会发送到当前飞书会话。",
+                "asset_type": asset_type,
+                "delivery_registered": True,
+                "artifact_deliveries": delivery_data.get("artifact_deliveries", []),
             }
         return {
             "status": "not_configured",
-            "message": "第一版 send_feishu_asset 仅支持登记 poster_job 后台回传；任意文件/图片即时发送后端尚未启用。",
+            "message": "send_feishu_asset 需要 poster_job + job_id，或 image/file + asset_url，并且服务端需启用投递后端。",
             "asset_type": asset_type,
         }
     if tool_name == "save_team_asset":
@@ -504,6 +535,7 @@ async def handle_mcp_request(
     clients: ServiceClients,
     create_artifact: Callable[[CreateTeamArtifactRequest], dict[str, Any]],
     register_poster_delivery: Callable[[ToolContext, dict[str, Any]], Any] | None = None,
+    register_artifact_delivery: Callable[..., Any] | None = None,
 ) -> dict[str, Any] | None:
     method = payload.get("method")
     request_id = payload.get("id")
@@ -539,6 +571,7 @@ async def handle_mcp_request(
                 clients=clients,
                 create_artifact=create_artifact,
                 register_poster_delivery=register_poster_delivery,
+                register_artifact_delivery=register_artifact_delivery,
             )
             return _mcp_result(request_id, {"ok": True, "tool": LEGACY_TOOL_ALIASES.get(tool_name, tool_name), "requested_tool": tool_name, "data": result})
         except KeyError:

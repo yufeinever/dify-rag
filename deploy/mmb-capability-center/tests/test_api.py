@@ -5,7 +5,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from app import main
-from app.clients import _attach_tool_file_downloads
+from app.clients import _attach_tool_file_downloads, attach_artifact_delivery_metadata
 
 
 def p2p_context() -> dict[str, object]:
@@ -195,6 +195,37 @@ class CapabilityApiTest(unittest.TestCase):
         self.assertIn("sign=s%3D", result["answer"])
         self.assertTrue(result["files"][0]["url"].endswith("sign=s%3D&as_attachment=true"))
         self.assertEqual(_attach_tool_file_downloads("https://example.com/a.pptx"), "https://example.com/a.pptx")
+
+    def test_artifact_metadata_extracts_pptx_download(self) -> None:
+        payload = {"status": "requested", "answer": "下载：/files/tools/abc.pptx?timestamp=1&sign=s"}
+        result = attach_artifact_delivery_metadata(
+            payload,
+            artifact_type="pptx",
+            default_filename="deck.pptx",
+            settings=main.settings,
+        )
+
+        self.assertEqual(result["delivery_status"], "pending_registration")
+        self.assertEqual(result["generated_artifacts"][0]["artifact_type"], "pptx")
+        self.assertIn("as_attachment=true", result["generated_artifacts"][0]["file_url"])
+
+    def test_artifact_delivery_registration_endpoint(self) -> None:
+        response = self.client.post(
+            "/v1/artifact-deliveries",
+            json={
+                "artifact_type": "pptx",
+                "artifact_id": "artifact-test",
+                "chat_id": "oc_1",
+                "sender_open_id": "ou_a",
+                "filename": "test.pptx",
+                "file_url": "https://example.com/test.pptx",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get("/v1/artifact-deliveries", params={"status": "pending"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any(item["artifact_id"] == "artifact-test" for item in response.json()["deliveries"]))
 
     def test_mcp_save_team_asset(self) -> None:
         response = self.client.post(

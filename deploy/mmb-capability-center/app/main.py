@@ -13,6 +13,7 @@ from .audit import AuditStore
 from .clients import CapabilityClientError, ServiceClients
 from .config import get_settings
 from .models import (
+    ArtifactDeliveryRegisterRequest,
     ContextResponse,
     CreateBusinessArtifactRequest,
     CreatePosterJobRequest,
@@ -129,10 +130,74 @@ def record_failure(request_id: str, context: ToolContext, tool: str, error: Exce
     audit_store.record_event(request_id=request_id, context=context, tool=tool, status="failed", metadata={"error": str(error)})
 
 
+
+def _artifact_id_for(context: ToolContext, artifact_type: str, file_url: str | None, fallback: str) -> str:
+    raw = f"{context.session_key}:{artifact_type}:{file_url or fallback}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, raw))
+
+
+def register_artifact_delivery(
+    context: ToolContext,
+    data: dict[str, Any],
+    *,
+    artifact_type: str | None = None,
+    default_filename: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    generated = data.get("generated_artifacts")
+    deliveries: list[dict[str, Any]] = []
+    if isinstance(generated, list):
+        for index, item in enumerate(generated):
+            if not isinstance(item, dict):
+                continue
+            item_type = str(item.get("artifact_type") or artifact_type or "file")
+            file_url = item.get("file_url") if isinstance(item.get("file_url"), str) else None
+            artifact_id = _artifact_id_for(context, item_type, file_url, f"{data.get('request_id') or data.get('id') or index}")
+            delivery = audit_store.register_artifact_delivery(
+                artifact_id=artifact_id,
+                job_id=data.get("job_id") if isinstance(data.get("job_id"), str) else None,
+                channel="feishu",
+                chat_id=context.chat_id,
+                sender_open_id=context.sender_open_id or context.open_id,
+                session_id=session_id,
+                session_key=context.session_key,
+                artifact_type=item_type,
+                filename=item.get("filename") if isinstance(item.get("filename"), str) else default_filename,
+                mime_type=item.get("mime_type") if isinstance(item.get("mime_type"), str) else None,
+                file_url=file_url,
+                status="pending",
+                metadata={"source_status": data.get("status")},
+            )
+            deliveries.append(delivery)
+    if deliveries:
+        data["delivery_registered"] = True
+        data["delivery_status"] = "pending"
+        data["artifact_deliveries"] = deliveries
+        return {"deliveries": deliveries}
+    if data.get("delivery_status") == "blocked_missing_file":
+        delivery = audit_store.register_artifact_delivery(
+            artifact_id=_artifact_id_for(context, artifact_type or "file", None, str(data.get("request_id") or data.get("answer") or uuid.uuid4())),
+            channel="feishu",
+            chat_id=context.chat_id,
+            sender_open_id=context.sender_open_id or context.open_id,
+            session_id=session_id,
+            session_key=context.session_key,
+            artifact_type=artifact_type or "file",
+            filename=default_filename,
+            status="blocked_missing_file",
+            metadata={"message": data.get("message"), "answer": data.get("answer")},
+        )
+        data["artifact_deliveries"] = [delivery]
+        return {"deliveries": [delivery]}
+    return {"deliveries": []}
+
+
 def register_poster_delivery(context: ToolContext, data: dict[str, Any], *, session_id: str | None = None) -> None:
     job_id = data.get("job_id")
     if not isinstance(job_id, str) or not job_id:
         return
+    poster_url = data.get("poster_url") if isinstance(data.get("poster_url"), str) else None
+    thumbnail_url = data.get("thumbnail_url") if isinstance(data.get("thumbnail_url"), str) else None
     audit_store.register_poster_delivery(
         job_id=job_id,
         channel="feishu",
@@ -140,9 +205,27 @@ def register_poster_delivery(context: ToolContext, data: dict[str, Any], *, sess
         sender_open_id=context.sender_open_id or context.open_id,
         session_id=session_id,
         session_key=context.session_key,
-        poster_url=data.get("poster_url") if isinstance(data.get("poster_url"), str) else None,
-        thumbnail_url=data.get("thumbnail_url") if isinstance(data.get("thumbnail_url"), str) else None,
+        poster_url=poster_url,
+        thumbnail_url=thumbnail_url,
     )
+    audit_store.register_artifact_delivery(
+        artifact_id=f"poster:{job_id}",
+        job_id=job_id,
+        channel="feishu",
+        chat_id=context.chat_id,
+        sender_open_id=context.sender_open_id or context.open_id,
+        session_id=session_id,
+        session_key=context.session_key,
+        artifact_type="poster",
+        filename=f"poster-{job_id}.png",
+        mime_type="image/png",
+        file_url=poster_url,
+        status="pending",
+        metadata={"thumbnail_url": thumbnail_url},
+    )
+    data["delivery_registered"] = True
+    data["delivery_status"] = "pending"
+    data["artifact_id"] = f"poster:{job_id}"
 
 
 async def run_poster_delivery_once() -> None:
@@ -341,6 +424,7 @@ async def mcp_endpoint(request: Request, _: None = Depends(require_auth)):
                 clients=clients,
                 create_artifact=audit_store.create_artifact,
                 register_poster_delivery=register_poster_delivery,
+                register_artifact_delivery=register_artifact_delivery,
             )
             if result is not None:
                 responses.append(result)
@@ -350,6 +434,7 @@ async def mcp_endpoint(request: Request, _: None = Depends(require_auth)):
         clients=clients,
         create_artifact=audit_store.create_artifact,
         register_poster_delivery=register_poster_delivery,
+        register_artifact_delivery=register_artifact_delivery,
     )
     if result is None:
         return Response(status_code=202)
@@ -391,6 +476,38 @@ def register_existing_poster_delivery(request: PosterDeliveryRegisterRequest) ->
         thumbnail_url=request.thumbnail_url,
     )
     return {"delivery": delivery}
+
+
+@app.get("/v1/artifact-deliveries", dependencies=[Depends(require_auth)])
+def list_artifact_deliveries(limit: int = Query(default=100, ge=1, le=500), status: str | None = None) -> dict[str, Any]:
+    return {"deliveries": audit_store.list_artifact_deliveries(limit=limit, status=status)}
+
+
+@app.post("/v1/artifact-deliveries", dependencies=[Depends(require_auth)])
+def register_existing_artifact_delivery(request: ArtifactDeliveryRegisterRequest) -> dict[str, Any]:
+    delivery = audit_store.register_artifact_delivery(
+        artifact_id=request.artifact_id,
+        job_id=request.job_id,
+        channel=request.channel,
+        chat_id=request.chat_id,
+        sender_open_id=request.sender_open_id,
+        session_id=request.session_id,
+        session_key=request.session_key,
+        artifact_type=request.artifact_type,
+        filename=request.filename,
+        mime_type=request.mime_type,
+        file_url=request.file_url,
+        local_path=request.local_path,
+        status=request.status,
+        metadata=request.metadata,
+    )
+    return {"delivery": delivery}
+
+
+@app.post("/v1/artifact-deliveries/run-once", dependencies=[Depends(require_auth)])
+async def run_artifact_deliveries_once() -> dict[str, Any]:
+    await run_poster_delivery_once()
+    return {"status": "ok"}
 
 
 @app.post("/v1/poster-deliveries/run-once", dependencies=[Depends(require_auth)])
