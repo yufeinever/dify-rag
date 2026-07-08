@@ -85,7 +85,7 @@ export default function MailAndPasswordAuth({ isInvite, isEmailSetup, allowRegis
         }
         else {
           const redirectUrl = resolvePostLoginRedirect(searchParams)
-          router.replace(redirectUrl || '/apps')
+          router.replace(redirectUrl || '/explore/apps')
         }
       }
       else {

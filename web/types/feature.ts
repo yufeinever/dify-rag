@@ -46,6 +46,8 @@ export type SystemFeatures = {
   enable_collaboration_mode: boolean
   is_allow_create_workspace: boolean
   is_allow_register: boolean
+  register_mode: string
+  default_explore_installed_app_id: string | null
   is_email_setup: boolean
   license: License
   branding: {
@@ -88,6 +90,8 @@ export const defaultSystemFeatures: SystemFeatures = {
   enable_collaboration_mode: false,
   is_allow_create_workspace: false,
   is_allow_register: false,
+  register_mode: 'email_verification',
+  default_explore_installed_app_id: null,
   is_email_setup: false,
   license: {
     status: LicenseStatus.NONE,

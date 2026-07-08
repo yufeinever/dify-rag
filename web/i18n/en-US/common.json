@@ -684,5 +684,8 @@
   "voiceInput.notAllow": "microphone not authorized",
   "voiceInput.speaking": "Speak now...",
   "voiceInput.start": "Voice input",
-  "you": "You"
+  "you": "You",
+  "members.resetPassword": "Reset password",
+  "members.resetPasswordTip": "Set a new password and require this member to sign in again",
+  "members.passwordResetSuccess": "Password reset"
 }

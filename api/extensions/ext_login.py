@@ -83,6 +83,10 @@ def load_user_from_request(request_from_flask_login: Request) -> LoginUser | Non
             raise Unauthorized("Invalid Authorization token.")
 
         logged_in_account = AccountService.load_logged_in_account(account_id=user_id)
+        if not logged_in_account or not AccountService.is_access_token_current(
+            logged_in_account, decoded.get("token_version")
+        ):
+            raise Unauthorized("Invalid Authorization token.")
         return logged_in_account
     elif request.blueprint == "web":
         app_code = request.headers.get(HEADER_NAME_APP_CODE)

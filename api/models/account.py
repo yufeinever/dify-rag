@@ -108,6 +108,7 @@ class Account(UserMixin, TypeBase):
         EnumText(AccountStatus, length=16), server_default=sa.text("'active'"), default=AccountStatus.ACTIVE
     )
     initialized_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    token_version: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"), default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), nullable=False, init=False
     )

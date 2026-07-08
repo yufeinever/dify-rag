@@ -677,5 +677,8 @@
   "voiceInput.converting": "正在转换为文本...",
   "voiceInput.notAllow": "麦克风未授权",
   "voiceInput.speaking": "现在讲...",
-  "you": "你"
+  "you": "你",
+  "members.resetPassword": "重置密码",
+  "members.resetPasswordTip": "为该成员设置新密码并要求重新登录",
+  "members.passwordResetSuccess": "密码已重置"
 }

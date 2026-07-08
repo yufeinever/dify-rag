@@ -116,6 +116,15 @@ export const updateMemberRole = ({ url, body }: { url: string, body: Record<stri
   return put<CommonResponse>(url, { body })
 }
 
+type ResetMemberPasswordBody = {
+  new_password: string
+  password_confirm: string
+}
+
+export const resetMemberPassword = ({ url, body }: { url: string, body: ResetMemberPasswordBody }): Promise<CommonResponse> => {
+  return put<CommonResponse>(url, { body })
+}
+
 export const deleteMemberOrCancelInvitation = ({ url }: { url: string }): Promise<CommonResponse> => {
   return del<CommonResponse>(url)
 }

@@ -20,6 +20,7 @@ from controllers.console.workspace.members import (
     MemberCancelInviteApi,
     MemberInviteEmailApi,
     MemberListApi,
+    MemberPasswordResetApi,
     MemberUpdateRoleApi,
     OwnerTransfer,
     OwnerTransferCheckApi,
@@ -299,6 +300,51 @@ class TestMemberCancelInviteApi:
             result, status = method(api, member.id)
 
         assert status == 404
+
+
+class TestMemberPasswordResetApi:
+    def test_reset_success_for_owner(self, app: Flask):
+        api = MemberPasswordResetApi()
+        method = unwrap(api.put)
+
+        tenant = MagicMock()
+        current_user = MagicMock(id="owner-id", current_tenant=tenant)
+        member = MagicMock(id="member-id")
+        payload = {"new_password": "newPassword123", "password_confirm": "newPassword123"}
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "t1")),
+            patch("controllers.console.workspace.members.db.session.get", return_value=member),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", side_effect=["normal", "owner"]),
+            patch("controllers.console.workspace.members.AccountService.set_account_password_without_current_password") as reset_mock,
+        ):
+            result = method(api, "member-id")
+
+        assert result["result"] == "success"
+        reset_mock.assert_called_once_with(member, "newPassword123")
+
+    def test_reset_rejects_admin_resetting_admin(self, app: Flask):
+        api = MemberPasswordResetApi()
+        method = unwrap(api.put)
+
+        tenant = MagicMock()
+        current_user = MagicMock(id="admin-id", current_tenant=tenant)
+        member = MagicMock(id="member-id")
+        payload = {"new_password": "newPassword123", "password_confirm": "newPassword123"}
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "t1")),
+            patch("controllers.console.workspace.members.db.session.get", return_value=member),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", side_effect=["admin", "admin"]),
+            patch("controllers.console.workspace.members.AccountService.set_account_password_without_current_password") as reset_mock,
+        ):
+            result, status = method(api, "member-id")
+
+        assert status == 403
+        assert result["code"] == "forbidden"
+        reset_mock.assert_not_called()
 
 
 class TestMemberUpdateRoleApi:

@@ -170,6 +170,8 @@ class SystemFeatureModel(FeatureResponseModel):
     enable_social_oauth_login: bool = False
     enable_collaboration_mode: bool = True
     is_allow_register: bool = False
+    register_mode: str = "email_verification"
+    default_explore_installed_app_id: str | None = None
     is_allow_create_workspace: bool = False
     is_email_setup: bool = False
     license: LicenseModel = LicenseModel()
@@ -272,6 +274,8 @@ class FeatureService:
         system_features.enable_social_oauth_login = dify_config.ENABLE_SOCIAL_OAUTH_LOGIN
         system_features.enable_collaboration_mode = dify_config.ENABLE_COLLABORATION_MODE
         system_features.is_allow_register = dify_config.ALLOW_REGISTER
+        system_features.register_mode = dify_config.REGISTER_MODE
+        system_features.default_explore_installed_app_id = dify_config.DEFAULT_EXPLORE_INSTALLED_APP_ID
         system_features.is_allow_create_workspace = dify_config.ALLOW_CREATE_WORKSPACE
         system_features.is_email_setup = dify_config.MAIL_TYPE is not None and dify_config.MAIL_TYPE != ""
         system_features.trial_models = cls._fulfill_trial_models_from_env()

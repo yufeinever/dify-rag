@@ -171,7 +171,22 @@ export const useMailValidity = () => {
   })
 }
 
-export type MailRegisterResponse = { result: string, data: {} }
+export type MailRegisterResponse = { result: string, data?: {} }
+
+export const useDirectMailRegister = () => {
+  return useMutation({
+    mutationKey: [NAME_SPACE, 'mail-direct-register'],
+    mutationFn: (body: {
+      email: string
+      new_password: string
+      password_confirm: string
+      language?: string
+      timezone?: string
+    }) => {
+      return post<MailRegisterResponse>('/email-register/direct', { body })
+    },
+  })
+}
 
 export const useMailRegister = () => {
   return useMutation({

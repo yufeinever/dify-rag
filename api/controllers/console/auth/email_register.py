@@ -1,4 +1,4 @@
-from flask import request
+from flask import abort, make_response, request
 from flask_restx import Resource
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,10 +18,11 @@ from controllers.console.auth.error import (
 from libs.helper import EmailStr, extract_remote_ip
 from libs.helper import timezone as validate_timezone_string
 from libs.password import valid_password
+from libs.token import set_access_token_to_cookie, set_csrf_token_to_cookie, set_refresh_token_to_cookie
 from models import Account
 from services.account_service import AccountService
 from services.billing_service import BillingService
-from services.errors.account import AccountRegisterError
+from services.errors.account import AccountRegisterError, TenantNotFoundError
 
 from ..error import AccountInFreezeError, EmailSendIpLimitError
 from ..wraps import email_password_login_enabled, email_register_enabled, setup_required
@@ -58,8 +59,84 @@ class EmailRegisterResetPayload(BaseModel):
         return validate_timezone_string(value)
 
 
-register_schema_models(console_ns, EmailRegisterSendPayload, EmailRegisterValidityPayload, EmailRegisterResetPayload)
+class EmailRegisterDirectPayload(BaseModel):
+    email: EmailStr = Field(...)
+    new_password: str = Field(...)
+    password_confirm: str = Field(...)
+    language: str | None = Field(default=None)
+    timezone: str | None = Field(default=None)
+
+    @field_validator("new_password", "password_confirm")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return valid_password(value)
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_timezone_string(value)
+
+
+register_schema_models(console_ns, EmailRegisterSendPayload, EmailRegisterValidityPayload, EmailRegisterResetPayload, EmailRegisterDirectPayload)
 register_response_schema_models(console_ns, SimpleResultDataResponse, VerificationTokenResponse)
+
+
+def _login_response(account: Account):
+    token_pair = AccountService.login(account=account, ip_address=extract_remote_ip(request))
+    AccountService.reset_login_error_rate_limit(account.email.lower())
+    response = make_response({"result": "success"})
+    set_access_token_to_cookie(request, response, token_pair.access_token)
+    set_refresh_token_to_cookie(request, response, token_pair.refresh_token)
+    set_csrf_token_to_cookie(request, response, token_pair.csrf_token)
+    return response
+
+
+@console_ns.route("/email-register/direct")
+class EmailRegisterDirectApi(Resource):
+    @setup_required
+    @email_password_login_enabled
+    @email_register_enabled
+    def post(self):
+        if dify_config.REGISTER_MODE != "direct_password":
+            abort(403)
+        if not dify_config.REGISTER_DEFAULT_TENANT_ID:
+            abort(400, "Default registration tenant is not configured.")
+
+        args = EmailRegisterDirectPayload.model_validate(console_ns.payload)
+        normalized_email = args.email.lower()
+
+        if args.new_password != args.password_confirm:
+            raise PasswordMismatchError()
+
+        ip_address = extract_remote_ip(request)
+        if AccountService.is_email_send_ip_limit(ip_address):
+            raise EmailSendIpLimitError()
+
+        if dify_config.BILLING_ENABLED and BillingService.is_email_in_freeze(normalized_email):
+            raise AccountInFreezeError()
+
+        account = AccountService.get_account_by_email_with_case_fallback(args.email)
+        if account:
+            raise EmailAlreadyInUseError()
+
+        try:
+            account = AccountService.create_account_and_join_tenant(
+                email=normalized_email,
+                name=normalized_email,
+                password=args.password_confirm,
+                interface_language=get_valid_language(args.language),
+                timezone=args.timezone,
+                tenant_id=dify_config.REGISTER_DEFAULT_TENANT_ID,
+                role=dify_config.REGISTER_DEFAULT_ROLE,
+            )
+        except AccountRegisterError:
+            raise AccountInFreezeError()
+        except TenantNotFoundError:
+            abort(400, "Default registration tenant is not available.")
+
+        return _login_response(account)
 
 
 @console_ns.route("/email-register/send-email")

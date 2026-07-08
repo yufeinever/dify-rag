@@ -18,6 +18,7 @@ from controllers.console.auth.error import (
     MemberNotInTenantError,
     NotOwnerError,
     OwnerTransferLimitError,
+    PasswordMismatchError,
 )
 from controllers.console.error import EmailSendIpLimitError, WorkspaceMembersLimitExceeded
 from controllers.console.wraps import (
@@ -47,6 +48,11 @@ class MemberRoleUpdatePayload(BaseModel):
     role: str
 
 
+class MemberPasswordResetPayload(BaseModel):
+    new_password: str
+    password_confirm: str
+
+
 class OwnerTransferEmailPayload(BaseModel):
     language: str | None = None
 
@@ -67,6 +73,7 @@ register_schema_models(
     AccountWithRoleList,
     MemberInvitePayload,
     MemberRoleUpdatePayload,
+    MemberPasswordResetPayload,
     OwnerTransferEmailPayload,
     OwnerTransferCheckPayload,
     OwnerTransferPayload,
@@ -244,6 +251,48 @@ class MemberUpdateRoleApi(Resource):
         except Exception as e:
             raise ValueError(str(e))
 
+        return {"result": "success"}
+
+
+@console_ns.route("/workspaces/current/members/<uuid:member_id>/password")
+class MemberPasswordResetApi(Resource):
+    """Reset a member password without requiring their current password."""
+
+    @console_ns.expect(console_ns.models[MemberPasswordResetPayload.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def put(self, member_id: UUID):
+        payload = console_ns.payload or {}
+        args = MemberPasswordResetPayload.model_validate(payload)
+        if args.new_password != args.password_confirm:
+            raise PasswordMismatchError()
+
+        current_user, _ = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+        member = db.session.get(Account, str(member_id))
+        if not member:
+            abort(404)
+        if member.id == current_user.id:
+            return {"code": "cannot-operate-self", "message": "Cannot reset your own password here."}, 400
+
+        member_role = TenantService.get_user_role(member, current_user.current_tenant)
+        if member_role is None:
+            return {"code": "member-not-found", "message": "Member not found in current tenant."}, 404
+        member_role = TenantAccountRole(member_role)
+        operator_role = TenantService.get_user_role(current_user, current_user.current_tenant)
+        if operator_role is None:
+            return {"code": "forbidden", "message": "Operator is not a member of current tenant."}, 403
+        operator_role = TenantAccountRole(operator_role)
+
+        if member_role == TenantAccountRole.OWNER:
+            return {"code": "forbidden", "message": "Cannot reset owner password."}, 403
+        if operator_role == TenantAccountRole.ADMIN and member_role == TenantAccountRole.ADMIN:
+            return {"code": "forbidden", "message": "Admins cannot reset other admin passwords."}, 403
+
+        AccountService.set_account_password_without_current_password(member, args.new_password)
         return {"result": "success"}
 
 

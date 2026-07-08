@@ -1340,6 +1340,22 @@ class LoginConfig(BaseSettings):
         description="whether to enable register",
         default=False,
     )
+    REGISTER_MODE: str = Field(
+        description="Registration mode: email_verification or direct_password",
+        default="email_verification",
+    )
+    REGISTER_DEFAULT_TENANT_ID: str | None = Field(
+        description="Tenant ID new direct-registration accounts should join",
+        default=None,
+    )
+    REGISTER_DEFAULT_ROLE: str = Field(
+        description="Tenant role for new direct-registration accounts",
+        default="normal",
+    )
+    DEFAULT_EXPLORE_INSTALLED_APP_ID: str | None = Field(
+        description="Default installed app to open from Explore apps",
+        default=None,
+    )
     ALLOW_CREATE_WORKSPACE: bool = Field(
         description="whether to enable create workspace",
         default=False,

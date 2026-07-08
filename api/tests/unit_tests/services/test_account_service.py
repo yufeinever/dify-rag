@@ -424,6 +424,39 @@ class TestAccountService:
         # Verify password validation was called
         mock_password_dependencies["valid_password"].assert_called_once_with("short")
 
+    def test_set_account_password_without_current_password_increments_token_version(
+        self, mock_db_dependencies, mock_password_dependencies
+    ):
+        """Test admin password reset updates credentials and invalidates existing tokens."""
+        mock_account = TestAccountAssociatedDataFactory.create_account_mock(token_version=2)
+        mock_password_dependencies["valid_password"].return_value = None
+        mock_password_dependencies["hash_password"].return_value = b"new_hashed_password"
+
+        with patch.object(AccountService, "logout") as logout_mock:
+            result = AccountService.set_account_password_without_current_password(mock_account, "newPassword123")
+
+        assert result == mock_account
+        assert mock_account.token_version == 3
+        assert mock_account.password is not None
+        assert mock_account.password_salt is not None
+        mock_password_dependencies["valid_password"].assert_called_once_with("newPassword123")
+        logout_mock.assert_called_once_with(account=mock_account)
+        self._assert_database_operations_called(mock_db_dependencies["db"])
+
+    @pytest.mark.parametrize(
+        ("account_version", "token_version", "expected"),
+        [
+            (0, None, True),
+            (1, None, False),
+            (2, 2, True),
+            (2, 1, False),
+        ],
+    )
+    def test_is_access_token_current(self, account_version, token_version, expected):
+        mock_account = TestAccountAssociatedDataFactory.create_account_mock(token_version=account_version)
+
+        assert AccountService.is_access_token_current(mock_account, token_version) is expected
+
     # ==================== User Loading Tests ====================
 
     def test_load_user_success(self, mock_db_dependencies):

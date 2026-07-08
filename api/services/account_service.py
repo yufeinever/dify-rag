@@ -208,6 +208,7 @@ class AccountService:
         exp = int(exp_dt.timestamp())
         payload = {
             "user_id": account.id,
+            "token_version": account.token_version,
             "exp": exp,
             "iss": dify_config.EDITION,
             "sub": "Console API Passport",
@@ -267,6 +268,51 @@ class AccountService:
         account.password_salt = base64_salt
         db.session.add(account)
         db.session.commit()
+        return account
+
+    @staticmethod
+    def set_account_password_without_current_password(account: Account, new_password: str) -> Account:
+        valid_password(new_password)
+        salt = secrets.token_bytes(16)
+        account.password_salt = base64.b64encode(salt).decode()
+        account.password = base64.b64encode(hash_password(new_password, salt)).decode()
+        account.token_version += 1
+        db.session.add(account)
+        db.session.commit()
+        AccountService.logout(account=account)
+        return account
+
+    @staticmethod
+    def is_access_token_current(account: Account, token_version: int | None) -> bool:
+        if token_version is None:
+            return account.token_version == 0
+        return account.token_version == token_version
+
+    @staticmethod
+    def create_account_and_join_tenant(
+        email: str,
+        name: str,
+        interface_language: str,
+        password: str,
+        tenant_id: str,
+        role: str = "normal",
+        timezone: str | None = None,
+    ) -> Account:
+        if not TenantAccountRole.is_valid_role(role) or role == TenantAccountRole.OWNER:
+            raise ValueError("Invalid default registration role.")
+        tenant = db.session.get(Tenant, tenant_id)
+        if tenant is None or tenant.status != TenantStatus.NORMAL:
+            raise TenantNotFoundError("Default registration tenant not found.")
+        account = AccountService.create_account(
+            email=email,
+            name=name,
+            interface_language=interface_language,
+            password=password,
+            timezone=timezone,
+        )
+        TenantService.create_tenant_member(tenant=tenant, account=account, role=role)
+        TenantService.switch_tenant(account=account, tenant_id=tenant.id)
+        db.session.refresh(account)
         return account
 
     @staticmethod
