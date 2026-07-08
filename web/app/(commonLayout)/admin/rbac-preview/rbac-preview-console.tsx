@@ -10,9 +10,11 @@ import { toast } from '@langgenius/dify-ui/toast'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useAppContext } from '@/context/app-context'
+import { useProviderContext } from '@/context/provider-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
 import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchEffectivePermissions, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, fetchWorkspaceUiPolicy, updateAdminUiPolicy, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
+import { createMember, resetMemberPassword } from '@/service/common'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { fetchInstalledAppList } from '@/service/explore'
 import { useMembers } from '@/service/use-common'
@@ -37,9 +39,13 @@ const tabs: Array<{ key: RbacPreviewTab, label: string, icon: string, desc: stri
 type MemberSortKey = 'account' | 'role' | 'status' | 'group' | 'created_at'
 type SortDirection = 'asc' | 'desc'
 type MemberSortState = { key: MemberSortKey, direction: SortDirection }
+type DirectMemberFormState = { email: string, name: string, role: Member['role'], password: string, password_confirm: string }
+type PasswordResetFormState = { password: string, password_confirm: string }
 
 const emptyGroup = { id: null, name: '', description: '', member_ids: [] } satisfies PermissionGroupPayload & { id: string | null }
 const emptyTemplate = { id: null, name: '', description: '', member_ids: [], group_ids: [], app_ids: [], dataset_ids: [], explore_app_ids: [] } satisfies PermissionTemplatePayload & { id: string | null }
+const emptyDirectMemberForm: DirectMemberFormState = { email: '', name: '', role: 'normal', password: '', password_confirm: '' }
+const emptyPasswordResetForm: PasswordResetFormState = { password: '', password_confirm: '' }
 const toggle = (list: string[], id: string) => list.includes(id) ? list.filter(item => item !== id) : [...list, id]
 const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
 const match = (keyword: string, values: Array<string | null | undefined>) => !keyword.trim() || values.filter(Boolean).some(value => value!.toLowerCase().includes(keyword.trim().toLowerCase()))
@@ -68,7 +74,16 @@ export default function RbacPreviewConsole() {
   const [updatingUiPolicy, setUpdatingUiPolicy] = useState(false)
   const [editorPanel, setEditorPanel] = useState<'group' | 'template' | 'resource' | 'effective' | 'audit' | null>(null)
   const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLogItem | null>(null)
-  const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
+  const [createMemberModalVisible, setCreateMemberModalVisible] = useState(false)
+  const [creatingMember, setCreatingMember] = useState(false)
+  const [directMemberForm, setDirectMemberForm] = useState<DirectMemberFormState>(emptyDirectMemberForm)
+  const [showCreatePassword, setShowCreatePassword] = useState(false)
+  const [passwordResetMember, setPasswordResetMember] = useState<Member | null>(null)
+  const [passwordResetForm, setPasswordResetForm] = useState<PasswordResetFormState>(emptyPasswordResetForm)
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const { userProfile, currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
+  const { datasetOperatorEnabled } = useProviderContext()
   const hasAnyPermission = canAny ?? (() => false)
   const canEnterAdmin = hasAnyPermission(['workspace.member.view', 'workspace.member.manage']) || isCurrentWorkspaceManager
   const { data: membersData, isLoading: membersLoading, refetch: refetchMembers } = useMembers()
@@ -135,7 +150,7 @@ export default function RbacPreviewConsole() {
   }, [filteredMembers, groupsByMember, memberSort.direction, memberSort.key])
   const filteredGroups = useMemo(() => groups.filter(group => match(keyword, [group.name, group.description])), [groups, keyword])
   const filteredTemplates = useMemo(() => templates.filter(template => match(keyword, [template.name, template.description])), [templates, keyword])
-  const filteredAuditLogs = useMemo(() => auditLogs.filter(log => log.action.includes('permission_') || log.action.includes('app_permissions') || log.action.includes('dataset')), [auditLogs])
+  const filteredAuditLogs = useMemo(() => auditLogs.filter(log => log.action.includes('permission_') || log.action.includes('app_permissions') || log.action.includes('dataset') || log.action.includes('member.')), [auditLogs])
   const resources = useMemo(() => {
     const appResources = apps.map(app => ({ id: app.id, kind: 'app' as const, name: app.name, subtitle: appModeLabelMap[app.mode] || app.mode }))
     const exploreResources = exploreApps.map(item => ({ id: item.app.id, kind: 'explore' as const, name: item.app.name, subtitle: appModeLabelMap[item.app.mode] || item.app.mode }))
@@ -147,6 +162,21 @@ export default function RbacPreviewConsole() {
     templateForm.group_ids.forEach(groupId => groups.find(group => group.id === groupId)?.member_ids.forEach(memberId => ids.add(memberId)))
     return ids.size
   }, [groups, templateForm.group_ids, templateForm.member_ids])
+  const canManageMemberAccounts = currentWorkspace?.role === 'owner' || currentWorkspace?.role === 'admin'
+  const roleOptions = useMemo(() => {
+    const roles: Member['role'][] = ['admin', 'editor', 'dataset_operator', 'normal']
+    return roles.filter(role => role !== 'dataset_operator' || datasetOperatorEnabled)
+  }, [datasetOperatorEnabled])
+  const creatableRoleOptions = useMemo(() => roleOptions.filter(role => currentWorkspace?.role === 'owner' || role !== 'admin'), [currentWorkspace?.role, roleOptions])
+  const canResetMemberPassword = (member: Member) => {
+    if (!currentWorkspace || member.id === userProfile.id || member.role === 'owner')
+      return false
+    if (currentWorkspace.role === 'owner')
+      return true
+    if (currentWorkspace.role === 'admin')
+      return !['owner', 'admin'].includes(member.role)
+    return false
+  }
   const refreshAll = async () => {
     await Promise.all([refetchMembers(), appsQuery.refetch(), exploreQuery.refetch(), datasetsQuery.refetch(), groupsQuery.refetch(), templatesQuery.refetch(), auditQuery.refetch()])
     toast.success('数据已刷新')
@@ -171,6 +201,76 @@ export default function RbacPreviewConsole() {
     }
     finally {
       setUpdatingUiPolicy(false)
+    }
+  }
+  const handleCreateMember = async () => {
+    const email = directMemberForm.email.trim()
+    if (!email) {
+      toast.error('请填写登录邮箱')
+      return
+    }
+    if (!creatableRoleOptions.includes(directMemberForm.role)) {
+      toast.error('当前账号不能创建该角色')
+      return
+    }
+    if (directMemberForm.password !== directMemberForm.password_confirm) {
+      toast.error('两次输入的密码不一致')
+      return
+    }
+
+    setCreatingMember(true)
+    try {
+      await createMember({
+        url: '/workspaces/current/members',
+        body: {
+          email,
+          name: directMemberForm.name.trim() || undefined,
+          role: directMemberForm.role,
+          password: directMemberForm.password,
+          password_confirm: directMemberForm.password_confirm,
+        },
+      })
+      await Promise.all([refetchMembers(), groupsQuery.refetch(), auditQuery.refetch()])
+      setDirectMemberForm(emptyDirectMemberForm)
+      setShowCreatePassword(false)
+      setCreateMemberModalVisible(false)
+      toast.success('账号已创建')
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '账号创建失败')
+    }
+    finally {
+      setCreatingMember(false)
+    }
+  }
+  const handleResetMemberPassword = async () => {
+    if (!passwordResetMember)
+      return
+    if (passwordResetForm.password !== passwordResetForm.password_confirm) {
+      toast.error('两次输入的密码不一致')
+      return
+    }
+
+    setResettingPassword(true)
+    try {
+      await resetMemberPassword({
+        url: `/workspaces/current/members/${passwordResetMember.id}/password`,
+        body: {
+          new_password: passwordResetForm.password,
+          password_confirm: passwordResetForm.password_confirm,
+        },
+      })
+      await Promise.all([refetchMembers(), auditQuery.refetch()])
+      setPasswordResetMember(null)
+      setPasswordResetForm(emptyPasswordResetForm)
+      setShowResetPassword(false)
+      toast.success('成员密码已重置')
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '密码重置失败')
+    }
+    finally {
+      setResettingPassword(false)
     }
   }
   const saveGroup = async () => {
@@ -326,7 +426,22 @@ export default function RbacPreviewConsole() {
     ? resources.find(resource => resource.kind === selectedResource.kind && resource.id === selectedResource.id)
     : null
 
-  const sectionAction = activeTab === 'groups'
+  const sectionAction = activeTab === 'members' && canManageMemberAccounts
+    ? (
+        <button
+          type="button"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-components-button-primary-bg px-3 text-xs font-medium text-components-button-primary-text shadow-xs hover:bg-components-button-primary-bg-hover"
+          onClick={() => {
+            setDirectMemberForm(emptyDirectMemberForm)
+            setShowCreatePassword(false)
+            setCreateMemberModalVisible(true)
+          }}
+        >
+          <span className="i-ri-user-add-line size-4" aria-hidden />
+          新增账号
+        </button>
+      )
+    : activeTab === 'groups'
     ? (
         <button
           type="button"
@@ -425,6 +540,7 @@ export default function RbacPreviewConsole() {
               groups={groups}
               isLoading={membersLoading}
               saving={saving}
+              canResetMemberPassword={canResetMemberPassword}
               onRoleFilterChange={setRoleFilter}
               onStatusFilterChange={setStatusFilter}
               onGroupFilterChange={setGroupFilter}
@@ -441,6 +557,11 @@ export default function RbacPreviewConsole() {
               onOpenEffective={(id) => {
                 setEffectiveMemberId(id)
                 setEditorPanel('effective')
+              }}
+              onOpenPasswordReset={(member) => {
+                setPasswordResetMember(member)
+                setPasswordResetForm(emptyPasswordResetForm)
+                setShowResetPassword(false)
               }}
             />
           )}
@@ -505,6 +626,142 @@ export default function RbacPreviewConsole() {
           <AuditLogDetail log={selectedAuditLog} />
         </EditorDrawer>
       )}
+      {createMemberModalVisible && (
+        <CreateMemberDialog
+          form={directMemberForm}
+          roles={creatableRoleOptions}
+          saving={creatingMember}
+          showPassword={showCreatePassword}
+          onChange={setDirectMemberForm}
+          onShowPasswordChange={setShowCreatePassword}
+          onClose={() => {
+            setCreateMemberModalVisible(false)
+            setDirectMemberForm(emptyDirectMemberForm)
+            setShowCreatePassword(false)
+          }}
+          onSubmit={handleCreateMember}
+        />
+      )}
+      {passwordResetMember && (
+        <PasswordResetDialog
+          member={passwordResetMember}
+          form={passwordResetForm}
+          saving={resettingPassword}
+          showPassword={showResetPassword}
+          onChange={setPasswordResetForm}
+          onShowPasswordChange={setShowResetPassword}
+          onClose={() => {
+            setPasswordResetMember(null)
+            setPasswordResetForm(emptyPasswordResetForm)
+            setShowResetPassword(false)
+          }}
+          onSubmit={handleResetMemberPassword}
+        />
+      )}
+    </div>
+  )
+}
+
+function CreateMemberDialog({ form, roles, saving, showPassword, onChange, onShowPasswordChange, onClose, onSubmit }: { form: DirectMemberFormState, roles: Member['role'][], saving: boolean, showPassword: boolean, onChange: (form: DirectMemberFormState) => void, onShowPasswordChange: (show: boolean) => void, onClose: () => void, onSubmit: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-label="新增账号">
+      <form
+        className="w-full max-w-lg rounded-xl bg-background-section shadow-2xl"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void onSubmit()
+        }}
+      >
+        <div className="border-b border-divider-subtle px-5 py-4">
+          <div className="text-base font-semibold text-text-primary">新增账号</div>
+          <div className="mt-1 text-sm text-text-tertiary">创建后账号立即加入当前工作区，管理员线下告知账号密码。</div>
+        </div>
+        <div className="space-y-4 px-5 py-4">
+          <LabeledInput label="登录邮箱" value={form.email} placeholder="name@example.com" onChange={email => onChange({ ...form, email })} type="email" required />
+          <LabeledInput label="显示名称" value={form.name} placeholder="留空则使用邮箱前缀" onChange={name => onChange({ ...form, name })} />
+          <label className="block">
+            <span className="text-xs font-medium text-text-tertiary">成员角色</span>
+            <select value={form.role} onChange={event => onChange({ ...form, role: event.target.value as Member['role'] })} className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400">
+              {roles.map(role => <option key={role} value={role}>{roleLabelMap[role]}</option>)}
+            </select>
+          </label>
+          <PasswordInput label="初始密码" value={form.password} showPassword={showPassword} onShowPasswordChange={onShowPasswordChange} onChange={password => onChange({ ...form, password })} />
+          <LabeledInput label="确认密码" value={form.password_confirm} onChange={password_confirm => onChange({ ...form, password_confirm })} type={showPassword ? 'text' : 'password'} required />
+        </div>
+        <DialogActions saving={saving} submitText="创建账号" savingText="创建中..." onClose={onClose} />
+      </form>
+    </div>
+  )
+}
+
+function PasswordResetDialog({ member, form, saving, showPassword, onChange, onShowPasswordChange, onClose, onSubmit }: { member: Member, form: PasswordResetFormState, saving: boolean, showPassword: boolean, onChange: (form: PasswordResetFormState) => void, onShowPasswordChange: (show: boolean) => void, onClose: () => void, onSubmit: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-label="重置成员密码">
+      <form
+        className="w-full max-w-md rounded-xl bg-background-section shadow-2xl"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void onSubmit()
+        }}
+      >
+        <div className="border-b border-divider-subtle px-5 py-4">
+          <div className="text-base font-semibold text-text-primary">重置成员密码</div>
+          <div className="mt-1 text-sm text-text-tertiary">
+            将为「{member.name || member.email}」设置新密码，旧登录会话会失效。
+          </div>
+        </div>
+        <div className="space-y-4 px-5 py-4">
+          <PasswordInput label="新密码" value={form.password} showPassword={showPassword} onShowPasswordChange={onShowPasswordChange} onChange={password => onChange({ ...form, password })} />
+          <LabeledInput label="确认密码" value={form.password_confirm} onChange={password_confirm => onChange({ ...form, password_confirm })} type={showPassword ? 'text' : 'password'} required />
+        </div>
+        <DialogActions saving={saving} submitText="重置密码" savingText="重置中..." onClose={onClose} />
+      </form>
+    </div>
+  )
+}
+
+function PasswordInput({ label, value, showPassword, onShowPasswordChange, onChange }: { label: string, value: string, showPassword: boolean, onShowPasswordChange: (show: boolean) => void, onChange: (value: string) => void }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-medium text-text-tertiary">{label}</span>
+      <div className="mt-1 flex h-9 items-center rounded-md border border-divider-deep bg-background-default focus-within:border-blue-400">
+        <input
+          type={showPassword ? 'text' : 'password'}
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          className="min-w-0 flex-1 bg-transparent px-3 text-sm text-text-primary outline-none"
+          required
+        />
+        <button
+          type="button"
+          className="px-3 text-xs font-medium text-text-tertiary hover:text-text-secondary"
+          onClick={() => onShowPasswordChange(!showPassword)}
+        >
+          {showPassword ? '隐藏' : '显示'}
+        </button>
+      </div>
+    </label>
+  )
+}
+
+function DialogActions({ saving, submitText, savingText, onClose }: { saving: boolean, submitText: string, savingText: string, onClose: () => void }) {
+  return (
+    <div className="flex justify-end gap-2 border-t border-divider-subtle px-5 py-4">
+      <button
+        type="button"
+        className="inline-flex h-9 items-center rounded-md border border-divider-deep bg-background-default px-4 text-sm font-medium text-text-secondary hover:bg-background-default-hover disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={saving}
+        onClick={onClose}
+      >
+        取消
+      </button>
+      <button
+        type="submit"
+        className="inline-flex h-9 items-center rounded-md bg-components-button-primary-bg px-4 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={saving}
+      >
+        {saving ? savingText : submitText}
+      </button>
     </div>
   )
 }
@@ -555,7 +812,7 @@ function EmptyState({ text }: { text: string }) {
   return <div className="flex h-40 items-center justify-center text-sm text-text-tertiary">{text}</div>
 }
 
-function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, statusFilter, groupFilter, batchGroupId, sort, groups, isLoading, saving, onRoleFilterChange, onStatusFilterChange, onGroupFilterChange, onBatchGroupChange, onSortChange, onToggleMember, onToggleAll, onBatchUpdate, onOpenEffective }: { members: Member[], groupsByMember: Map<string, PermissionGroup[]>, selectedMemberIds: string[], roleFilter: string, statusFilter: string, groupFilter: string, batchGroupId: string, sort: MemberSortState, groups: PermissionGroup[], isLoading: boolean, saving: boolean, onRoleFilterChange: (v: string) => void, onStatusFilterChange: (v: string) => void, onGroupFilterChange: (v: string) => void, onBatchGroupChange: (v: string) => void, onSortChange: (key: MemberSortKey) => void, onToggleMember: (id: string) => void, onToggleAll: () => void, onBatchUpdate: (mode: 'add' | 'remove') => void, onOpenEffective: (id: string) => void }) {
+function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, statusFilter, groupFilter, batchGroupId, sort, groups, isLoading, saving, canResetMemberPassword, onRoleFilterChange, onStatusFilterChange, onGroupFilterChange, onBatchGroupChange, onSortChange, onToggleMember, onToggleAll, onBatchUpdate, onOpenEffective, onOpenPasswordReset }: { members: Member[], groupsByMember: Map<string, PermissionGroup[]>, selectedMemberIds: string[], roleFilter: string, statusFilter: string, groupFilter: string, batchGroupId: string, sort: MemberSortState, groups: PermissionGroup[], isLoading: boolean, saving: boolean, canResetMemberPassword: (member: Member) => boolean, onRoleFilterChange: (v: string) => void, onStatusFilterChange: (v: string) => void, onGroupFilterChange: (v: string) => void, onBatchGroupChange: (v: string) => void, onSortChange: (key: MemberSortKey) => void, onToggleMember: (id: string) => void, onToggleAll: () => void, onBatchUpdate: (mode: 'add' | 'remove') => void, onOpenEffective: (id: string) => void, onOpenPasswordReset: (member: Member) => void }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 border-b border-divider-subtle bg-background-default/40 px-5 py-3">
@@ -597,7 +854,7 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
               <SortableHeader label="状态" sortKey="status" activeSort={sort} onSort={onSortChange} className="w-[88px]" />
               <SortableHeader label="用户组" sortKey="group" activeSort={sort} onSort={onSortChange} className="w-[280px]" />
               <SortableHeader label="加入日期" sortKey="created_at" activeSort={sort} onSort={onSortChange} className="w-[132px]" />
-              <th className="w-20 px-4 py-3 text-right whitespace-nowrap">操作</th>
+              <th className="w-40 px-4 py-3 text-right whitespace-nowrap">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-divider-subtle">
@@ -613,7 +870,12 @@ function MembersPanel({ members, groupsByMember, selectedMemberIds, roleFilter, 
                 <td className="px-4 py-3 text-text-secondary">{(groupsByMember.get(member.id) ?? []).map(group => group.name).join('、') || '未入组'}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-text-secondary">{fmt(member.created_at)}</td>
                 <td className="px-4 py-3 text-right whitespace-nowrap">
-                  <button className="inline-flex h-7 items-center rounded-md px-2 text-xs font-medium text-text-tertiary hover:bg-blue-50 hover:text-blue-700" onClick={() => onOpenEffective(member.id)}>权限</button>
+                  <div className="flex items-center justify-end gap-1.5">
+                    {canResetMemberPassword(member) && (
+                      <button className="inline-flex h-7 items-center rounded-md px-2 text-xs font-medium text-blue-700 hover:bg-blue-50" onClick={() => onOpenPasswordReset(member)}>重置密码</button>
+                    )}
+                    <button className="inline-flex h-7 items-center rounded-md px-2 text-xs font-medium text-text-tertiary hover:bg-blue-50 hover:text-blue-700" onClick={() => onOpenEffective(member.id)}>权限</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -954,11 +1216,11 @@ function SummaryBadge({ label, value }: { label: string, value: string | number 
     </div>
   )
 }
-function LabeledInput({ label, value, placeholder, onChange }: { label: string, value: string, placeholder: string, onChange: (v: string) => void }) {
+function LabeledInput({ label, value, placeholder = '', type = 'text', required = false, onChange }: { label: string, value: string, placeholder?: string, type?: string, required?: boolean, onChange: (v: string) => void }) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-text-tertiary">{label}</span>
-      <input value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-body px-3 text-sm outline-none focus:border-blue-400" />
+      <input type={type} value={value} placeholder={placeholder} required={required} onChange={e => onChange(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-body px-3 text-sm outline-none focus:border-blue-400" />
     </label>
   )
 }
