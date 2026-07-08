@@ -3,7 +3,7 @@ from uuid import UUID
 
 from flask import abort, request
 from flask_restx import Resource
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 import services
 from configs import dify_config
@@ -12,6 +12,7 @@ from controllers.common.schema import register_enum_models, register_response_sc
 from controllers.console import console_ns
 from controllers.console.auth.error import (
     CannotTransferOwnerToSelfError,
+    EmailAlreadyInUseError,
     EmailCodeError,
     InvalidEmailError,
     InvalidTokenError,
@@ -30,9 +31,11 @@ from controllers.console.wraps import (
 )
 from extensions.ext_database import db
 from fields.member_fields import AccountWithRole, AccountWithRoleList
-from libs.helper import extract_remote_ip
+from libs.helper import EmailStr, extract_remote_ip
+from libs.password import valid_password
 from libs.login import current_account_with_tenant, login_required
 from models.account import Account, TenantAccountRole
+from models.model import OperationLog
 from services.account_service import AccountService, RegisterService, TenantService
 from services.errors.account import AccountAlreadyInTenantError
 from services.feature_service import FeatureService
@@ -51,6 +54,19 @@ class MemberRoleUpdatePayload(BaseModel):
 class MemberPasswordResetPayload(BaseModel):
     new_password: str
     password_confirm: str
+
+
+class MemberDirectCreatePayload(BaseModel):
+    email: EmailStr = Field(..., description="Email address")
+    name: str | None = Field(default=None, description="Display name")
+    role: TenantAccountRole
+    password: str
+    password_confirm: str
+
+    @field_validator("password", "password_confirm")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return valid_password(value)
 
 
 class OwnerTransferEmailPayload(BaseModel):
@@ -74,6 +90,7 @@ register_schema_models(
     MemberInvitePayload,
     MemberRoleUpdatePayload,
     MemberPasswordResetPayload,
+    MemberDirectCreatePayload,
     OwnerTransferEmailPayload,
     OwnerTransferCheckPayload,
     OwnerTransferPayload,
@@ -85,6 +102,20 @@ def _is_role_enabled(role: TenantAccountRole | str, tenant_id: str) -> bool:
     if role != TenantAccountRole.DATASET_OPERATOR:
         return True
     return FeatureService.get_features(tenant_id=tenant_id).dataset_operator_enabled
+
+
+def _can_assign_role(operator_role: TenantAccountRole, target_role: TenantAccountRole) -> bool:
+    if not TenantAccountRole.is_non_owner_role(target_role):
+        return False
+    if operator_role == TenantAccountRole.OWNER:
+        return True
+    if operator_role == TenantAccountRole.ADMIN:
+        return target_role in {
+            TenantAccountRole.EDITOR,
+            TenantAccountRole.DATASET_OPERATOR,
+            TenantAccountRole.NORMAL,
+        }
+    return False
 
 
 @console_ns.route("/workspaces/current/members")
@@ -104,6 +135,79 @@ class MemberListApi(Resource):
         member_models = TypeAdapter(list[AccountWithRole]).validate_python(members, from_attributes=True)
         response = AccountWithRoleList(accounts=member_models)
         return response.model_dump(mode="json"), 200
+
+    @console_ns.expect(console_ns.models[MemberDirectCreatePayload.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    @cloud_edition_billing_resource_check("members")
+    def post(self):
+        payload = console_ns.payload or {}
+        args = MemberDirectCreatePayload.model_validate(payload)
+        if args.password != args.password_confirm:
+            raise PasswordMismatchError()
+
+        target_role = TenantAccountRole(args.role)
+        if not TenantAccountRole.is_non_owner_role(target_role):
+            return {"code": "invalid-role", "message": "Invalid role"}, 400
+
+        current_user, _ = current_account_with_tenant()
+        if not current_user.current_tenant:
+            raise ValueError("No current tenant")
+        tenant = current_user.current_tenant
+
+        operator_role = TenantService.get_user_role(current_user, tenant)
+        if operator_role is None:
+            return {"code": "forbidden", "message": "Operator is not a member of current tenant."}, 403
+        operator_role = TenantAccountRole(operator_role)
+        if not _can_assign_role(operator_role, target_role):
+            return {"code": "forbidden", "message": "No permission to create member with this role."}, 403
+        if not _is_role_enabled(target_role, tenant.id):
+            return {"code": "invalid-role", "message": "Invalid role"}, 400
+
+        normalized_email = args.email.lower()
+        if AccountService.get_account_by_email_with_case_fallback(normalized_email):
+            raise EmailAlreadyInUseError()
+
+        workspace_members = FeatureService.get_features(tenant_id=tenant.id).workspace_members
+        if not workspace_members.is_available(1):
+            raise WorkspaceMembersLimitExceeded()
+
+        display_name = args.name.strip() if args.name and args.name.strip() else normalized_email.split("@", 1)[0]
+        account = AccountService.create_account(
+            email=normalized_email,
+            name=display_name,
+            interface_language=current_user.interface_language or "en-US",
+            password=args.password,
+            is_setup=True,
+            timezone=current_user.timezone,
+        )
+        try:
+            TenantService.create_tenant_member(tenant=tenant, account=account, role=target_role.value)
+            TenantService.switch_tenant(account=account, tenant_id=tenant.id)
+            db.session.refresh(account)
+        except Exception:
+            db.session.delete(account)
+            db.session.commit()
+            raise
+
+        account.role = target_role
+        db.session.add(OperationLog(
+            tenant_id=tenant.id,
+            account_id=current_user.id,
+            action="member.direct_create",
+            content={
+                "target_account_id": account.id,
+                "target_email": normalized_email,
+                "target_role": target_role.value,
+            },
+            created_ip=extract_remote_ip(request),
+        ))
+        db.session.commit()
+
+        member_model = AccountWithRole.model_validate(account, from_attributes=True)
+        return {"result": "success", "account": member_model.model_dump(mode="json")}, 201
 
 
 @console_ns.route("/workspaces/current/members/invite-email")
@@ -293,6 +397,18 @@ class MemberPasswordResetApi(Resource):
             return {"code": "forbidden", "message": "Admins cannot reset other admin passwords."}, 403
 
         AccountService.set_account_password_without_current_password(member, args.new_password)
+        db.session.add(OperationLog(
+            tenant_id=current_user.current_tenant.id,
+            account_id=current_user.id,
+            action="member.password.reset",
+            content={
+                "target_account_id": member.id,
+                "target_email": member.email,
+                "target_role": member_role.value,
+            },
+            created_ip=extract_remote_ip(request),
+        ))
+        db.session.commit()
         return {"result": "success"}
 
 

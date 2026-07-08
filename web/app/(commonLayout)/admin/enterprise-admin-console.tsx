@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import type { AuditLogItem, PermissionGroup, PermissionGroupPayload, PermissionTemplate, PermissionTemplatePayload } from '@/models/app'
-import type { InvitationResult, IWorkspace, Member } from '@/models/common'
+import type { IWorkspace, Member } from '@/models/common'
 import type { DataSet } from '@/models/datasets'
 import type { InstalledApp } from '@/models/explore'
 import type { App } from '@/types/app'
@@ -10,17 +10,14 @@ import type { WorkspacePermission, WorkspacePermissionRisk, WorkspacePermissionS
 import { toast } from '@langgenius/dify-ui/toast'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import InviteModal from '@/app/components/header/account-setting/members-page/invite-modal'
-import InvitedModal from '@/app/components/header/account-setting/members-page/invited-modal'
 import { useAppContext } from '@/context/app-context'
 import { useProviderContext } from '@/context/provider-context'
 import { DatasetPermission } from '@/models/datasets'
 import Link from '@/next/link'
 import { applyPermissionTemplate, createPermissionGroup, createPermissionTemplate, deletePermissionGroup, deletePermissionTemplate, fetchAdminAuditLogs, fetchAppList, fetchAppPermissionMembers, fetchExploreAppPermissionMembers, fetchPermissionGroups, fetchPermissionTemplates, fetchWorkspaceUiPolicy, updateAdminUiPolicy, updateAppPermissionMembers, updateExploreAppPermissionMembers, updatePermissionGroup, updatePermissionTemplate } from '@/service/apps'
-import { deleteMemberOrCancelInvitation, updateMemberRole } from '@/service/common'
+import { createMember, deleteMemberOrCancelInvitation, resetMemberPassword, updateMemberRole } from '@/service/common'
 import { fetchDatasets, updateDatasetSetting } from '@/service/datasets'
 import { fetchInstalledAppList } from '@/service/explore'
-import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { useMembers, useWorkspaces } from '@/service/use-common'
 import {
   enterpriseWorkspacePermissionPolicy,
@@ -50,6 +47,32 @@ const emptyTemplateForm: PermissionTemplateFormState = {
   app_ids: [],
   dataset_ids: [],
   explore_app_ids: [],
+}
+
+type DirectMemberFormState = {
+  email: string
+  name: string
+  role: WorkspaceRole
+  password: string
+  password_confirm: string
+}
+
+const emptyDirectMemberForm: DirectMemberFormState = {
+  email: '',
+  name: '',
+  role: 'normal',
+  password: '',
+  password_confirm: '',
+}
+
+type PasswordResetFormState = {
+  password: string
+  password_confirm: string
+}
+
+const emptyPasswordResetForm: PasswordResetFormState = {
+  password: '',
+  password_confirm: '',
 }
 
 const adminSections: Array<{ key: AdminSection, label: string, icon: string, description: string }> = [
@@ -233,9 +256,14 @@ export default function EnterpriseAdminConsole() {
     reference: true,
   })
   const [operatingMemberId, setOperatingMemberId] = useState<string | null>(null)
-  const [inviteModalVisible, setInviteModalVisible] = useState(false)
-  const [invitedModalVisible, setInvitedModalVisible] = useState(false)
-  const [invitationResults, setInvitationResults] = useState<InvitationResult[]>([])
+  const [createMemberModalVisible, setCreateMemberModalVisible] = useState(false)
+  const [creatingMember, setCreatingMember] = useState(false)
+  const [directMemberForm, setDirectMemberForm] = useState<DirectMemberFormState>(emptyDirectMemberForm)
+  const [showCreatePassword, setShowCreatePassword] = useState(false)
+  const [passwordResetMember, setPasswordResetMember] = useState<Member | null>(null)
+  const [passwordResetForm, setPasswordResetForm] = useState<PasswordResetFormState>(emptyPasswordResetForm)
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
   const [selectedAppForAccess, setSelectedAppForAccess] = useState<App | null>(null)
   const [selectedExploreAppForAccess, setSelectedExploreAppForAccess] = useState<InstalledApp | null>(null)
   const [selectedDatasetForAccess, setSelectedDatasetForAccess] = useState<DataSet | null>(null)
@@ -253,7 +281,7 @@ export default function EnterpriseAdminConsole() {
   const [applyingTemplateId, setApplyingTemplateId] = useState<string | null>(null)
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null)
   const [updatingUiPolicy, setUpdatingUiPolicy] = useState(false)
-  const { currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
+  const { userProfile, currentWorkspace, isCurrentWorkspaceManager, canAny } = useAppContext()
   const { datasetOperatorEnabled } = useProviderContext()
   const hasAnyPermission = canAny ?? (() => false)
 
@@ -264,7 +292,6 @@ export default function EnterpriseAdminConsole() {
 
   const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers } = useMembers()
   const { data: workspacesData, isLoading: isWorkspacesLoading, refetch: refetchWorkspaces } = useWorkspaces()
-  const { data: systemFeatures } = useQuery(systemFeaturesQueryOptions())
 
   const appsQuery = useQuery({
     queryKey: ['enterprise-admin', 'apps'],
@@ -380,6 +407,17 @@ export default function EnterpriseAdminConsole() {
   }
 
   const roleOptions = editableRoles.filter(role => role !== 'dataset_operator' || datasetOperatorEnabled)
+  const creatableRoleOptions = roleOptions.filter(role => currentWorkspace?.role === 'owner' || role !== 'admin')
+
+  const canResetMemberPassword = (member: Member) => {
+    if (!currentWorkspace || member.id === userProfile.id || member.role === 'owner')
+      return false
+    if (currentWorkspace.role === 'owner')
+      return true
+    if (currentWorkspace.role === 'admin')
+      return !['owner', 'admin'].includes(member.role)
+    return false
+  }
 
   const handleUpdateMemberRole = async (member: Member, nextRole: WorkspaceRole) => {
     if (member.role === nextRole)
@@ -408,6 +446,78 @@ export default function EnterpriseAdminConsole() {
     }
     finally {
       setOperatingMemberId(null)
+    }
+  }
+
+  const handleCreateMember = async () => {
+    const email = directMemberForm.email.trim()
+    if (!email) {
+      toast.error('请填写登录邮箱')
+      return
+    }
+    if (!creatableRoleOptions.includes(directMemberForm.role)) {
+      toast.error('当前账号不能创建该角色')
+      return
+    }
+    if (directMemberForm.password !== directMemberForm.password_confirm) {
+      toast.error('两次输入的密码不一致')
+      return
+    }
+
+    setCreatingMember(true)
+    try {
+      await createMember({
+        url: '/workspaces/current/members',
+        body: {
+          email,
+          name: directMemberForm.name.trim() || undefined,
+          role: directMemberForm.role,
+          password: directMemberForm.password,
+          password_confirm: directMemberForm.password_confirm,
+        },
+      })
+      await Promise.all([refetchMembers(), auditQuery.refetch()])
+      setDirectMemberForm(emptyDirectMemberForm)
+      setShowCreatePassword(false)
+      setCreateMemberModalVisible(false)
+      toast.success('账号已创建')
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '账号创建失败')
+    }
+    finally {
+      setCreatingMember(false)
+    }
+  }
+
+  const handleResetMemberPassword = async () => {
+    if (!passwordResetMember)
+      return
+    if (passwordResetForm.password !== passwordResetForm.password_confirm) {
+      toast.error('两次输入的密码不一致')
+      return
+    }
+
+    setResettingPassword(true)
+    try {
+      await resetMemberPassword({
+        url: `/workspaces/current/members/${passwordResetMember.id}/password`,
+        body: {
+          new_password: passwordResetForm.password,
+          password_confirm: passwordResetForm.password_confirm,
+        },
+      })
+      await Promise.all([refetchMembers(), auditQuery.refetch()])
+      setPasswordResetMember(null)
+      setPasswordResetForm(emptyPasswordResetForm)
+      setShowResetPassword(false)
+      toast.success('成员密码已重置')
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '密码重置失败')
+    }
+    finally {
+      setResettingPassword(false)
     }
   }
 
@@ -856,7 +966,10 @@ export default function EnterpriseAdminConsole() {
                     <button
                       type="button"
                       className="inline-flex h-9 items-center gap-2 rounded-md bg-components-button-primary-bg px-3 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover"
-                      onClick={() => setInviteModalVisible(true)}
+                      onClick={() => {
+                        setDirectMemberForm(emptyDirectMemberForm)
+                        setCreateMemberModalVisible(true)
+                      }}
                     >
                       <span className="i-ri-user-add-line size-4" aria-hidden />
                       新增账号
@@ -903,6 +1016,19 @@ export default function EnterpriseAdminConsole() {
                             {canOperateMember(member)
                               ? (
                                   <>
+                                    {canResetMemberPassword(member) && (
+                                      <button
+                                        type="button"
+                                        className="inline-flex h-8 items-center rounded-md border border-blue-200 bg-blue-50 px-2 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                        disabled={operatingMemberId === member.id || resettingPassword}
+                                        onClick={() => {
+                                          setPasswordResetMember(member)
+                                          setPasswordResetForm(emptyPasswordResetForm)
+                                        }}
+                                      >
+                                        重置密码
+                                      </button>
+                                    )}
                                     <select
                                       aria-label="更新成员角色"
                                       className="h-8 rounded-md border border-divider-deep bg-background-default px-2 text-xs text-text-secondary outline-none hover:bg-background-default-hover focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1509,23 +1635,174 @@ export default function EnterpriseAdminConsole() {
         </section>
       </div>
 
-      {inviteModalVisible && (
-        <InviteModal
-          isEmailSetup={systemFeatures?.is_email_setup ?? false}
-          onCancel={() => setInviteModalVisible(false)}
-          onSend={(results) => {
-            setInviteModalVisible(false)
-            setInvitationResults(results)
-            setInvitedModalVisible(true)
-            void refetchMembers()
-          }}
-        />
+      {createMemberModalVisible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <form
+            className="w-full max-w-lg rounded-lg bg-background-section shadow-xl"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleCreateMember()
+            }}
+          >
+            <div className="border-b border-divider-subtle px-5 py-4">
+              <h3 className="text-base font-semibold text-text-primary">新增账号</h3>
+              <p className="mt-1 text-sm text-text-tertiary">创建后账号立即加入当前工作区，管理员线下告知账号密码。</p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <label className="block">
+                <span className="text-sm font-medium text-text-secondary">登录邮箱</span>
+                <input
+                  type="email"
+                  value={directMemberForm.email}
+                  onChange={event => setDirectMemberForm(current => ({ ...current, email: event.target.value }))}
+                  className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium text-text-secondary">显示名称</span>
+                <input
+                  value={directMemberForm.name}
+                  onChange={event => setDirectMemberForm(current => ({ ...current, name: event.target.value }))}
+                  placeholder="留空则使用邮箱前缀"
+                  className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium text-text-secondary">成员角色</span>
+                <select
+                  value={directMemberForm.role}
+                  onChange={event => setDirectMemberForm(current => ({ ...current, role: event.target.value as WorkspaceRole }))}
+                  className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400"
+                >
+                  {creatableRoleOptions.map(role => (
+                    <option key={role} value={role}>{roleLabelMap[role]}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium text-text-secondary">初始密码</span>
+                <div className="mt-1 flex h-9 items-center rounded-md border border-divider-deep bg-background-default focus-within:border-blue-400">
+                  <input
+                    type={showCreatePassword ? 'text' : 'password'}
+                    value={directMemberForm.password}
+                    onChange={event => setDirectMemberForm(current => ({ ...current, password: event.target.value }))}
+                    className="min-w-0 flex-1 bg-transparent px-3 text-sm text-text-primary outline-none"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="px-3 text-xs font-medium text-text-tertiary hover:text-text-secondary"
+                    onClick={() => setShowCreatePassword(value => !value)}
+                  >
+                    {showCreatePassword ? '隐藏' : '显示'}
+                  </button>
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium text-text-secondary">确认密码</span>
+                <input
+                  type={showCreatePassword ? 'text' : 'password'}
+                  value={directMemberForm.password_confirm}
+                  onChange={event => setDirectMemberForm(current => ({ ...current, password_confirm: event.target.value }))}
+                  className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400"
+                  required
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-divider-subtle px-5 py-4">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center rounded-md border border-divider-deep bg-background-default px-4 text-sm font-medium text-text-secondary hover:bg-background-default-hover disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={creatingMember}
+                onClick={() => {
+                  setCreateMemberModalVisible(false)
+                  setDirectMemberForm(emptyDirectMemberForm)
+                  setShowCreatePassword(false)
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="inline-flex h-9 items-center rounded-md bg-components-button-primary-bg px-4 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={creatingMember}
+              >
+                {creatingMember ? '创建中...' : '创建账号'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
-      {invitedModalVisible && (
-        <InvitedModal
-          invitationResults={invitationResults}
-          onCancel={() => setInvitedModalVisible(false)}
-        />
+      {passwordResetMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <form
+            className="w-full max-w-md rounded-lg bg-background-section shadow-xl"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleResetMemberPassword()
+            }}
+          >
+            <div className="border-b border-divider-subtle px-5 py-4">
+              <h3 className="text-base font-semibold text-text-primary">重置成员密码</h3>
+              <p className="mt-1 text-sm text-text-tertiary">
+                将为「{passwordResetMember.name || passwordResetMember.email}」设置新密码，旧登录会话会失效。
+              </p>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <label className="block">
+                <span className="text-sm font-medium text-text-secondary">新密码</span>
+                <div className="mt-1 flex h-9 items-center rounded-md border border-divider-deep bg-background-default focus-within:border-blue-400">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    value={passwordResetForm.password}
+                    onChange={event => setPasswordResetForm(current => ({ ...current, password: event.target.value }))}
+                    className="min-w-0 flex-1 bg-transparent px-3 text-sm text-text-primary outline-none"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="px-3 text-xs font-medium text-text-tertiary hover:text-text-secondary"
+                    onClick={() => setShowResetPassword(value => !value)}
+                  >
+                    {showResetPassword ? '隐藏' : '显示'}
+                  </button>
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium text-text-secondary">确认密码</span>
+                <input
+                  type={showResetPassword ? 'text' : 'password'}
+                  value={passwordResetForm.password_confirm}
+                  onChange={event => setPasswordResetForm(current => ({ ...current, password_confirm: event.target.value }))}
+                  className="mt-1 h-9 w-full rounded-md border border-divider-deep bg-background-default px-3 text-sm text-text-primary outline-none focus:border-blue-400"
+                  required
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-divider-subtle px-5 py-4">
+              <button
+                type="button"
+                className="inline-flex h-9 items-center rounded-md border border-divider-deep bg-background-default px-4 text-sm font-medium text-text-secondary hover:bg-background-default-hover disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={resettingPassword}
+                onClick={() => {
+                  setPasswordResetMember(null)
+                  setPasswordResetForm(emptyPasswordResetForm)
+                  setShowResetPassword(false)
+                }}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="inline-flex h-9 items-center rounded-md bg-components-button-primary-bg px-4 text-sm font-medium text-components-button-primary-text hover:bg-components-button-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={resettingPassword}
+              >
+                {resettingPassword ? '保存中...' : '保存新密码'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
       {selectedExploreAppForAccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

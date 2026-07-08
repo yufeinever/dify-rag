@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,12 +8,14 @@ from werkzeug.exceptions import HTTPException
 import services
 from controllers.console.auth.error import (
     CannotTransferOwnerToSelfError,
+    EmailAlreadyInUseError,
     EmailCodeError,
     InvalidEmailError,
     InvalidTokenError,
     MemberNotInTenantError,
     NotOwnerError,
     OwnerTransferLimitError,
+    PasswordMismatchError,
 )
 from controllers.console.error import EmailSendIpLimitError, WorkspaceMembersLimitExceeded
 from controllers.console.workspace.members import (
@@ -73,6 +76,289 @@ class TestMemberListApi:
         ):
             with pytest.raises(ValueError):
                 method(api)
+
+
+    def test_post_create_normal_success_for_owner(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+
+        tenant = MagicMock(id="tenant-id")
+        current_user = MagicMock(id="owner-id", current_tenant=tenant, interface_language="en-US", timezone="UTC")
+        features = MagicMock()
+        features.workspace_members.is_available.return_value = True
+        account = SimpleNamespace(
+            id="new-id",
+            name="Alice",
+            email="alice@example.com",
+            avatar=None,
+            status="active",
+            last_login_at=None,
+            last_active_at=None,
+            created_at=None,
+            role="normal",
+        )
+        member_model = MagicMock()
+        member_model.model_dump.return_value = {"id": "new-id", "email": "alice@example.com", "role": "normal"}
+        payload = {
+            "email": "Alice@Example.COM",
+            "name": "Alice",
+            "role": "normal",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "tenant-id")),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", return_value="owner"),
+            patch("controllers.console.workspace.members.AccountService.get_account_by_email_with_case_fallback", return_value=None),
+            patch("controllers.console.workspace.members.FeatureService.get_features", return_value=features),
+            patch("controllers.console.workspace.members.AccountService.create_account", return_value=account) as create_mock,
+            patch("controllers.console.workspace.members.TenantService.create_tenant_member") as join_mock,
+            patch("controllers.console.workspace.members.TenantService.switch_tenant") as switch_mock,
+            patch("controllers.console.workspace.members.AccountWithRole.model_validate", return_value=member_model),
+            patch("controllers.console.workspace.members.db.session.refresh"),
+            patch("controllers.console.workspace.members.db.session.add") as add_mock,
+            patch("controllers.console.workspace.members.db.session.commit") as commit_mock,
+        ):
+            result, status = method(api)
+
+        assert status == 201
+        assert result["result"] == "success"
+        create_mock.assert_called_once()
+        assert create_mock.call_args.kwargs["email"] == "alice@example.com"
+        assert create_mock.call_args.kwargs["is_setup"] is True
+        join_mock.assert_called_once_with(tenant=tenant, account=account, role="normal")
+        switch_mock.assert_called_once_with(account=account, tenant_id=tenant.id)
+        audit_log = add_mock.call_args.args[0]
+        assert audit_log.action == "member.direct_create"
+        assert audit_log.content == {
+            "target_account_id": "new-id",
+            "target_email": "alice@example.com",
+            "target_role": "normal",
+        }
+        assert "password" not in audit_log.content
+        commit_mock.assert_called()
+
+    def test_post_create_admin_success_for_owner(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+
+        tenant = MagicMock(id="tenant-id")
+        current_user = MagicMock(id="owner-id", current_tenant=tenant, interface_language="en-US", timezone="UTC")
+        features = MagicMock()
+        features.workspace_members.is_available.return_value = True
+        account = SimpleNamespace(
+            id="new-admin-id",
+            name="Admin",
+            email="admin@example.com",
+            avatar=None,
+            status="active",
+            last_login_at=None,
+            last_active_at=None,
+            created_at=None,
+            role="admin",
+        )
+        member_model = MagicMock()
+        member_model.model_dump.return_value = {"id": "new-admin-id", "email": "admin@example.com", "role": "admin"}
+        payload = {
+            "email": "admin@example.com",
+            "role": "admin",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "tenant-id")),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", return_value="owner"),
+            patch("controllers.console.workspace.members.AccountService.get_account_by_email_with_case_fallback", return_value=None),
+            patch("controllers.console.workspace.members.FeatureService.get_features", return_value=features),
+            patch("controllers.console.workspace.members.AccountService.create_account", return_value=account),
+            patch("controllers.console.workspace.members.TenantService.create_tenant_member") as join_mock,
+            patch("controllers.console.workspace.members.TenantService.switch_tenant"),
+            patch("controllers.console.workspace.members.AccountWithRole.model_validate", return_value=member_model),
+            patch("controllers.console.workspace.members.db.session.refresh"),
+            patch("controllers.console.workspace.members.db.session.add"),
+            patch("controllers.console.workspace.members.db.session.commit"),
+        ):
+            _, status = method(api)
+
+        assert status == 201
+        join_mock.assert_called_once_with(tenant=tenant, account=account, role="admin")
+
+    def test_post_create_normal_success_for_admin(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+
+        tenant = MagicMock(id="tenant-id")
+        current_user = MagicMock(id="admin-id", current_tenant=tenant, interface_language="en-US", timezone="UTC")
+        features = MagicMock()
+        features.workspace_members.is_available.return_value = True
+        account = SimpleNamespace(
+            id="new-id",
+            name="Bob",
+            email="bob@example.com",
+            avatar=None,
+            status="active",
+            last_login_at=None,
+            last_active_at=None,
+            created_at=None,
+            role="normal",
+        )
+        member_model = MagicMock()
+        member_model.model_dump.return_value = {"id": "new-id", "email": "bob@example.com", "role": "normal"}
+        payload = {
+            "email": "bob@example.com",
+            "role": "normal",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "tenant-id")),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", return_value="admin"),
+            patch("controllers.console.workspace.members.AccountService.get_account_by_email_with_case_fallback", return_value=None),
+            patch("controllers.console.workspace.members.FeatureService.get_features", return_value=features),
+            patch("controllers.console.workspace.members.AccountService.create_account", return_value=account) as create_mock,
+            patch("controllers.console.workspace.members.TenantService.create_tenant_member"),
+            patch("controllers.console.workspace.members.TenantService.switch_tenant"),
+            patch("controllers.console.workspace.members.AccountWithRole.model_validate", return_value=member_model),
+            patch("controllers.console.workspace.members.db.session.refresh"),
+            patch("controllers.console.workspace.members.db.session.add"),
+            patch("controllers.console.workspace.members.db.session.commit"),
+        ):
+            _, status = method(api)
+
+        assert status == 201
+        create_mock.assert_called_once()
+
+    def test_post_create_rejects_admin_creating_admin(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+        tenant = MagicMock(id="tenant-id")
+        current_user = MagicMock(current_tenant=tenant)
+        payload = {
+            "email": "admin@example.com",
+            "role": "admin",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "tenant-id")),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", return_value="admin"),
+            patch("controllers.console.workspace.members.AccountService.create_account") as create_mock,
+        ):
+            result, status = method(api)
+
+        assert status == 403
+        assert result["code"] == "forbidden"
+        create_mock.assert_not_called()
+
+    def test_post_create_rejects_owner_role(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+        payload = {
+            "email": "owner@example.com",
+            "role": "owner",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with app.test_request_context("/", json=payload):
+            result, status = method(api)
+
+        assert status == 400
+        assert result["code"] == "invalid-role"
+
+    def test_post_create_rejects_existing_email(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+        tenant = MagicMock(id="tenant-id")
+        current_user = MagicMock(current_tenant=tenant)
+        payload = {
+            "email": "exists@example.com",
+            "role": "normal",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "tenant-id")),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", return_value="owner"),
+            patch("controllers.console.workspace.members.AccountService.get_account_by_email_with_case_fallback", return_value=MagicMock()),
+        ):
+            with pytest.raises(EmailAlreadyInUseError):
+                method(api)
+
+    def test_post_create_rejects_password_mismatch(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+        payload = {
+            "email": "mismatch@example.com",
+            "role": "normal",
+            "password": "newPassword123",
+            "password_confirm": "otherPassword123",
+        }
+
+        with app.test_request_context("/", json=payload):
+            with pytest.raises(PasswordMismatchError):
+                method(api)
+
+    def test_post_create_rejects_member_limit(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+        tenant = MagicMock(id="tenant-id")
+        current_user = MagicMock(current_tenant=tenant)
+        features = MagicMock()
+        features.workspace_members.is_available.return_value = False
+        payload = {
+            "email": "limit@example.com",
+            "role": "normal",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "tenant-id")),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", return_value="owner"),
+            patch("controllers.console.workspace.members.AccountService.get_account_by_email_with_case_fallback", return_value=None),
+            patch("controllers.console.workspace.members.FeatureService.get_features", return_value=features),
+        ):
+            with pytest.raises(WorkspaceMembersLimitExceeded):
+                method(api)
+
+    def test_post_create_rejects_disabled_dataset_operator(self, app: Flask):
+        api = MemberListApi()
+        method = unwrap(api.post)
+        tenant = MagicMock(id="tenant-id")
+        current_user = MagicMock(current_tenant=tenant)
+        features = MagicMock()
+        features.dataset_operator_enabled = False
+        payload = {
+            "email": "dataset@example.com",
+            "role": "dataset_operator",
+            "password": "newPassword123",
+            "password_confirm": "newPassword123",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.members.current_account_with_tenant", return_value=(current_user, "tenant-id")),
+            patch("controllers.console.workspace.members.TenantService.get_user_role", return_value="owner"),
+            patch("controllers.console.workspace.members.FeatureService.get_features", return_value=features),
+            patch("controllers.console.workspace.members.AccountService.create_account") as create_mock,
+        ):
+            result, status = method(api)
+
+        assert status == 400
+        assert result["code"] == "invalid-role"
+        create_mock.assert_not_called()
 
 
 class TestMemberInviteEmailApi:
@@ -318,11 +604,18 @@ class TestMemberPasswordResetApi:
             patch("controllers.console.workspace.members.db.session.get", return_value=member),
             patch("controllers.console.workspace.members.TenantService.get_user_role", side_effect=["normal", "owner"]),
             patch("controllers.console.workspace.members.AccountService.set_account_password_without_current_password") as reset_mock,
+            patch("controllers.console.workspace.members.db.session.add") as add_mock,
+            patch("controllers.console.workspace.members.db.session.commit") as commit_mock,
         ):
             result = method(api, "member-id")
 
         assert result["result"] == "success"
         reset_mock.assert_called_once_with(member, "newPassword123")
+        audit_log = add_mock.call_args.args[0]
+        assert audit_log.action == "member.password.reset"
+        assert audit_log.content["target_account_id"] == "member-id"
+        assert "password" not in audit_log.content
+        commit_mock.assert_called_once()
 
     def test_reset_rejects_admin_resetting_admin(self, app: Flask):
         api = MemberPasswordResetApi()
@@ -339,12 +632,14 @@ class TestMemberPasswordResetApi:
             patch("controllers.console.workspace.members.db.session.get", return_value=member),
             patch("controllers.console.workspace.members.TenantService.get_user_role", side_effect=["admin", "admin"]),
             patch("controllers.console.workspace.members.AccountService.set_account_password_without_current_password") as reset_mock,
+            patch("controllers.console.workspace.members.db.session.add") as add_mock,
         ):
             result, status = method(api, "member-id")
 
         assert status == 403
         assert result["code"] == "forbidden"
         reset_mock.assert_not_called()
+        add_mock.assert_not_called()
 
 
 class TestMemberUpdateRoleApi:

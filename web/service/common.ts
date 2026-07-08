@@ -112,6 +112,18 @@ export const inviteMember = ({ url, body }: { url: string, body: Record<string, 
   return post<InvitationResponse>(url, { body })
 }
 
+type CreateMemberBody = {
+  email: string
+  name?: string
+  role: Member['role']
+  password: string
+  password_confirm: string
+}
+
+export const createMember = ({ url, body }: { url: string, body: CreateMemberBody }): Promise<CommonResponse & { account: Member }> => {
+  return post<CommonResponse & { account: Member }>(url, { body })
+}
+
 export const updateMemberRole = ({ url, body }: { url: string, body: Record<string, any> }): Promise<CommonResponse> => {
   return put<CommonResponse>(url, { body })
 }
