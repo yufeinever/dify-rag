@@ -4,6 +4,7 @@ import type { ProviderContextState } from '@/context/provider-context'
 import type { SystemFeatures } from '@/types/feature'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderWithSystemFeatures } from '@/__tests__/utils/mock-system-features'
+import { ACCOUNT_SETTING_TAB } from '@/app/components/header/account-setting/constants'
 import { Plan } from '@/app/components/billing/type'
 import { useAppContext } from '@/context/app-context'
 import { useModalContext } from '@/context/modal-context'
@@ -225,7 +226,29 @@ describe('AccountDropdown', () => {
       fireEvent.click(screen.getByText('common.userProfile.settings'))
 
       // Assert
-      expect(mockSetShowAccountSettingModal).toHaveBeenCalled()
+      expect(mockSetShowAccountSettingModal).toHaveBeenCalledWith({ payload: ACCOUNT_SETTING_TAB.MEMBERS })
+    })
+
+    it('should open language settings for normal workspace users', () => {
+      // Arrange
+      vi.mocked(useAppContext).mockReturnValue({
+        ...baseAppContextValue,
+        currentWorkspace: {
+          ...baseAppContextValue.currentWorkspace,
+          role: 'normal',
+        },
+        isCurrentWorkspaceManager: false,
+        isCurrentWorkspaceOwner: false,
+        isCurrentWorkspaceEditor: false,
+      })
+
+      // Act
+      renderWithRouter(<AppSelector />)
+      fireEvent.click(screen.getByRole('button'))
+      fireEvent.click(screen.getByText('common.userProfile.settings'))
+
+      // Assert
+      expect(mockSetShowAccountSettingModal).toHaveBeenCalledWith({ payload: ACCOUNT_SETTING_TAB.LANGUAGE })
     })
 
     it('should show Compliance in Cloud Edition for workspace owner', () => {

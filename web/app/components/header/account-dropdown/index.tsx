@@ -116,6 +116,7 @@ export default function AppSelector() {
   const { userProfile, langGeniusVersionInfo, isCurrentWorkspaceOwner, isCurrentWorkspaceManager } = useAppContext()
   const { isEducationAccount } = useProviderContext()
   const { setShowAccountSettingModal } = useModalContext()
+  const settingsTab = isCurrentWorkspaceManager ? ACCOUNT_SETTING_TAB.MEMBERS : ACCOUNT_SETTING_TAB.LANGUAGE
 
   const { mutateAsync: logout } = useLogout()
   const handleLogout = async () => {
@@ -170,7 +171,7 @@ export default function AppSelector() {
             <AccountMenuActionItem
               iconClassName="i-ri-settings-3-line"
               label={t('userProfile.settings', { ns: 'common' })}
-              onClick={() => setShowAccountSettingModal({ payload: ACCOUNT_SETTING_TAB.MEMBERS })}
+              onClick={() => setShowAccountSettingModal({ payload: settingsTab })}
             />
             {isCurrentWorkspaceManager && (
               <AccountMenuRouteItem

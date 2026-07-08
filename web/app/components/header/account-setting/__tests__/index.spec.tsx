@@ -11,6 +11,13 @@ import AccountSetting from '../index'
 
 const mockResetModelProviderListExpanded = vi.fn()
 
+const { mockUseMembers } = vi.hoisted(() => ({
+  mockUseMembers: vi.fn(() => ({
+    data: { accounts: [] },
+    refetch: vi.fn(),
+  })),
+}))
+
 vi.mock('@/context/provider-context', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/context/provider-context')>()
   return {
@@ -66,7 +73,7 @@ vi.mock('@/service/use-datasource', () => ({
 }))
 
 vi.mock('@/service/use-common', () => ({
-  useMembers: vi.fn(() => ({ data: { accounts: [] }, refetch: vi.fn() })),
+  useMembers: mockUseMembers,
   useProviderContext: vi.fn(),
 }))
 
@@ -336,6 +343,31 @@ describe('AccountSetting', () => {
       expect(screen.queryByText('common.settings.provider')).not.toBeInTheDocument()
       expect(screen.queryByText('common.settings.members')).not.toBeInTheDocument()
       expect(screen.getByText('common.settings.language'))!.toBeInTheDocument()
+    })
+
+    it('should only show language settings for normal workspace users', () => {
+      // Arrange
+      vi.mocked(useAppContext).mockReturnValue({
+        ...baseAppContextValue,
+        currentWorkspace: {
+          ...baseAppContextValue.currentWorkspace,
+          role: 'normal',
+        },
+        isCurrentWorkspaceManager: false,
+        isCurrentWorkspaceOwner: false,
+        isCurrentWorkspaceEditor: false,
+      })
+
+      // Act
+      renderAccountSetting({ initialTab: ACCOUNT_SETTING_TAB.MEMBERS })
+
+      // Assert
+      expect(screen.queryByText('common.settings.provider')).not.toBeInTheDocument()
+      expect(screen.queryByText('common.settings.members')).not.toBeInTheDocument()
+      expect(screen.queryByText('common.settings.dataSource')).not.toBeInTheDocument()
+      expect(screen.queryByText('common.settings.apiBasedExtension')).not.toBeInTheDocument()
+      expect(screen.getAllByText('common.settings.language').length).toBeGreaterThan(0)
+      expect(mockUseMembers).not.toHaveBeenCalled()
     })
 
     it('should hide billing and custom tabs when disabled', () => {

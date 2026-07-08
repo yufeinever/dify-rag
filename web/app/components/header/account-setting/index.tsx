@@ -47,13 +47,12 @@ export default function AccountSetting({
   onTabChangeAction,
 }: IAccountSettingProps) {
   const resetModelProviderListExpanded = useResetModelProviderListExpanded()
-  const activeMenu = activeTab
   const { t } = useTranslation()
   const { enableBilling, enableReplaceWebAppLogo } = useProviderContext()
-  const { isCurrentWorkspaceDatasetOperator } = useAppContext()
+  const { isCurrentWorkspaceDatasetOperator, isCurrentWorkspaceManager } = useAppContext()
 
   const workplaceGroupItems: GroupItem[] = (() => {
-    if (isCurrentWorkspaceDatasetOperator)
+    if (!isCurrentWorkspaceManager || isCurrentWorkspaceDatasetOperator)
       return []
 
     const items: GroupItem[] = [
@@ -108,6 +107,15 @@ export default function AccountSetting({
     return items
   })()
 
+  const accountGroupItems: GroupItem[] = [
+    {
+      key: ACCOUNT_SETTING_TAB.LANGUAGE,
+      name: t('settings.language', { ns: 'common' }),
+      icon: <span className={cn('i-ri-translate-2', iconClassName)} />,
+      activeIcon: <span className={cn('i-ri-translate-2', iconClassName)} />,
+    },
+  ]
+
   const media = useBreakpoints()
   const isMobile = media === MediaType.mobile
 
@@ -120,17 +128,12 @@ export default function AccountSetting({
     {
       key: 'account-group',
       name: t('settings.generalGroup', { ns: 'common' }),
-      items: [
-        {
-          key: ACCOUNT_SETTING_TAB.LANGUAGE,
-          name: t('settings.language', { ns: 'common' }),
-          icon: <span className={cn('i-ri-translate-2', iconClassName)} />,
-          activeIcon: <span className={cn('i-ri-translate-2', iconClassName)} />,
-        },
-      ],
+      items: accountGroupItems,
     },
   ]
-  const activeItem = [...menuItems[0]!.items, ...menuItems[1]!.items].find(item => item.key === activeMenu)
+  const visibleMenuItems = menuItems.filter(menuItem => menuItem.items.length > 0)
+  const activeItem = [...workplaceGroupItems, ...accountGroupItems].find(item => item.key === activeTab) ?? accountGroupItems[0]!
+  const activeMenu = activeItem.key
 
   const [searchValue, setSearchValue] = useState<string>('')
 
@@ -156,11 +159,9 @@ export default function AccountSetting({
           <div className="mt-6 mb-8 px-3 py-2 title-2xl-semi-bold text-text-primary">{t('userProfile.settings', { ns: 'common' })}</div>
           <div className="w-full">
             {
-              menuItems.map(menuItem => (
+              visibleMenuItems.map(menuItem => (
                 <div key={menuItem.key} className="mb-2">
-                  {!isCurrentWorkspaceDatasetOperator && (
-                    <div className="mb-0.5 py-2 pb-1 pl-3 system-xs-medium-uppercase text-text-tertiary">{menuItem.name}</div>
-                  )}
+                  <div className="mb-0.5 py-2 pb-1 pl-3 system-xs-medium-uppercase text-text-tertiary">{menuItem.name}</div>
                   <div>
                     {
                       menuItem.items.map(item => (
