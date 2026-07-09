@@ -62,8 +62,8 @@ max_filedescriptors 65536
 
 # Timeout configurations for image requests
 connect_timeout 30 seconds
-request_timeout 2 minutes
-read_timeout 2 minutes
+request_timeout 5 minutes
+read_timeout 5 minutes
 client_lifetime 5 minutes
 shutdown_lifetime 30 seconds
 
