@@ -116,6 +116,37 @@ def _normalize_app_list_query_args(query_args: MultiDict[str, str]) -> dict[str,
     return normalized
 
 
+def _collect_draft_trigger_app_ids(workflow_capable_app_ids: list[str], tenant_id: str) -> set[str]:
+    draft_trigger_app_ids: set[str] = set()
+    if not workflow_capable_app_ids:
+        return draft_trigger_app_ids
+
+    draft_workflow_refs = db.session.execute(
+        select(Workflow.id, Workflow.app_id).where(
+            Workflow.version == Workflow.VERSION_DRAFT,
+            Workflow.app_id.in_(workflow_capable_app_ids),
+            Workflow.tenant_id == tenant_id,
+        )
+    ).all()
+    trigger_node_types = TRIGGER_NODE_TYPES
+    for workflow_id, workflow_app_id in draft_workflow_refs:
+        node_id = None
+        try:
+            with session_factory.create_session() as workflow_session:
+                workflow = workflow_session.get(Workflow, workflow_id)
+                if not workflow:
+                    continue
+                for node_id, node_data in workflow.walk_nodes():
+                    if node_data.get("type") in trigger_node_types:
+                        draft_trigger_app_ids.add(str(workflow_app_id))
+                        break
+        except Exception:
+            _logger.exception("error while walking nodes, workflow_id=%s, node_id=%s", workflow_id, node_id)
+            continue
+
+    return draft_trigger_app_ids
+
+
 class CreateAppPayload(BaseModel):
     name: str = Field(..., min_length=1, description="App name")
     description: str | None = Field(default=None, description="App description (max 400 chars)", max_length=400)
@@ -692,30 +723,7 @@ class AppListApi(Resource):
         workflow_capable_app_ids = [
             str(app.id) for app in app_pagination.items if app.mode in {"workflow", "advanced-chat"}
         ]
-        draft_trigger_app_ids: set[str] = set()
-        if workflow_capable_app_ids:
-            draft_workflows = (
-                db.session.execute(
-                    select(Workflow).where(
-                        Workflow.version == Workflow.VERSION_DRAFT,
-                        Workflow.app_id.in_(workflow_capable_app_ids),
-                        Workflow.tenant_id == current_tenant_id,
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            trigger_node_types = TRIGGER_NODE_TYPES
-            for workflow in draft_workflows:
-                node_id = None
-                try:
-                    for node_id, node_data in workflow.walk_nodes():
-                        if node_data.get("type") in trigger_node_types:
-                            draft_trigger_app_ids.add(str(workflow.app_id))
-                            break
-                except Exception:
-                    _logger.exception("error while walking nodes, workflow_id=%s, node_id=%s", workflow.id, node_id)
-                    continue
+        draft_trigger_app_ids = _collect_draft_trigger_app_ids(workflow_capable_app_ids, current_tenant_id)
 
         for app in app_pagination.items:
             app.has_draft_trigger = str(app.id) in draft_trigger_app_ids

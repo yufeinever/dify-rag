@@ -176,6 +176,40 @@ def _dummy_workflow():
     )
 
 
+def test_collect_draft_trigger_app_ids_skips_corrupted_workflow(monkeypatch, app_module):
+    class _Result:
+        def all(self):
+            return [("bad-workflow", "bad-app"), ("good-workflow", "good-app")]
+
+    class _BadWorkflow:
+        def walk_nodes(self):
+            raise RuntimeError("missing chunk number 0 for toast value")
+
+    class _GoodWorkflow:
+        def walk_nodes(self):
+            return iter([("node-1", {"type": "trigger"})])
+
+    class _WorkflowSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def get(self, _model, workflow_id):
+            if workflow_id == "bad-workflow":
+                return _BadWorkflow()
+            return _GoodWorkflow()
+
+    monkeypatch.setattr(app_module.db, "session", SimpleNamespace(execute=lambda _stmt: _Result()))
+    monkeypatch.setattr(app_module.session_factory, "create_session", lambda: _WorkflowSession())
+    monkeypatch.setattr(app_module, "TRIGGER_NODE_TYPES", {"trigger"})
+
+    result = app_module._collect_draft_trigger_app_ids(["bad-app", "good-app"], "tenant-1")
+
+    assert result == {"good-app"}
+
+
 def test_app_list_query_normalizes_orpc_bracket_tag_ids(app_module):
     first_tag_id = "8c4ef3d1-58a1-4d94-8a1c-1c171d889e08"
     second_tag_id = "3c39395b-6d1f-4030-8b17-eaa7cc85221c"

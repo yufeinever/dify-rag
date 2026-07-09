@@ -267,6 +267,48 @@ describe('useChatWithHistory', () => {
       })
       expect(mockFetchChatList).toHaveBeenCalledTimes(1)
     })
+
+
+    it('should clear stale conversation id when chat list returns conversation not exists', async () => {
+      // Arrange
+      setConversationIdInfo('app-1', 'stale-conversation')
+      mockFetchConversations.mockResolvedValue(createConversationData({
+        data: [createConversationItem({ id: 'stale-conversation', name: 'Stale' })],
+      }))
+      mockFetchChatList.mockRejectedValue(new Error('404 Conversation Not Exists'))
+
+      // Act
+      const { result } = await renderWithClient(() => useChatWithHistory())
+
+      // Assert
+      await waitFor(() => {
+        expect(result!.current.currentConversationId).toBe('')
+      })
+      expect(result!.current.clearChatList).toBe(true)
+      expect(mockFetchChatList).toHaveBeenCalledWith('stale-conversation', AppSourceType.webApp, 'app-1')
+    })
+
+    it('should clear selected conversation when it is missing from loaded conversation lists', async () => {
+      // Arrange
+      setConversationIdInfo('app-1', 'missing-conversation')
+      mockFetchConversations.mockImplementation(async (_isInstalledApp, _appId, _lastId, pinned) => {
+        return createConversationData({
+          data: pinned
+            ? [createConversationItem({ id: 'pinned-1', name: 'Pinned' })]
+            : [createConversationItem({ id: 'conversation-1', name: 'First' })],
+        })
+      })
+      mockFetchChatList.mockResolvedValue({ data: [] })
+
+      // Act
+      const { result } = await renderWithClient(() => useChatWithHistory())
+
+      // Assert
+      await waitFor(() => {
+        expect(result!.current.currentConversationId).toBe('')
+      })
+      expect(result!.current.clearChatList).toBe(true)
+    })
   })
 
   // Scenario: conversation id updates persist to localStorage.

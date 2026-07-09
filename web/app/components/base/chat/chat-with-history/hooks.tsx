@@ -160,12 +160,18 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
     }
   }, [appId, conversationIdInfo, setConversationIdInfo, userId])
   const [newConversationId, setNewConversationId] = useState('')
+  const [clearChatList, setClearChatList] = useState(false)
+  const clearCurrentConversationSelection = useCallback(() => {
+    setNewConversationId('')
+    handleConversationIdInfoChange('')
+    setClearChatList(true)
+  }, [handleConversationIdInfoChange])
   const chatShouldReloadKey = useMemo(() => {
     if (currentConversationId === newConversationId)
       return ''
     return currentConversationId
   }, [currentConversationId, newConversationId])
-  const { data: appPinnedConversationData } = useShareConversations({
+  const { data: appPinnedConversationData, isLoading: appPinnedConversationDataLoading } = useShareConversations({
     appSourceType,
     appId,
     pinned: true,
@@ -185,7 +191,7 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
-  const { data: appChatListData, isLoading: appChatListDataLoading } = useShareChatList({
+  const { data: appChatListData, error: appChatListDataError, isLoading: appChatListDataLoading } = useShareChatList({
     conversationId: chatShouldReloadKey,
     appSourceType,
     appId,
@@ -195,7 +201,16 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
     refetchOnReconnect: false,
   })
   const invalidateShareConversations = useInvalidateShareConversations()
-  const [clearChatList, setClearChatList] = useState(false)
+  useEffect(() => {
+    if (!chatShouldReloadKey || !appChatListDataError)
+      return
+
+    const errorMessage = appChatListDataError instanceof Error
+      ? appChatListDataError.message
+      : JSON.stringify(appChatListDataError)
+    if (errorMessage.includes('Conversation Not Exists') || errorMessage.includes('404'))
+      clearCurrentConversationSelection()
+  }, [appChatListDataError, chatShouldReloadKey, clearCurrentConversationSelection])
   const [isResponding, setIsResponding] = useState(false)
   const appPrevChatTree = useMemo(() => (currentConversationId && appChatListData?.data.length)
     ? buildChatItemTree(getFormattedChatList(appChatListData.data))
@@ -309,6 +324,17 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
     if (appConversationData?.data && !appConversationDataLoading)
       setOriginConversationList(appConversationData?.data)
   }, [appConversationData, appConversationDataLoading])
+  useEffect(() => {
+    if (!currentConversationId || appConversationDataLoading || appPinnedConversationDataLoading)
+      return
+
+    const currentConversationExists = [
+      ...(appConversationData?.data || []),
+      ...(appPinnedConversationData?.data || []),
+    ].some(item => item.id === currentConversationId)
+    if (!currentConversationExists)
+      clearCurrentConversationSelection()
+  }, [appConversationData, appConversationDataLoading, appPinnedConversationData, appPinnedConversationDataLoading, clearCurrentConversationSelection, currentConversationId])
   const conversationList = useMemo(() => {
     const data = originConversationList.slice()
     if (showNewConversationItemInList && data[0]?.id !== '') {
