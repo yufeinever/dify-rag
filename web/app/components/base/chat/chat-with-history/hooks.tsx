@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProcessedFilesFromResponse } from '@/app/components/base/file-uploader/utils'
 import { InputVarType } from '@/app/components/workflow/types'
+import { useSelector as useAppContextSelector } from '@/context/app-context'
 import { useWebAppStore } from '@/context/web-app-context'
 import { useAppFavicon } from '@/hooks/use-app-favicon'
 import { changeLanguage } from '@/i18n-config/client'
@@ -20,6 +21,31 @@ import { TransferMethod } from '@/types/app'
 import { addFileInfos, sortAgentSorts } from '../../../tools/utils'
 import { CONVERSATION_ID_INFO } from '../constants'
 import { buildChatItemTree, getProcessedSystemVariablesFromUrlParams, getRawInputsFromUrlParams, getRawUserVariablesFromUrlParams } from '../utils'
+
+type ConversationIdInfo = Record<string, Record<string, string> | string | undefined>
+
+function getConversationScopeKey(isInstalledApp: boolean, accountId?: string, userId?: string) {
+  if (isInstalledApp && accountId)
+    return `account:${accountId}`
+  return userId || 'DEFAULT'
+}
+
+function getScopedConversationId(conversationIdInfo: ConversationIdInfo | undefined, storageKey: string, scopeKey: string) {
+  const scopedInfo = conversationIdInfo?.[storageKey]
+  if (scopedInfo && typeof scopedInfo !== 'string' && Object.prototype.hasOwnProperty.call(scopedInfo, scopeKey))
+    return scopedInfo[scopeKey] || ''
+  return undefined
+}
+
+function getLegacyConversationId(conversationIdInfo: ConversationIdInfo | undefined, appId: string, scopeKey: string, allowDefault: boolean) {
+  const legacyInfo = conversationIdInfo?.[appId]
+  if (!legacyInfo)
+    return ''
+  if (typeof legacyInfo === 'string')
+    return allowDefault ? legacyInfo : ''
+
+  return legacyInfo[scopeKey] || (allowDefault ? legacyInfo.DEFAULT || '' : '')
+}
 
 function getFormattedChatList(messages: any[]) {
   const newChatList: ChatItem[] = []
@@ -73,6 +99,7 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
   const appInfo = useWebAppStore(s => s.appInfo)
   const appParams = useWebAppStore(s => s.appParams)
   const appMeta = useWebAppStore(s => s.appMeta)
+  const accountId = useAppContextSelector(s => s.userProfile.id)
   useAppFavicon({
     enable: !installedAppInfo,
     icon_type: appInfo?.site.icon_type,
@@ -141,24 +168,40 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
       }
     }
   }, [appId, setSidebarCollapseState])
-  const [conversationIdInfo, setConversationIdInfo] = useLocalStorageState<Record<string, Record<string, string>>>(CONVERSATION_ID_INFO, {
+  const [conversationIdInfo, setConversationIdInfo] = useLocalStorageState<ConversationIdInfo>(CONVERSATION_ID_INFO, {
     defaultValue: {},
   })
-  const currentConversationId = useMemo(() => conversationIdInfo?.[appId || '']?.[userId || 'DEFAULT'] || '', [appId, conversationIdInfo, userId])
+  const conversationStorageKey = useMemo(() => appId ? `${appSourceType}:${appId}` : '', [appId, appSourceType])
+  const conversationScopeKey = useMemo(() => getConversationScopeKey(isInstalledApp, accountId, userId), [accountId, isInstalledApp, userId])
+  const currentConversationId = useMemo(() => {
+    if (!appId || !conversationStorageKey)
+      return ''
+
+    const scopedConversationId = getScopedConversationId(conversationIdInfo, conversationStorageKey, conversationScopeKey)
+    if (scopedConversationId !== undefined)
+      return scopedConversationId
+
+    return getLegacyConversationId(conversationIdInfo, appId, conversationScopeKey, !isInstalledApp)
+  }, [appId, conversationIdInfo, conversationScopeKey, conversationStorageKey, isInstalledApp])
+  const legacyInstalledConversationId = useMemo(() => {
+    if (!isInstalledApp || !appId || !conversationStorageKey || getScopedConversationId(conversationIdInfo, conversationStorageKey, conversationScopeKey) !== undefined)
+      return ''
+    return getLegacyConversationId(conversationIdInfo, appId, conversationScopeKey, true)
+  }, [appId, conversationIdInfo, conversationScopeKey, conversationStorageKey, isInstalledApp])
   const handleConversationIdInfoChange = useCallback((changeConversationId: string) => {
-    if (appId) {
-      let prevValue = conversationIdInfo?.[appId || '']
+    if (appId && conversationStorageKey) {
+      let prevValue = conversationIdInfo?.[conversationStorageKey]
       if (typeof prevValue === 'string')
         prevValue = {}
       setConversationIdInfo({
         ...conversationIdInfo,
-        [appId || '']: {
+        [conversationStorageKey]: {
           ...prevValue,
-          [userId || 'DEFAULT']: changeConversationId,
+          [conversationScopeKey]: changeConversationId,
         },
       })
     }
-  }, [appId, conversationIdInfo, setConversationIdInfo, userId])
+  }, [appId, conversationIdInfo, conversationScopeKey, conversationStorageKey, setConversationIdInfo])
   const [newConversationId, setNewConversationId] = useState('')
   const [clearChatList, setClearChatList] = useState(false)
   const clearCurrentConversationSelection = useCallback(() => {
@@ -171,7 +214,7 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
       return ''
     return currentConversationId
   }, [currentConversationId, newConversationId])
-  const { data: appPinnedConversationData, isLoading: appPinnedConversationDataLoading } = useShareConversations({
+  const { data: appPinnedConversationData } = useShareConversations({
     appSourceType,
     appId,
     pinned: true,
@@ -325,16 +368,16 @@ export const useChatWithHistory = (installedAppInfo?: InstalledApp) => {
       setOriginConversationList(appConversationData?.data)
   }, [appConversationData, appConversationDataLoading])
   useEffect(() => {
-    if (!currentConversationId || appConversationDataLoading || appPinnedConversationDataLoading)
+    if (!legacyInstalledConversationId || currentConversationId || appConversationDataLoading)
       return
 
-    const currentConversationExists = [
+    const legacyConversationExists = [
       ...(appConversationData?.data || []),
       ...(appPinnedConversationData?.data || []),
-    ].some(item => item.id === currentConversationId)
-    if (!currentConversationExists)
-      clearCurrentConversationSelection()
-  }, [appConversationData, appConversationDataLoading, appPinnedConversationData, appPinnedConversationDataLoading, clearCurrentConversationSelection, currentConversationId])
+    ].some(item => item.id === legacyInstalledConversationId)
+    if (legacyConversationExists)
+      handleConversationIdInfoChange(legacyInstalledConversationId)
+  }, [appConversationData, appConversationDataLoading, appPinnedConversationData, currentConversationId, handleConversationIdInfoChange, legacyInstalledConversationId])
   const conversationList = useMemo(() => {
     const data = originConversationList.slice()
     if (showNewConversationItemInList && data[0]?.id !== '') {

@@ -42,8 +42,18 @@ const useWebAppStoreMock = vi.fn((selector?: (state: typeof mockStoreState) => u
   return selector ? selector(mockStoreState) : mockStoreState
 })
 
+const mockAppContextState = {
+  userProfile: {
+    id: 'account-1',
+  },
+}
+
 vi.mock('@/context/web-app-context', () => ({
   useWebAppStore: (selector?: (state: typeof mockStoreState) => unknown) => useWebAppStoreMock(selector),
+}))
+
+vi.mock('@/context/app-context', () => ({
+  useSelector: (selector: (state: typeof mockAppContextState) => unknown) => selector(mockAppContextState),
 }))
 
 vi.mock('../../utils', async () => {
@@ -160,6 +170,7 @@ describe('useChatWithHistory', () => {
       tool_icons: {},
     }
     mockStoreState.appParams = null
+    mockAppContextState.userProfile.id = 'account-1'
     setConversationIdInfo('app-1', 'conversation-1')
   })
 
@@ -288,9 +299,9 @@ describe('useChatWithHistory', () => {
       expect(mockFetchChatList).toHaveBeenCalledWith('stale-conversation', AppSourceType.webApp, 'app-1')
     })
 
-    it('should clear selected conversation when it is missing from loaded conversation lists', async () => {
+    it('should keep selected conversation when it is only missing from the first loaded conversation page', async () => {
       // Arrange
-      setConversationIdInfo('app-1', 'missing-conversation')
+      setConversationIdInfo('app-1', 'missing-from-first-page')
       mockFetchConversations.mockImplementation(async (_isInstalledApp, _appId, _lastId, pinned) => {
         return createConversationData({
           data: pinned
@@ -305,9 +316,9 @@ describe('useChatWithHistory', () => {
 
       // Assert
       await waitFor(() => {
-        expect(result!.current.currentConversationId).toBe('')
+        expect(result!.current.currentConversationId).toBe('missing-from-first-page')
       })
-      expect(result!.current.clearChatList).toBe(true)
+      expect(result!.current.clearChatList).toBe(false)
     })
   })
 
@@ -1043,6 +1054,75 @@ describe('useChatWithHistory', () => {
       expect(result!.current.appId).toBe('installed-app-id')
       expect(result!.current.appData?.site.title).toBe('Installed App')
     })
+
+    it('should isolate installed app conversation id by current account id', async () => {
+      // Arrange
+      const installedAppInfo = {
+        id: 'installed-app-id',
+        app: {
+          name: 'Installed App',
+          icon_type: 'emoji',
+          icon: 'robot',
+          icon_background: '#fff',
+          icon_url: '',
+          use_icon_as_answer_icon: false,
+        },
+      } as unknown as InstalledApp
+      mockAppContextState.userProfile.id = 'account-2'
+      localStorage.setItem(CONVERSATION_ID_INFO, JSON.stringify({
+        'installedApp:installed-app-id': {
+          'account:account-1': 'account-one-conversation',
+          'account:account-2': 'account-two-conversation',
+        },
+      }))
+      mockFetchConversations.mockResolvedValue(createConversationData({
+        data: [createConversationItem({ id: 'account-two-conversation' })],
+      }))
+      mockFetchChatList.mockResolvedValue({ data: [] })
+
+      // Act
+      const { result } = await renderWithClient(() => useChatWithHistory(installedAppInfo))
+
+      // Assert
+      await waitFor(() => {
+        expect(result!.current.currentConversationId).toBe('account-two-conversation')
+      })
+      expect(mockFetchChatList).toHaveBeenCalledWith('account-two-conversation', AppSourceType.installedApp, 'installed-app-id')
+    })
+
+    it('should migrate legacy installed app conversation id only when it belongs to the current account list', async () => {
+      // Arrange
+      const installedAppInfo = {
+        id: 'installed-app-id',
+        app: {
+          name: 'Installed App',
+          icon_type: 'emoji',
+          icon: 'robot',
+          icon_background: '#fff',
+          icon_url: '',
+          use_icon_as_answer_icon: false,
+        },
+      } as unknown as InstalledApp
+      localStorage.setItem(CONVERSATION_ID_INFO, JSON.stringify({
+        'installed-app-id': {
+          DEFAULT: 'legacy-owned-conversation',
+        },
+      }))
+      mockFetchConversations.mockResolvedValue(createConversationData({
+        data: [createConversationItem({ id: 'legacy-owned-conversation' })],
+      }))
+      mockFetchChatList.mockResolvedValue({ data: [] })
+
+      // Act
+      const { result } = await renderWithClient(() => useChatWithHistory(installedAppInfo))
+
+      // Assert
+      await waitFor(() => {
+        expect(result!.current.currentConversationId).toBe('legacy-owned-conversation')
+      })
+      const stored = JSON.parse(localStorage.getItem(CONVERSATION_ID_INFO) || '{}')
+      expect(stored['installedApp:installed-app-id']?.['account:account-1']).toBe('legacy-owned-conversation')
+    })
   })
 
   // Scenario: appPrevChatTree is built from chat list messages.
@@ -1294,7 +1374,7 @@ describe('useChatWithHistory', () => {
       await waitFor(() => {
         const stored = localStorage.getItem(CONVERSATION_ID_INFO)
         const parsed = stored ? JSON.parse(stored) : {}
-        expect(parsed['app-1']).toBeTruthy()
+        expect(parsed['webApp:app-1']).toBeTruthy()
       })
     })
   })
@@ -1942,7 +2022,7 @@ describe('useChatWithHistory', () => {
       await waitFor(() => {
         const stored = localStorage.getItem(CONVERSATION_ID_INFO)
         const parsed = stored ? JSON.parse(stored) : {}
-        expect(parsed['app-1']?.DEFAULT).toBe('conversation-default-user')
+        expect(parsed['webApp:app-1']?.DEFAULT).toBe('conversation-default-user')
       })
     })
   })
