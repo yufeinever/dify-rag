@@ -10,7 +10,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { useDebounceFn } from 'ahooks'
 import { useQueryState } from 'nuqs'
 import * as React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import DSLConfirmModal from '@/app/components/app/create-from-dsl-modal/dsl-confirm-modal'
 import Input from '@/app/components/base/input'
@@ -25,9 +25,8 @@ import {
   DSLImportMode,
 } from '@/models/app'
 import { fetchAppDetail } from '@/service/explore'
-import { useRouter } from '@/next/navigation'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
-import { useExploreAppList, useGetInstalledApps } from '@/service/use-explore'
+import { useExploreAppList } from '@/service/use-explore'
 import { trackCreateApp } from '@/utils/create-app-tracking'
 import TryApp from '../try-app'
 import s from './style.module.css'
@@ -42,7 +41,6 @@ const Apps = ({
   const { t } = useTranslation()
   const { can } = useAppContext()
   const { data: systemFeatures } = useSuspenseQuery(systemFeaturesQueryOptions())
-  const router = useRouter()
   const allCategoriesEn = t('apps.allCategories', { ns: 'explore', lng: 'en' })
   const canCreateApp = can?.('app.create') ?? false
 
@@ -73,18 +71,6 @@ const Apps = ({
     isLoading,
     isError,
   } = useExploreAppList()
-  const { data: installedAppsData, isLoading: isLoadingInstalledApps } = useGetInstalledApps()
-  useEffect(() => {
-    if (isLoadingInstalledApps || !installedAppsData?.installed_apps?.length)
-      return
-
-    const defaultInstalledApp = systemFeatures.default_explore_installed_app_id
-      ? installedAppsData.installed_apps.find(item => item.id === systemFeatures.default_explore_installed_app_id)
-      : null
-    const targetInstalledApp = defaultInstalledApp ?? installedAppsData.installed_apps[0]
-    if (targetInstalledApp?.id)
-      router.replace(`/explore/installed/${targetInstalledApp.id}`)
-  }, [installedAppsData, isLoadingInstalledApps, router, systemFeatures.default_explore_installed_app_id])
 
   const filteredList = useMemo(() => {
     if (!data)
