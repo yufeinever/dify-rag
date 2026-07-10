@@ -74,6 +74,7 @@ vi.mock('../text-generation-sidebar', () => ({
         <button type="button" onClick={() => props.onBatchSend([['name'], ['Alice']])}>run-batch</button>
         <button type="button" onClick={() => props.onTabChange('history')}>open-history</button>
         <button type="button" onClick={() => props.onHistoryRunSelect('run-1')}>select-history</button>
+        <button type="button" onClick={() => props.onTabChange('create')}>open-create</button>
       </div>
     )
   },
@@ -208,6 +209,22 @@ describe('TextGeneration', () => {
     expect(mockResetBatchExecution).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('show-result')).toHaveTextContent('shown')
     expect(Number(screen.getByTestId('control-send').textContent)).toBeGreaterThan(0)
+  })
+
+  it('should clear a pending run signal when switching to workflow history', () => {
+    render(<TextGeneration isInstalledApp isWorkflow />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'run-once' }))
+    act(() => {
+      vi.runAllTimers()
+    })
+    expect(Number(screen.getByTestId('control-send').textContent)).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'open-history' }))
+    expect(screen.getByTestId('control-send')).toHaveTextContent('0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open-create' }))
+    expect(screen.getByTestId('control-send')).toHaveTextContent('0')
   })
 
   it('should orchestrate batch runs through the batch hook and expose the result panel', async () => {

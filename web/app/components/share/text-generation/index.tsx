@@ -95,10 +95,15 @@ const TextGeneration: FC<IMainProps> = ({ isInstalledApp = false, isWorkflow = f
   }, [handleCompleted, isInstalledApp, isWorkflow, queryClient])
   const handleTabChange = useCallback((tab: string) => {
     setCurrentTab(tab)
-    if (tab !== 'history')
+    if (tab === 'history') {
+      setControlSend(0)
+    }
+    else {
       setSelectedHistoryRunId(null)
+    }
   }, [])
   const handleSelectHistoryRun = useCallback((runId: string) => {
+    setControlSend(0)
     setSelectedHistoryRunId(runId)
     setResultExisted(true)
     showResultPanel()
@@ -112,6 +117,7 @@ const TextGeneration: FC<IMainProps> = ({ isInstalledApp = false, isWorkflow = f
     )
     updateInputs(reusableInputs)
     setCompletionFiles([])
+    setControlSend(0)
     setSelectedHistoryRunId(null)
     setCurrentTab('create')
     setResultExisted(false)
