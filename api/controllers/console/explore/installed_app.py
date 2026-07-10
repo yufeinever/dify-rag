@@ -277,3 +277,18 @@ class InstalledAppApi(InstalledAppResource):
             db.session.commit()
 
         return {"result": "success", "message": "App info updated successfully"}
+
+
+@console_ns.route("/installed-apps/<uuid:installed_app_id>/pin")
+class InstalledAppPinApi(InstalledAppResource):
+    """Update pin state through POST for proxies that reject PATCH requests."""
+
+    @console_ns.response(200, "Success", console_ns.models[SimpleResultMessageResponse.__name__])
+    def post(self, installed_app):
+        payload = InstalledAppUpdatePayload.model_validate(console_ns.payload or {})
+
+        if payload.is_pinned is not None:
+            installed_app.is_pinned = payload.is_pinned
+            db.session.commit()
+
+        return {"result": "success", "message": "App info updated successfully"}

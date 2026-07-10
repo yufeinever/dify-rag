@@ -360,4 +360,21 @@ class TestInstalledAppApi:
         with app.test_request_context("/", json={}), payload_patch({}), patch.object(module.db, "session"):
             result = method(installed_app)
 
+            assert result["result"] == "success"
+
+
+class TestInstalledAppPinApi:
+    def test_post_update_pin(self, app: Flask, payload_patch, installed_app):
+        api = module.InstalledAppPinApi()
+        method = unwrap(api.post)
+
+        with (
+            app.test_request_context("/", json={"is_pinned": True}),
+            payload_patch({"is_pinned": True}),
+            patch.object(module.db, "session") as session,
+        ):
+            result = method(installed_app)
+
+        assert installed_app.is_pinned is True
+        session.commit.assert_called_once()
         assert result["result"] == "success"

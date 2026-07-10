@@ -69,8 +69,8 @@ export const exploreInstalledAppUninstallContract = base
 
 export const exploreInstalledAppPinContract = base
   .route({
-    path: '/installed-apps/{id}',
-    method: 'PATCH',
+    path: '/installed-apps/{id}/pin',
+    method: 'POST',
   })
   .input(type<{
     params: { id: string }
