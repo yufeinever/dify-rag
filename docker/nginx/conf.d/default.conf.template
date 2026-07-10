@@ -52,6 +52,11 @@ server {
       include proxy.conf;
     }
 
+    location /poster-files/ {
+      proxy_pass http://150.5.132.104:8088/files/;
+      include proxy.conf;
+    }
+
     location /explore {
       proxy_pass http://web:3000;
       include proxy.conf;
