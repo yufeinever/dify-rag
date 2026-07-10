@@ -11,11 +11,14 @@ import { AppModeEnum } from '@/types/app'
 import AppList from '../index'
 
 let mockExploreData: { categories: string[], allList: App[] } | undefined = { categories: [], allList: [] }
+let mockInstalledApps: Array<{ id: string }> = []
+let mockInstalledAppsPending = false
 let mockIsLoading = false
 let mockIsError = false
 const mockHandleImportDSL = vi.fn()
 const mockHandleImportDSLConfirm = vi.fn()
 const mockTrackCreateApp = vi.fn()
+const mockReplace = vi.fn()
 
 vi.mock('@/service/use-explore', () => ({
   useExploreAppList: () => ({
@@ -23,6 +26,14 @@ vi.mock('@/service/use-explore', () => ({
     isLoading: mockIsLoading,
     isError: mockIsError,
   }),
+  useGetInstalledApps: () => ({
+    data: { installed_apps: mockInstalledApps },
+    isPending: mockInstalledAppsPending,
+  }),
+}))
+
+vi.mock('@/next/navigation', () => ({
+  useRouter: () => ({ replace: mockReplace }),
 }))
 
 vi.mock('@/service/explore', () => ({
@@ -170,6 +181,8 @@ describe('AppList', () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     mockExploreData = { categories: [], allList: [] }
+    mockInstalledApps = []
+    mockInstalledAppsPending = false
     mockIsLoading = false
     mockIsError = false
     mockConfig.isCloudEdition = false
@@ -199,6 +212,28 @@ describe('AppList', () => {
 
       expect(screen.getByText('Alpha')).toBeInTheDocument()
       expect(screen.getByText('Beta')).toBeInTheDocument()
+    })
+
+    it('should open the first installed app from the bare explore route', () => {
+      mockInstalledApps = [{ id: 'installed-app-1' }, { id: 'installed-app-2' }]
+
+      renderAppList()
+
+      expect(mockReplace).toHaveBeenCalledWith('/explore/installed/installed-app-1')
+    })
+
+    it('should keep the app library open for an explicit library view', () => {
+      mockInstalledApps = [{ id: 'installed-app-1' }]
+
+      renderAppList(false, undefined, { view: 'library' })
+
+      expect(mockReplace).not.toHaveBeenCalled()
+    })
+
+    it('should keep the app library open when there are no installed apps', () => {
+      renderAppList()
+
+      expect(mockReplace).not.toHaveBeenCalled()
     })
   })
 

@@ -55,8 +55,13 @@ const SideBar = () => {
   }
 
   const handleUpdatePinStatus = async (id: string, isPinned: boolean) => {
-    await updatePinStatus({ appId: id, isPinned })
-    toast.success(t('api.success', { ns: 'common' }))
+    try {
+      await updatePinStatus({ appId: id, isPinned })
+      toast.success(t('api.success', { ns: 'common' }))
+    }
+    catch {
+      toast.error(t('api.actionFailed', { ns: 'common' }))
+    }
   }
 
   const pinnedAppsCount = installedApps.filter(({ is_pinned }) => is_pinned).length
@@ -87,22 +92,9 @@ const SideBar = () => {
 
   return (
     <div className={cn('flex h-full w-fit shrink-0 cursor-pointer flex-col px-3 pt-6 sm:w-[240px]', isFold && 'sm:w-[56px]')}>
-      <div className={cn(isDiscoverySelected ? 'text-text-accent' : 'text-text-tertiary')}>
-        <Link
-          href="/explore/apps"
-          aria-label={isMobile || isFold ? t('sidebar.title', { ns: 'explore' }) : undefined}
-          className={cn(isDiscoverySelected ? 'bg-state-base-active' : 'hover:bg-state-base-hover', 'flex h-8 items-center gap-2 rounded-lg px-1 mobile:w-fit mobile:justify-center pc:w-full pc:justify-start')}
-        >
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-components-icon-bg-blue-solid">
-            <span aria-hidden="true" className="i-ri-apps-fill size-3.5 text-components-avatar-shape-fill-stop-100" />
-          </div>
-          {!isMobile && !isFold && <div className={cn('truncate', isDiscoverySelected ? 'system-sm-semibold text-components-menu-item-text-active' : 'system-sm-regular text-components-menu-item-text')}>{t('sidebar.title', { ns: 'explore' })}</div>}
-        </Link>
-      </div>
-
       {!isPending && installedApps.length === 0 && !isMobile && !isFold
         && (
-          <div className="mt-5">
+          <div>
             <NoApps />
           </div>
         )}
@@ -132,8 +124,21 @@ const SideBar = () => {
         </div>
       )}
 
-      {!isMobile && (
-        <div className="mt-auto flex py-3">
+      <div className="mt-auto flex flex-col gap-1 py-3">
+        <div className={cn(isDiscoverySelected ? 'text-text-accent' : 'text-text-tertiary')}>
+          <Link
+            href="/explore/apps?view=library"
+            aria-label={isMobile || isFold ? t('sidebar.title', { ns: 'explore' }) : undefined}
+            className={cn(isDiscoverySelected ? 'bg-state-base-active' : 'hover:bg-state-base-hover', 'flex h-8 items-center gap-2 rounded-lg px-1 mobile:w-fit mobile:justify-center pc:w-full pc:justify-start')}
+          >
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-components-icon-bg-blue-solid">
+              <span aria-hidden="true" className="i-ri-apps-fill size-3.5 text-components-avatar-shape-fill-stop-100" />
+            </div>
+            {!isMobile && !isFold && <div className={cn('truncate', isDiscoverySelected ? 'system-sm-semibold text-components-menu-item-text-active' : 'system-sm-regular text-components-menu-item-text')}>{t('sidebar.title', { ns: 'explore' })}</div>}
+          </Link>
+        </div>
+
+        {!isMobile && (
           <button
             type="button"
             aria-label={isFold ? t('sidebar.expandSidebar', { ns: 'layout' }) : t('sidebar.collapseSidebar', { ns: 'layout' })}
@@ -146,8 +151,8 @@ const SideBar = () => {
                   <span aria-hidden="true" className="i-ri-layout-left-2-line" />
                 )}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent>

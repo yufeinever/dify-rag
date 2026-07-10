@@ -4,8 +4,9 @@ import { MediaType } from '@/hooks/use-breakpoints'
 import { AppModeEnum } from '@/types/app'
 import SideBar from '../index'
 
-const { mockToastSuccess } = vi.hoisted(() => ({
+const { mockToastSuccess, mockToastError } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
 }))
 
 const mockSegments = ['apps']
@@ -54,6 +55,7 @@ vi.mock('@langgenius/dify-ui/toast', async (importOriginal) => {
     toast: {
       ...actual.toast,
       success: mockToastSuccess,
+      error: mockToastError,
     },
   }
 })
@@ -93,6 +95,13 @@ describe('SideBar', () => {
       renderSideBar()
 
       expect(screen.getByText('explore.sidebar.title')).toBeInTheDocument()
+    })
+
+    it('should link to the explicit library view from the sidebar footer', () => {
+      renderSideBar()
+
+      expect(screen.getByRole('link', { name: 'explore.sidebar.title' }))
+        .toHaveAttribute('href', '/explore/apps?view=library')
     })
 
     it('should expose an accessible name for the discovery link when the text is hidden', () => {
@@ -184,6 +193,20 @@ describe('SideBar', () => {
         expect(mockUpdatePinStatus).toHaveBeenCalledWith({ appId: 'app-123', isPinned: true })
         expect(mockToastSuccess).toHaveBeenCalledWith('common.api.success')
       })
+    })
+
+    it('should show an error toast when pinning fails', async () => {
+      mockInstalledApps = [createInstalledApp({ is_pinned: false })]
+      mockUpdatePinStatus.mockRejectedValue(new Error('request failed'))
+      renderSideBar()
+
+      fireEvent.click(screen.getByTestId('item-operation-trigger'))
+      fireEvent.click(await screen.findByText('explore.sidebar.action.pin'))
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('common.api.actionFailed')
+      })
+      expect(mockToastSuccess).not.toHaveBeenCalled()
     })
 
     it('should unpin an already pinned app', async () => {

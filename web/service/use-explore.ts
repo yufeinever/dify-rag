@@ -1,10 +1,14 @@
-import type { App, AppCategory } from '@/models/explore'
+import type { App, AppCategory, InstalledApp } from '@/models/explore'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocale } from '@/context/i18n'
 import { AccessMode } from '@/models/access-control'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { consoleQuery } from './client'
 import { fetchAppList, fetchBanners, fetchInstalledAppList, fetchInstalledAppMeta, fetchInstalledAppParams, getAppAccessModeByAppId, uninstallApp, updatePinStatus } from './explore'
+
+type InstalledAppsData = {
+  installed_apps: InstalledApp[]
+}
 
 type ExploreAppListData = {
   categories: AppCategory[]
@@ -54,13 +58,36 @@ export const useUninstallApp = () => {
 
 export const useUpdateAppPinStatus = () => {
   const client = useQueryClient()
+  const installedAppsQueryKey = consoleQuery.explore.installedApps.queryKey({ input: {} })
   return useMutation({
     mutationKey: consoleQuery.explore.updateInstalledApp.mutationKey(),
     mutationFn: ({ appId, isPinned }: { appId: string, isPinned: boolean }) => updatePinStatus(appId, isPinned),
-    onSuccess: () => {
-      client.invalidateQueries({
-        queryKey: consoleQuery.explore.installedApps.queryKey({ input: {} }),
+    onMutate: async ({ appId, isPinned }) => {
+      await client.cancelQueries({ queryKey: installedAppsQueryKey })
+      const previousData = client.getQueryData<InstalledAppsData>(installedAppsQueryKey)
+
+      client.setQueryData<InstalledAppsData>(installedAppsQueryKey, (currentData) => {
+        if (!currentData)
+          return currentData
+
+        const installedApps = currentData.installed_apps
+          .map(app => app.id === appId ? { ...app, is_pinned: isPinned } : app)
+          .sort((a, b) => Number(b.is_pinned) - Number(a.is_pinned))
+
+        return {
+          ...currentData,
+          installed_apps: installedApps,
+        }
       })
+
+      return { previousData }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousData)
+        client.setQueryData(installedAppsQueryKey, context.previousData)
+    },
+    onSettled: () => {
+      client.invalidateQueries({ queryKey: installedAppsQueryKey })
     },
   })
 }
