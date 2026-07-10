@@ -711,6 +711,7 @@ services:
       - ./volumes/certbot/conf/live:/etc/letsencrypt/live # cert dir (with certbot container)
       - ./volumes/certbot/conf:/etc/letsencrypt
       - ./volumes/certbot/www:/var/www/html
+      - ${POSTER_OUTPUT_HOST_DIR:-/opt/mmb-dify/poster-service/deploy/poster-service/output}:/var/www/poster-files:ro
     entrypoint:
       [
         "sh",

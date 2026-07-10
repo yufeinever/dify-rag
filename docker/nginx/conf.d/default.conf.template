@@ -53,8 +53,8 @@ server {
     }
 
     location /poster-files/files/ {
-      proxy_pass http://150.5.132.104:8088/files/;
-      include proxy.conf;
+      alias /var/www/poster-files/;
+      add_header Cache-Control "public, max-age=86400" always;
     }
 
     location /poster-files/ {
