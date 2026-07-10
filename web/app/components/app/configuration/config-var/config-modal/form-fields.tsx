@@ -262,7 +262,7 @@ const ConfigModalFormFields: FC<ConfigModalFormFieldsProps> = ({
                 components={{
                   docLink: (
                     <a
-                      href={docLink('/use-dify/nodes/user-input#hide-and-pre-fill-input-fields')}
+                      href={docLink('/use-mmbai/nodes/user-input#hide-and-pre-fill-input-fields')}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-text-accent hover:underline"

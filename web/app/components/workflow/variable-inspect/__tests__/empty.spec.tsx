@@ -20,8 +20,8 @@ describe('VariableInspect Empty', () => {
 
     expect(screen.getByText('workflow.debug.variableInspect.title')).toBeInTheDocument()
     expect(screen.getByText('workflow.debug.variableInspect.emptyTip')).toBeInTheDocument()
-    expect(link).toHaveAttribute('href', resolveDocLink('/use-dify/debug/variable-inspect'))
+    expect(link).toHaveAttribute('href', resolveDocLink('/use-mmbai/debug/variable-inspect'))
     expect(link).toHaveAttribute('target', '_blank')
-    expect(mockDocLink).toHaveBeenCalledWith('/use-dify/debug/variable-inspect')
+    expect(mockDocLink).toHaveBeenCalledWith('/use-mmbai/debug/variable-inspect')
   })
 })

@@ -111,7 +111,7 @@ describe('error-handle path', () => {
       render(<FailBranchCard />)
 
       expect(screen.getByText('workflow.nodes.common.errorHandle.failBranch.customize')).toBeInTheDocument()
-      expect(screen.getByRole('link')).toHaveAttribute('href', 'https://docs.example.com/use-dify/debug/error-type')
+      expect(screen.getByRole('link')).toHaveAttribute('href', 'https://docs.example.com/use-mmbai/debug/error-type')
     })
 
     it('should render string forms and surface array forms in the default value editor', () => {

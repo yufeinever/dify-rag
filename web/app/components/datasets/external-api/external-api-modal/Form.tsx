@@ -57,7 +57,7 @@ const Form: FC<FormProps> = React.memo(({
           </label>
           {variable === 'endpoint' && (
             <a
-              href={docLink('/use-dify/knowledge/external-knowledge-api') || '/'}
+              href={docLink('/use-mmbai/knowledge/external-knowledge-api') || '/'}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center body-xs-regular text-text-accent"

@@ -146,7 +146,7 @@ describe('TriggerCard', () => {
 
       const learnMoreLink = screen.getByText('overview.triggerInfo.learnAboutTriggers')
       expect(learnMoreLink).toBeInTheDocument()
-      expect(learnMoreLink).toHaveAttribute('href', 'https://docs.example.com/use-dify/nodes/trigger/overview')
+      expect(learnMoreLink).toHaveAttribute('href', 'https://docs.example.com/use-mmbai/nodes/trigger/overview')
     })
   })
 

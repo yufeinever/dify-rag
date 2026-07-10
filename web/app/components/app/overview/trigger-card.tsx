@@ -208,7 +208,7 @@ function TriggerCard({ appInfo, onToggleResult }: ITriggerCardProps) {
               {t('overview.triggerInfo.triggerStatusDescription', { ns: 'appOverview' })}
               {' '}
               <Link
-                href={docLink('/use-dify/nodes/trigger/overview')}
+                href={docLink('/use-mmbai/nodes/trigger/overview')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-text-accent hover:underline"

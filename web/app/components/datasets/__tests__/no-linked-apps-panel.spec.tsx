@@ -30,7 +30,7 @@ describe('NoLinkedAppsPanel', () => {
   it('should render link with correct href', () => {
     render(<NoLinkedAppsPanel />)
     const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', 'https://docs.example.com/use-dify/knowledge/integrate-knowledge-within-application')
+    expect(link).toHaveAttribute('href', 'https://docs.example.com/use-mmbai/knowledge/integrate-knowledge-within-application')
   })
 
   it('should render link with target="_blank"', () => {

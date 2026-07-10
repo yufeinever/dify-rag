@@ -135,7 +135,7 @@ describe('Processing', () => {
       render(<Processing {...props} />)
 
       const link = screen.getByRole('link', { name: 'datasetPipeline.addDocuments.stepThree.learnMore' })
-      expect(link).toHaveAttribute('href', 'https://docs.dify.ai/en-US/use-dify/knowledge/knowledge-pipeline/authorize-data-source')
+      expect(link).toHaveAttribute('href', 'https://docs.dify.ai/en-US/use-mmbai/knowledge/knowledge-pipeline/authorize-data-source')
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noreferrer noopener')
     })

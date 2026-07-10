@@ -139,8 +139,8 @@ describe('Status', () => {
     const learnMoreLink = screen.getByRole('link', { name: 'workflow.common.learnMore' })
 
     expect(screen.getByText('EXCEPTION')).toBeInTheDocument()
-    expect(learnMoreLink).toHaveAttribute('href', resolveDocLink('/use-dify/debug/error-type'))
-    expect(mockDocLink).toHaveBeenCalledWith('/use-dify/debug/error-type')
+    expect(learnMoreLink).toHaveAttribute('href', resolveDocLink('/use-mmbai/debug/error-type'))
+    expect(mockDocLink).toHaveBeenCalledWith('/use-mmbai/debug/error-type')
   })
 
   it('renders paused placeholders when pause details have not loaded yet', () => {

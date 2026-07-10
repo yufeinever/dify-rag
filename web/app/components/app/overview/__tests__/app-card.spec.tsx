@@ -442,7 +442,7 @@ describe('AppCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'overview.appInfo.enableTooltip.description' }))
     fireEvent.click(screen.getByText('overview.appInfo.enableTooltip.learnMore'))
 
-    expect(mockWindowOpen).toHaveBeenCalledWith('https://docs.example.com/use-dify/nodes/user-input', '_blank')
+    expect(mockWindowOpen).toHaveBeenCalledWith('https://docs.example.com/use-mmbai/nodes/user-input', '_blank')
   })
 
   it('should close the overview dialogs when their child callbacks are invoked', () => {

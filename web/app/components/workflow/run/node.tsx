@@ -219,7 +219,7 @@ const NodePanel: FC<Props> = ({
                 <StatusContainer status="stopped">
                   {nodeInfo.error}
                   <a
-                    href={docLink('/use-dify/debug/error-type')}
+                    href={docLink('/use-mmbai/debug/error-type')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-text-accent"

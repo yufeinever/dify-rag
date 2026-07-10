@@ -177,7 +177,7 @@ describe('ExternalDataToolModal', () => {
 
     expect(screen.getByRole('link', { name: 'apiBasedExtension.link' })).toHaveAttribute(
       'href',
-      'https://docs.example.com/use-dify/workspace/api-extension/api-extension',
+      'https://docs.example.com/use-mmbai/workspace/api-extension/api-extension',
     )
   })
 

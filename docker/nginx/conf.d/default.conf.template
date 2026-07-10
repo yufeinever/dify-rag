@@ -87,6 +87,16 @@ server {
     }
 
     location / {
+    location /mmbai-docs/ {
+      proxy_pass http://docs:3000/;
+      include proxy.conf;
+      proxy_set_header Accept-Encoding "";
+      sub_filter_once off;
+      sub_filter_types text/html text/css application/javascript;
+      sub_filter 'href="/' 'href="/mmbai-docs/';
+      sub_filter 'src="/' 'src="/mmbai-docs/';
+      sub_filter 'url(/' 'url(/mmbai-docs/';
+    }
       proxy_pass http://web:3000;
       include proxy.conf;
       proxy_set_header Accept-Encoding "";

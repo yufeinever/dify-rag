@@ -17,7 +17,7 @@ export function Empty() {
       <div className="mb-1 system-sm-medium text-text-secondary">{t('apiBasedExtension.title', { ns: 'common' })}</div>
       <a
         className="flex items-center system-xs-regular text-text-accent"
-        href={docLink('/use-dify/workspace/api-extension/api-extension')}
+        href={docLink('/use-mmbai/workspace/api-extension/api-extension')}
         target="_blank"
         rel="noopener noreferrer"
       >

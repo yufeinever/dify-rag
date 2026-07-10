@@ -17,7 +17,7 @@ const Empty: FC = () => {
         <div className="system-xs-regular text-text-tertiary">{t('debug.variableInspect.emptyTip', { ns: 'workflow' })}</div>
         <a
           className="cursor-pointer system-xs-regular text-text-accent"
-          href={docLink('/use-dify/debug/variable-inspect')}
+          href={docLink('/use-mmbai/debug/variable-inspect')}
           target="_blank"
           rel="noopener noreferrer"
         >

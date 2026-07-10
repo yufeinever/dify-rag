@@ -80,7 +80,7 @@ const IndexingSection = ({
                 <a
                   target="_blank"
                   rel="noopener noreferrer"
-                  href={docLink('/use-dify/knowledge/create-knowledge/chunking-and-cleaning-text')}
+                  href={docLink('/use-mmbai/knowledge/create-knowledge/chunking-and-cleaning-text')}
                   className="text-text-accent"
                 >
                   {t('form.chunkStructure.learnMore', { ns: 'datasetSettings' })}
@@ -173,7 +173,7 @@ const IndexingSection = ({
                   <a
                     target="_blank"
                     rel="noopener noreferrer"
-                    href={docLink('/use-dify/knowledge/create-knowledge/setting-indexing-methods')}
+                    href={docLink('/use-mmbai/knowledge/create-knowledge/setting-indexing-methods')}
                     className="text-text-accent"
                   >
                     {t('form.retrievalSetting.learnMore', { ns: 'datasetSettings' })}

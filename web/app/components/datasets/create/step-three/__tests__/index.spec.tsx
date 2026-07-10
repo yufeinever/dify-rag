@@ -167,7 +167,7 @@ describe('StepThree', () => {
       renderStepThree()
 
       const link = screen.getByText('datasetPipeline.addDocuments.stepThree.learnMore')
-      expect(link).toHaveAttribute('href', 'https://docs.dify.ai/en-US/use-dify/knowledge/integrate-knowledge-within-application')
+      expect(link).toHaveAttribute('href', 'https://docs.dify.ai/en-US/use-mmbai/knowledge/integrate-knowledge-within-application')
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noreferrer noopener')
     })

@@ -216,7 +216,7 @@ vi.mock('../components/indexing-section', () => ({
       {!!currentDataset?.doc_form && (
         <>
           <div>form.chunkStructure.title</div>
-          <a href="https://docs.dify.ai/use-dify/knowledge/create-knowledge/chunking-and-cleaning-text">
+          <a href="https://docs.dify.ai/use-mmbai/knowledge/create-knowledge/chunking-and-cleaning-text">
             form.chunkStructure.learnMore
           </a>
         </>
@@ -231,7 +231,7 @@ vi.mock('../components/indexing-section', () => ({
       {currentDataset?.provider !== 'external' && indexMethod && (
         <>
           <div>form.retrievalSetting.title</div>
-          <a href="https://docs.dify.ai/use-dify/knowledge/create-knowledge/setting-indexing-methods">
+          <a href="https://docs.dify.ai/use-mmbai/knowledge/create-knowledge/setting-indexing-methods">
             form.retrievalSetting.learnMore
           </a>
         </>

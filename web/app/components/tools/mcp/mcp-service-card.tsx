@@ -165,7 +165,7 @@ function getTooltipContent({
         <button
           type="button"
           className="cursor-pointer rounded-sm text-xs font-normal text-text-accent outline-hidden hover:underline focus-visible:ring-1 focus-visible:ring-components-input-border-hover"
-          onClick={() => window.open(docLink('/use-dify/nodes/user-input'), '_blank')}
+          onClick={() => window.open(docLink('/use-mmbai/nodes/user-input'), '_blank')}
         >
           {t('overview.appInfo.enableTooltip.learnMore', { ns: 'appOverview' })}
         </button>

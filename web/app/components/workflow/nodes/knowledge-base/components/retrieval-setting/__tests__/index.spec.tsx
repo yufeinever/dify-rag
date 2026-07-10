@@ -38,7 +38,7 @@ describe('RetrievalSetting', () => {
 
     expect(screen.getByRole('link', { name: 'datasetSettings.form.retrievalSetting.learnMore' })).toHaveAttribute(
       'href',
-      resolveDocLink('/use-dify/knowledge/create-knowledge/setting-indexing-methods'),
+      resolveDocLink('/use-mmbai/knowledge/create-knowledge/setting-indexing-methods'),
     )
     expect(screen.getByText('dataset.retrieval.semantic_search.title')).toBeInTheDocument()
     expect(screen.getByText('dataset.retrieval.full_text_search.title')).toBeInTheDocument()

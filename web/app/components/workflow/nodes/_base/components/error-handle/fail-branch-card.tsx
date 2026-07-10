@@ -19,7 +19,7 @@ const FailBranchCard = () => {
           {t('nodes.common.errorHandle.failBranch.customizeTip', { ns: 'workflow' })}
           &nbsp;
           <a
-            href={docLink('/use-dify/debug/error-type')}
+            href={docLink('/use-mmbai/debug/error-type')}
             target="_blank"
             rel="noopener noreferrer"
             className="text-text-accent"

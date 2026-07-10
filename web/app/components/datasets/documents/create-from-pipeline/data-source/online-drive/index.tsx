@@ -193,7 +193,7 @@ const OnlineDrive = ({
     <div className="flex flex-col gap-y-2">
       <Header
         docTitle="Docs"
-        docLink={docLink('/use-dify/knowledge/knowledge-pipeline/authorize-data-source')}
+        docLink={docLink('/use-mmbai/knowledge/knowledge-pipeline/authorize-data-source')}
         onClickConfiguration={handleSetting}
         pluginName={nodeData.datasource_label}
         currentCredentialId={currentCredentialId}

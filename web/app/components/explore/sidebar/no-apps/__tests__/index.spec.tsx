@@ -32,7 +32,7 @@ describe('NoApps', () => {
 
       const link = screen.getByText('explore.sidebar.noApps.learnMore')
       expect(link.tagName).toBe('A')
-      expect(link).toHaveAttribute('href', 'https://docs.dify.ai/use-dify/publish/README')
+      expect(link).toHaveAttribute('href', 'https://docs.dify.ai/use-mmbai/publish/README')
       expect(link).toHaveAttribute('target', '_blank')
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     })

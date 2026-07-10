@@ -206,7 +206,7 @@ describe('ConfigModalFormFields', () => {
     fireEvent.click(screen.getByRole('button', { name: 'variableConfig.hiddenDescription' }))
     expect(await screen.findByText('variableConfig.hiddenDescription')).toBeInTheDocument()
     const docLink = await screen.findByRole('link')
-    expect(docLink).toHaveAttribute('href', 'https://docs.example.com/use-dify/nodes/user-input#hide-and-pre-fill-input-fields')
+    expect(docLink).toHaveAttribute('href', 'https://docs.example.com/use-mmbai/nodes/user-input#hide-and-pre-fill-input-fields')
     expect(docLink).toHaveAttribute('target', '_blank')
     expect(docLink).toHaveAttribute('rel', 'noopener noreferrer')
     textInputView.unmount()

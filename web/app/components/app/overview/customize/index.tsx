@@ -42,7 +42,7 @@ const CustomizeModal: FC<IShareLinkProps> = ({
   const { t } = useTranslation()
   const docLink = useDocLink()
   const isChatApp = mode === AppModeEnum.CHAT || mode === AppModeEnum.ADVANCED_CHAT
-  const apiDocLink = docLink('/use-dify/publish/developing-with-apis')
+  const apiDocLink = docLink('/use-mmbai/publish/developing-with-apis')
 
   return (
     <Dialog open={isShow} onOpenChange={open => !open && onClose()}>

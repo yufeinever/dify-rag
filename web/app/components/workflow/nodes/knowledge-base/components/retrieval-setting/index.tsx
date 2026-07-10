@@ -76,7 +76,7 @@ const RetrievalSetting = ({
         title: t('form.retrievalSetting.title', { ns: 'datasetSettings' }),
         subTitle: (
           <div className="flex items-center body-xs-regular text-text-tertiary">
-            <a target="_blank" rel="noopener noreferrer" href={docLink('/use-dify/knowledge/create-knowledge/setting-indexing-methods')} className="text-text-accent">{t('form.retrievalSetting.learnMore', { ns: 'datasetSettings' })}</a>
+            <a target="_blank" rel="noopener noreferrer" href={docLink('/use-mmbai/knowledge/create-knowledge/setting-indexing-methods')} className="text-text-accent">{t('form.retrievalSetting.learnMore', { ns: 'datasetSettings' })}</a>
             &nbsp;
             {t('nodes.knowledgeBase.aboutRetrieval', { ns: 'workflow' })}
           </div>

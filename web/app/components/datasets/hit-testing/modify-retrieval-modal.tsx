@@ -78,7 +78,7 @@ const ModifyRetrievalModal: FC<Props> = ({ indexMethod, value, isShow, onHide, o
         <div className="text-base font-semibold text-text-primary">
           <div>{t('form.retrievalSetting.title', { ns: 'datasetSettings' })}</div>
           <div className="text-xs leading-[18px] font-normal text-text-tertiary">
-            <a target="_blank" rel="noopener noreferrer" href={docLink('/use-dify/knowledge/create-knowledge/setting-indexing-methods')} className="text-text-accent">
+            <a target="_blank" rel="noopener noreferrer" href={docLink('/use-mmbai/knowledge/create-knowledge/setting-indexing-methods')} className="text-text-accent">
               {t('form.retrievalSetting.learnMore', { ns: 'datasetSettings' })}
             </a>
             {t('form.retrievalSetting.description', { ns: 'datasetSettings' })}

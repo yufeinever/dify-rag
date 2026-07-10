@@ -100,7 +100,7 @@ export function ApiBasedExtensionModal(props: ApiBasedExtensionModalProps) {
             />
             <FieldDescription>
               <a
-                href={docLink('/use-dify/workspace/api-extension/api-extension')}
+                href={docLink('/use-mmbai/workspace/api-extension/api-extension')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex w-fit items-center text-text-accent focus-visible:ring-1 focus-visible:ring-components-input-border-active focus-visible:outline-hidden"

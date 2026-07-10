@@ -186,7 +186,7 @@ export default function AppSelector() {
             <>
               <AccountMenuSection>
                 <AccountMenuExternalItem
-                  href={docLink('/use-dify/getting-started/introduction')}
+                  href={docLink('/use-mmbai/getting-started/introduction')}
                   iconClassName="i-ri-book-open-line"
                   label={t('userProfile.helpCenter', { ns: 'common' })}
                   trailing={<ExternalLinkIndicator />}

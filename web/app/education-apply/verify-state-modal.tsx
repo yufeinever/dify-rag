@@ -33,7 +33,7 @@ function Confirm({
 }: IConfirm) {
   const { t } = useTranslation()
   const docLink = useDocLink()
-  const eduDocLink = docLink('/use-dify/workspace/subscription-management#dify-for-education')
+  const eduDocLink = docLink('/use-mmbai/workspace/subscription-management#dify-for-education')
 
   const handleClick = () => {
     window.open(eduDocLink, '_blank', 'noopener,noreferrer')

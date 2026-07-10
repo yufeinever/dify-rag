@@ -155,7 +155,7 @@ describe('ExternalKnowledgeBaseCreate', () => {
       renderComponent()
 
       const docLink = screen.getByText('dataset.connectHelper.helper4')
-      expect(docLink)!.toHaveAttribute('href', 'https://docs.dify.ai/en/use-dify/knowledge/connect-external-knowledge-base')
+      expect(docLink)!.toHaveAttribute('href', 'https://docs.dify.ai/en/use-mmbai/knowledge/connect-external-knowledge-base')
       expect(docLink)!.toHaveAttribute('target', '_blank')
       expect(docLink)!.toHaveAttribute('rel', 'noopener noreferrer')
     })

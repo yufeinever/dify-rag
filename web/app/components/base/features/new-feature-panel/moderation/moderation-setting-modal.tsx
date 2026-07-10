@@ -317,7 +317,7 @@ const ModerationSettingModal: FC<ModerationSettingModalProps> = ({
               <div className="flex h-9 items-center justify-between">
                 <div className="text-sm font-medium text-text-primary">{t('apiBasedExtension.selector.title', { ns: 'common' })}</div>
                 <a
-                  href={docLink('/use-dify/workspace/api-extension/api-extension')}
+                  href={docLink('/use-mmbai/workspace/api-extension/api-extension')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group flex items-center text-xs text-text-tertiary hover:text-primary-600"
