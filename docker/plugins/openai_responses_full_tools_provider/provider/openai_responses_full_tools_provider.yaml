@@ -1,0 +1,389 @@
+provider: openai_responses_full_tools_provider
+label:
+  en_US: MMB OpenAI Responses Full Tools
+  zh_Hans: MMB OpenAI Responses Full Tools
+description:
+  en_US: Private MMB provider based on OpenAI Responses API with hosted web_search, file_search and code_interpreter enabled by default.
+  zh_Hans: 基于 OpenAI Responses API 的 MMB 私有全工具模型供应商，默认启用 web_search、file_search 和 code_interpreter。
+icon_small:
+  en_US: icon_s_en.svg
+icon_large:
+  en_US: icon_l_en.svg
+background: "#E5E7EB"
+help:
+  title:
+    en_US: Get your API Key from OpenAI
+    zh_Hans: 从 OpenAI 获取 API Key
+  url:
+    en_US: https://platform.openai.com/account/api-keys
+supported_model_types:
+  - llm
+  - text-embedding
+  - speech2text
+  - moderation
+  - tts
+configurate_methods:
+  - predefined-model
+  - customizable-model
+model_credential_schema:
+  model:
+    label:
+      en_US: Model Name
+      zh_Hans: 模型名称
+    placeholder:
+      en_US: Enter your model name
+      zh_Hans: 输入模型名称
+  credential_form_schemas:
+    - variable: openai_api_key
+      label:
+        en_US: API Key
+      type: secret-input
+      required: true
+      placeholder:
+        zh_Hans: 在此输入您的 API Key
+        en_US: Enter your API Key
+    - variable: openai_organization
+      label:
+        zh_Hans: 组织 ID
+        en_US: Organization
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 在此输入您的组织 ID
+        en_US: Enter your Organization ID
+    - variable: openai_api_base
+      label:
+        zh_Hans: API Base
+        en_US: API Base
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 在此输入您的 API Base
+        en_US: Enter your API Base
+    - variable: api_protocol
+      label:
+        zh_Hans: API 协议
+        en_US: API Protocol
+      type: select
+      required: false
+      default: responses
+      options:
+        - value: chat
+          label:
+            zh_Hans: Chat Completions
+            en_US: Chat Completions
+        - value: responses
+          label:
+            zh_Hans: Responses API
+            en_US: Responses API
+      help:
+        zh_Hans: 选择该模型使用的 API 协议。本私有插件默认使用 Responses API，以启用 OpenAI 原生托管工具。
+        en_US: Select the API protocol for this model. This private provider defaults to Responses API for OpenAI hosted tools.
+    - variable: enable_web_search
+      label:
+        zh_Hans: 启用 OpenAI Web Search
+        en_US: Enable OpenAI Web Search
+      type: select
+      required: false
+      default: enabled
+      options:
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后追加 OpenAI 原生 web_search 托管工具。
+        en_US: Effective only with Responses API. Adds OpenAI native web_search hosted tool.
+    - variable: enable_code_interpreter
+      label:
+        zh_Hans: 启用 OpenAI Code Interpreter
+        en_US: Enable OpenAI Code Interpreter
+      type: select
+      required: false
+      default: enabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后使用 OpenAI 托管代码解释器容器。
+        en_US: Effective only with Responses API. Uses OpenAI hosted code interpreter container.
+    - variable: enable_file_search
+      label:
+        zh_Hans: 启用 OpenAI File Search
+        en_US: Enable OpenAI File Search
+      type: select
+      required: false
+      default: enabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。需要填写 OpenAI Vector Store IDs，不会读取 150 Dify 私有知识库。
+        en_US: Effective only with Responses API. Requires OpenAI Vector Store IDs and does not read private Dify knowledge bases.
+    - variable: openai_vector_store_ids
+      label:
+        zh_Hans: OpenAI Vector Store IDs
+        en_US: OpenAI Vector Store IDs
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 多个 ID 用英文逗号分隔，如 vs_xxx,vs_yyy
+        en_US: Comma-separated ids, e.g. vs_xxx,vs_yyy
+    - variable: enable_material_mcp
+      label:
+        zh_Hans: 启用 MMB 材料 MCP
+        en_US: Enable MMB Material MCP
+      type: select
+      required: false
+      default: disabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后把资料全知 MCP 作为 OpenAI Responses remote MCP 工具传入。
+        en_US: Effective only with Responses API. Adds the material catalog as a remote MCP tool for OpenAI Responses.
+    - variable: material_mcp_server_url
+      label:
+        zh_Hans: MMB 材料 MCP URL
+        en_US: MMB Material MCP URL
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: https://ai.meinmalzebier.shop/material-agent/mcp
+        en_US: https://ai.meinmalzebier.shop/material-agent/mcp
+    - variable: material_mcp_auth_token
+      label:
+        zh_Hans: MMB 材料 MCP Token
+        en_US: MMB Material MCP Token
+      type: secret-input
+      required: false
+      placeholder:
+        zh_Hans: MATERIAL_MCP_AUTH_TOKEN
+        en_US: MATERIAL_MCP_AUTH_TOKEN
+    - variable: material_mcp_allowed_tools
+      label:
+        zh_Hans: MMB 材料 MCP 允许工具
+        en_US: MMB Material MCP Allowed Tools
+      type: text-input
+      required: false
+      default: server_info,list_material_roots,list_datasets,list_documents,search_segments,read_document_chunks,search_files,search_visual_assets,find_person_visual_candidates,read_file_text,profile_materials,list_material_changes
+      placeholder:
+        zh_Hans: 逗号分隔的只读材料工具名
+        en_US: Comma-separated read-only material tool names
+provider_credential_schema:
+  credential_form_schemas:
+    - variable: openai_api_key
+      label:
+        en_US: API Key
+      type: secret-input
+      required: true
+      placeholder:
+        zh_Hans: 在此输入您的 API Key
+        en_US: Enter your API Key
+    - variable: openai_organization
+      label:
+        zh_Hans: 组织 ID
+        en_US: Organization
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 在此输入您的组织 ID
+        en_US: Enter your Organization ID
+    - variable: openai_api_base
+      label:
+        zh_Hans: API Base
+        en_US: API Base
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 在此输入您的 API Base, 如：https://api.openai.com
+        en_US: Enter your API Base, e.g. https://api.openai.com
+    - variable: validate_model
+      label:
+        zh_Hans: 验证模型
+        en_US: Validate Model
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 用于验证凭据的模型名称，如：gpt-4o-mini
+        en_US: Model name used to validate credentials, e.g. gpt-4o-mini
+    - variable: api_protocol
+      label:
+        zh_Hans: API 协议
+        en_US: API Protocol
+      type: select
+      required: false
+      default: responses
+      options:
+        - value: chat
+          label:
+            zh_Hans: Chat Completions
+            en_US: Chat Completions
+        - value: responses
+          label:
+            zh_Hans: Responses API
+            en_US: Responses API
+      help:
+        zh_Hans: 选择该 Provider 使用的 API 协议。本私有插件默认使用 Responses API，以启用 OpenAI 原生托管工具。
+        en_US: Select the API protocol for this provider. This private provider defaults to Responses API for OpenAI hosted tools.
+    - variable: enable_web_search
+      label:
+        zh_Hans: 启用 OpenAI Web Search
+        en_US: Enable OpenAI Web Search
+      type: select
+      required: false
+      default: enabled
+      options:
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后追加 OpenAI 原生 web_search 托管工具。
+        en_US: Effective only with Responses API. Adds OpenAI native web_search hosted tool.
+    - variable: enable_code_interpreter
+      label:
+        zh_Hans: 启用 OpenAI Code Interpreter
+        en_US: Enable OpenAI Code Interpreter
+      type: select
+      required: false
+      default: enabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后使用 OpenAI 托管代码解释器容器。
+        en_US: Effective only with Responses API. Uses OpenAI hosted code interpreter container.
+    - variable: enable_file_search
+      label:
+        zh_Hans: 启用 OpenAI File Search
+        en_US: Enable OpenAI File Search
+      type: select
+      required: false
+      default: enabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。需要填写 OpenAI Vector Store IDs，不会读取 150 Dify 私有知识库。
+        en_US: Effective only with Responses API. Requires OpenAI Vector Store IDs and does not read private Dify knowledge bases.
+    - variable: openai_vector_store_ids
+      label:
+        zh_Hans: OpenAI Vector Store IDs
+        en_US: OpenAI Vector Store IDs
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 多个 ID 用英文逗号分隔，如 vs_xxx,vs_yyy
+        en_US: Comma-separated ids, e.g. vs_xxx,vs_yyy
+    - variable: enable_material_mcp
+      label:
+        zh_Hans: 启用 MMB 材料 MCP
+        en_US: Enable MMB Material MCP
+      type: select
+      required: false
+      default: disabled
+      options:
+        - value: disabled
+          label:
+            zh_Hans: 关闭
+            en_US: Disabled
+        - value: enabled
+          label:
+            zh_Hans: 启用
+            en_US: Enabled
+      help:
+        zh_Hans: 仅在 Responses API 下生效。启用后把资料全知 MCP 作为 OpenAI Responses remote MCP 工具传入。
+        en_US: Effective only with Responses API. Adds the material catalog as a remote MCP tool for OpenAI Responses.
+    - variable: material_mcp_server_url
+      label:
+        zh_Hans: MMB 材料 MCP URL
+        en_US: MMB Material MCP URL
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: https://ai.meinmalzebier.shop/material-agent/mcp
+        en_US: https://ai.meinmalzebier.shop/material-agent/mcp
+    - variable: material_mcp_auth_token
+      label:
+        zh_Hans: MMB 材料 MCP Token
+        en_US: MMB Material MCP Token
+      type: secret-input
+      required: false
+      placeholder:
+        zh_Hans: MATERIAL_MCP_AUTH_TOKEN
+        en_US: MATERIAL_MCP_AUTH_TOKEN
+    - variable: material_mcp_allowed_tools
+      label:
+        zh_Hans: MMB 材料 MCP 允许工具
+        en_US: MMB Material MCP Allowed Tools
+      type: text-input
+      required: false
+      default: server_info,list_material_roots,list_datasets,list_documents,search_segments,read_document_chunks,search_files,search_visual_assets,find_person_visual_candidates,read_file_text,profile_materials,list_material_changes
+      placeholder:
+        zh_Hans: 逗号分隔的只读材料工具名
+        en_US: Comma-separated read-only material tool names
+models:
+  llm:
+    predefined:
+      - "models/llm/*.yaml"
+    position: "models/llm/_position.yaml"
+  text_embedding:
+    predefined:
+      - "models/text_embedding/*.yaml"
+  tts:
+    predefined:
+      - "models/tts/*.yaml"
+  speech2text:
+    predefined:
+      - "models/speech2text/*.yaml"
+  moderation:
+    predefined:
+      - "models/moderation/*.yaml"
+extra:
+  python:
+    provider_source: provider/openai_responses_full_tools_provider.py
+    model_sources:
+      - "models/llm/llm.py"
+      - "models/text_embedding/text_embedding.py"
+      - "models/speech2text/speech2text.py"
+      - "models/moderation/moderation.py"
+      - "models/tts/tts.py"

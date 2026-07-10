@@ -1,0 +1,32 @@
+version: 0.1.1
+type: plugin
+author: "mmb"
+name: "openai_responses_full_tools_provider"
+description:
+  en_US: OpenAI Responses full-tools model provider for MMB with native hosted tools enabled by default.
+  zh_Hans: MMB 私有 OpenAI Responses 全工具模型供应商，默认启用原生托管工具。
+label:
+  en_US: "MMB OpenAI Responses Full Tools"
+  zh_Hans: "MMB OpenAI Responses Full Tools"
+created_at: "2026-07-03T00:00:00+08:00"
+icon: icon_s_en.svg
+resource:
+  memory: 1048576
+  permission:
+    tool:
+      enabled: true
+    model:
+      enabled: true
+      llm: true
+plugins:
+  models:
+    - "provider/openai_responses_full_tools_provider.yaml"
+meta:
+  version: 0.0.1
+  arch:
+    - "amd64"
+    - "arm64"
+  runner:
+    language: "python"
+    version: "3.12"
+    entrypoint: "main"
