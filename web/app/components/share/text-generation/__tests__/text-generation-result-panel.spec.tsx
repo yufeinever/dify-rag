@@ -9,6 +9,7 @@ import { TaskStatus } from '../types'
 
 const resPropsSpy = vi.fn()
 const resDownloadPropsSpy = vi.fn()
+const workflowHistoryDetailPropsSpy = vi.fn()
 
 vi.mock('@/app/components/share/text-generation/result', () => ({
   default: (props: Record<string, unknown>) => {
@@ -21,6 +22,13 @@ vi.mock('@/app/components/share/text-generation/run-batch/res-download', () => (
   default: (props: Record<string, unknown>) => {
     resDownloadPropsSpy(props)
     return <div data-testid="res-download-mock" />
+  },
+}))
+
+vi.mock('@/app/components/share/text-generation/workflow-history/detail', () => ({
+  default: (props: Record<string, unknown>) => {
+    workflowHistoryDetailPropsSpy(props)
+    return <div data-testid="workflow-history-detail-mock" />
   },
 }))
 
@@ -72,8 +80,10 @@ const baseProps = {
   handleCompleted: vi.fn(),
   handleRetryAllFailedTask: vi.fn(),
   handleSaveMessage: vi.fn(async () => {}),
+  historyRunId: null,
   inputs: { name: 'Alice' },
   isCallBatchAPI: false,
+  isHistoryMode: false,
   isPC: true,
   isShowResultPanel: true,
   isWorkflow: false,
@@ -83,6 +93,7 @@ const baseProps = {
   onRunControlChange: vi.fn(),
   onRunStart: vi.fn(),
   onShowResultPanel: vi.fn(),
+  onUseHistoryInputs: vi.fn(),
   promptConfig,
   resultExisted: true,
   showTaskList: batchTasks,
@@ -186,5 +197,30 @@ describe('TextGenerationResultPanel', () => {
 
     fireEvent.click(document.querySelector('.cursor-grab') as HTMLElement)
     expect(onShowResultPanel).toHaveBeenCalledTimes(1)
+  })
+
+  it('should render a selected workflow history run instead of the live result', () => {
+    render(
+      <TextGenerationResultPanel
+        {...baseProps}
+        historyRunId="run-1"
+        isHistoryMode
+      />,
+    )
+
+    expect(screen.getByTestId('workflow-history-detail-mock')).toBeInTheDocument()
+    expect(screen.queryByTestId('res-single')).not.toBeInTheDocument()
+    expect(workflowHistoryDetailPropsSpy).toHaveBeenCalledWith(expect.objectContaining({
+      appId: 'app-123',
+      runId: 'run-1',
+      onUseInputs: baseProps.onUseHistoryInputs,
+    }))
+  })
+
+  it('should show history guidance when no work is selected', () => {
+    render(<TextGenerationResultPanel {...baseProps} isHistoryMode />)
+
+    expect(screen.getByText('share.generation.history.selectRun')).toBeInTheDocument()
+    expect(screen.queryByTestId('res-single')).not.toBeInTheDocument()
   })
 })

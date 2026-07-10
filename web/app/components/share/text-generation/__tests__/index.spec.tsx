@@ -13,6 +13,7 @@ const {
   mockSetIsCallBatchAPI,
   mockResetBatchExecution,
   mockHandleRunBatch,
+  mockInvalidateQueries,
 } = vi.hoisted(() => ({
   mockMode: { value: 'create' },
   mockMedia: { value: 'pc' },
@@ -23,6 +24,11 @@ const {
   mockSetIsCallBatchAPI: vi.fn(),
   mockResetBatchExecution: vi.fn(),
   mockHandleRunBatch: vi.fn(),
+  mockInvalidateQueries: vi.fn(),
+}))
+
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }))
 
 vi.mock('@/hooks/use-breakpoints', () => ({
@@ -55,8 +61,10 @@ vi.mock('../hooks/use-text-generation-batch', () => ({
 vi.mock('../text-generation-sidebar', () => ({
   default: (props: {
     currentTab: string
-    onRunOnceSend: () => void
     onBatchSend: (data: string[][]) => void
+    onHistoryRunSelect: (runId: string) => void
+    onRunOnceSend: () => void
+    onTabChange: (tab: string) => void
   }) => {
     sidebarPropsSpy(props)
     return (
@@ -64,6 +72,8 @@ vi.mock('../text-generation-sidebar', () => ({
         <span data-testid="sidebar-current-tab">{props.currentTab}</span>
         <button type="button" onClick={props.onRunOnceSend}>run-once</button>
         <button type="button" onClick={() => props.onBatchSend([['name'], ['Alice']])}>run-batch</button>
+        <button type="button" onClick={() => props.onTabChange('history')}>open-history</button>
+        <button type="button" onClick={() => props.onHistoryRunSelect('run-1')}>select-history</button>
       </div>
     )
   },
@@ -77,6 +87,7 @@ vi.mock('../text-generation-result-panel', () => ({
     isShowResultPanel: boolean
     onRunControlChange: (value: TextGenerationRunControl | null) => void
     onRunStart: () => void
+    onUseHistoryInputs: (inputs: Record<string, string>) => void
   }) => {
     resultPanelPropsSpy(props)
     return (
@@ -92,6 +103,7 @@ vi.mock('../text-generation-result-panel', () => ({
           set-run-control
         </button>
         <button type="button" onClick={props.onRunStart}>start-run</button>
+        <button type="button" onClick={() => props.onUseHistoryInputs({ name: 'From history', 'sys.user_id': 'hidden' })}>use-history-inputs</button>
       </div>
     )
   },
@@ -215,5 +227,25 @@ describe('TextGeneration', () => {
     )
     expect(screen.getByTestId('show-result')).toHaveTextContent('shown')
     expect(Number(screen.getByTestId('control-stop').textContent)).toBeGreaterThan(0)
+  })
+
+  it('should allow installed workflow history selection and parameter refill without running', () => {
+    render(<TextGeneration isInstalledApp isWorkflow />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'open-history' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-history' }))
+
+    expect(resultPanelPropsSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+      historyRunId: 'run-1',
+      isHistoryMode: true,
+    }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'use-history-inputs' }))
+
+    expect(sidebarPropsSpy).toHaveBeenLastCalledWith(expect.objectContaining({
+      currentTab: 'create',
+      inputs: { name: 'From history' },
+    }))
+    expect(mockSetIsCallBatchAPI).not.toHaveBeenCalled()
   })
 })

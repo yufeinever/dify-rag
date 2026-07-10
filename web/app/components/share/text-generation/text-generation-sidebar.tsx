@@ -16,10 +16,12 @@ import TabHeader from '../../base/tab-header'
 import MenuDropdown from './menu-dropdown'
 import RunBatch from './run-batch'
 import RunOnce from './run-once'
+import WorkflowHistoryList from './workflow-history/list'
 
 type TextGenerationSidebarProps = {
   accessMode: AccessMode
   allTasksRun: boolean
+  appId: string
   currentTab: string
   customConfig: TextGenerationCustomConfig | null
   inputs: Record<string, InputValueTypes>
@@ -28,6 +30,7 @@ type TextGenerationSidebarProps = {
   isPC: boolean
   isWorkflow: boolean
   onBatchSend: (data: string[][]) => void
+  onHistoryRunSelect: (runId: string) => void
   onInputsChange: (inputs: Record<string, InputValueTypes>) => void
   onRemoveSavedMessage: (messageId: string) => Promise<void>
   onRunOnceSend: () => void
@@ -37,6 +40,7 @@ type TextGenerationSidebarProps = {
   resultExisted: boolean
   runControl: TextGenerationRunControl | null
   savedMessages: SavedMessage[]
+  selectedHistoryRunId: string | null
   siteInfo: SiteInfo
   systemFeatures: SystemFeatures
   textToSpeechConfig: TextToSpeechConfig | null
@@ -46,6 +50,7 @@ type TextGenerationSidebarProps = {
 const TextGenerationSidebar: FC<TextGenerationSidebarProps> = ({
   accessMode,
   allTasksRun,
+  appId,
   currentTab,
   customConfig,
   inputs,
@@ -54,6 +59,7 @@ const TextGenerationSidebar: FC<TextGenerationSidebarProps> = ({
   isPC,
   isWorkflow,
   onBatchSend,
+  onHistoryRunSelect,
   onInputsChange,
   onRemoveSavedMessage,
   onRunOnceSend,
@@ -63,6 +69,7 @@ const TextGenerationSidebar: FC<TextGenerationSidebarProps> = ({
   resultExisted,
   runControl,
   savedMessages,
+  selectedHistoryRunId,
   siteInfo,
   systemFeatures,
   textToSpeechConfig,
@@ -97,6 +104,14 @@ const TextGenerationSidebar: FC<TextGenerationSidebarProps> = ({
           items={[
             { id: 'create', name: t('generation.tabs.create', { ns: 'share' }) },
             { id: 'batch', name: t('generation.tabs.batch', { ns: 'share' }) },
+            ...(isWorkflow && isInstalledApp
+              ? [{
+                  id: 'history',
+                  name: t('generation.tabs.history', { ns: 'share' }),
+                  isRight: true,
+                  icon: <span aria-hidden className="i-ri-movie-2-line size-4" />,
+                }]
+              : []),
             ...(!isWorkflow
               ? [{
                   id: 'saved',
@@ -151,6 +166,13 @@ const TextGenerationSidebar: FC<TextGenerationSidebarProps> = ({
             list={savedMessages}
             onRemove={onRemoveSavedMessage}
             onStartCreateContent={() => onTabChange('create')}
+          />
+        )}
+        {currentTab === 'history' && isWorkflow && isInstalledApp && (
+          <WorkflowHistoryList
+            appId={appId}
+            selectedRunId={selectedHistoryRunId}
+            onSelect={onHistoryRunSelect}
           />
         )}
       </div>

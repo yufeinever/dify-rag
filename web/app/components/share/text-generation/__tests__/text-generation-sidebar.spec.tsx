@@ -11,6 +11,7 @@ import TextGenerationSidebar from '../text-generation-sidebar'
 const runOncePropsSpy = vi.fn()
 const runBatchPropsSpy = vi.fn()
 const savedItemsPropsSpy = vi.fn()
+const workflowHistoryPropsSpy = vi.fn()
 
 vi.mock('@/app/components/share/text-generation/run-once', () => ({
   default: (props: Record<string, unknown>) => {
@@ -40,6 +41,13 @@ vi.mock('@/app/components/app/text-generate/saved-items', () => ({
 
 vi.mock('@/app/components/share/text-generation/menu-dropdown', () => ({
   default: () => <div data-testid="menu-dropdown-mock" />,
+}))
+
+vi.mock('@/app/components/share/text-generation/workflow-history/list', () => ({
+  default: (props: Record<string, unknown>) => {
+    workflowHistoryPropsSpy(props)
+    return <div data-testid="workflow-history-mock" />
+  },
 }))
 
 const promptConfig: PromptConfig = {
@@ -73,6 +81,7 @@ const visionConfig: VisionSettings = {
 const baseProps: ComponentProps<typeof TextGenerationSidebar> = {
   accessMode: AccessMode.PUBLIC,
   allTasksRun: true,
+  appId: 'installed-app-1',
   currentTab: 'create',
   customConfig: {
     remove_webapp_brand: false,
@@ -84,6 +93,7 @@ const baseProps: ComponentProps<typeof TextGenerationSidebar> = {
   isPC: true,
   isWorkflow: false,
   onBatchSend: vi.fn(),
+  onHistoryRunSelect: vi.fn(),
   onInputsChange: vi.fn(),
   onRemoveSavedMessage: vi.fn(async () => {}),
   onRunOnceSend: vi.fn(),
@@ -93,6 +103,7 @@ const baseProps: ComponentProps<typeof TextGenerationSidebar> = {
   resultExisted: false,
   runControl: null,
   savedMessages,
+  selectedHistoryRunId: null,
   siteInfo,
   systemFeatures: defaultSystemFeatures,
   textToSpeechConfig: { enabled: true },
@@ -135,6 +146,23 @@ describe('TextGenerationSidebar', () => {
       isAllFinished: true,
     }))
     expect(screen.queryByTestId('tab-header-item-saved')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tab-header-item-history')).not.toBeInTheDocument()
+  })
+
+  it('should render My Works only for installed workflow apps', () => {
+    renderSidebar({
+      currentTab: 'history',
+      isInstalledApp: true,
+      isWorkflow: true,
+      selectedHistoryRunId: 'run-1',
+    })
+
+    expect(screen.getByTestId('tab-header-item-history')).toBeInTheDocument()
+    expect(screen.getByTestId('workflow-history-mock')).toBeInTheDocument()
+    expect(workflowHistoryPropsSpy).toHaveBeenCalledWith(expect.objectContaining({
+      appId: 'installed-app-1',
+      selectedRunId: 'run-1',
+    }))
   })
 
   it('should render saved items and allow switching back to create tab', () => {

@@ -10,6 +10,7 @@ import Loading from '@/app/components/base/loading'
 import Res from '@/app/components/share/text-generation/result'
 import ResDownload from './run-batch/res-download'
 import { TaskStatus } from './types'
+import WorkflowHistoryDetail from './workflow-history/detail'
 
 type TextGenerationResultPanelProps = {
   allFailedTaskList: Task[]
@@ -25,8 +26,10 @@ type TextGenerationResultPanelProps = {
   handleCompleted: (completionRes: string, taskId?: number, isSuccess?: boolean) => void
   handleRetryAllFailedTask: () => void
   handleSaveMessage: (messageId: string) => Promise<void>
+  historyRunId: string | null
   inputs: Record<string, InputValueTypes>
   isCallBatchAPI: boolean
+  isHistoryMode: boolean
   isPC: boolean
   isShowResultPanel: boolean
   isWorkflow: boolean
@@ -36,6 +39,7 @@ type TextGenerationResultPanelProps = {
   onRunControlChange: (control: TextGenerationRunControl | null) => void
   onRunStart: () => void
   onShowResultPanel: () => void
+  onUseHistoryInputs: (inputs: Record<string, InputValueTypes>) => void
   promptConfig: PromptConfig
   resultExisted: boolean
   showTaskList: Task[]
@@ -58,8 +62,10 @@ const TextGenerationResultPanel: FC<TextGenerationResultPanelProps> = ({
   handleCompleted,
   handleRetryAllFailedTask,
   handleSaveMessage,
+  historyRunId,
   inputs,
   isCallBatchAPI,
+  isHistoryMode,
   isPC,
   isShowResultPanel,
   isWorkflow,
@@ -69,6 +75,7 @@ const TextGenerationResultPanel: FC<TextGenerationResultPanelProps> = ({
   onRunControlChange,
   onRunStart,
   onShowResultPanel,
+  onUseHistoryInputs,
   promptConfig,
   resultExisted,
   showTaskList,
@@ -172,8 +179,17 @@ const TextGenerationResultPanel: FC<TextGenerationResultPanelProps> = ({
             !isPC && 'p-0 pb-2',
           )}
         >
-          {isCallBatchAPI ? showTaskList.map(task => renderResult(task)) : renderResult()}
-          {!noPendingTask && (
+          {isHistoryMode
+            ? historyRunId
+              ? <WorkflowHistoryDetail appId={appId} runId={historyRunId} onUseInputs={onUseHistoryInputs} />
+              : (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                    <span aria-hidden className="i-ri-movie-2-line size-8 text-text-quaternary" />
+                    <p className="system-sm-regular text-text-tertiary">{t('generation.history.selectRun', { ns: 'share' })}</p>
+                  </div>
+                )
+            : isCallBatchAPI ? showTaskList.map(task => renderResult(task)) : renderResult()}
+          {!isHistoryMode && !noPendingTask && (
             <div className="mt-4">
               <Loading type="area" />
             </div>

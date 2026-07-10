@@ -37,3 +37,36 @@ export type InstalledApp = {
   uninstallable: boolean
   is_pinned: boolean
 }
+
+export type WorkflowRunHistoryItem = {
+  id: string
+  status: 'running' | 'succeeded' | 'failed' | 'stopped' | 'partial-succeeded' | string
+  request: string
+  created_at: number
+  finished_at: number | null
+  elapsed_time: number
+  duration: string | null
+  aspect_ratio: string | null
+  resolution: string | null
+  error: string | null
+  video_url: string | null
+  character_image_url: string | null
+  scene_image_url: string | null
+}
+
+export type WorkflowRunHistoryDetail = WorkflowRunHistoryItem & {
+  inputs: Record<string, unknown>
+  outputs: Record<string, unknown>
+  result: string
+  script: string
+  storyboard: string
+  title: string | null
+  intent: string | null
+}
+
+export type WorkflowRunHistoryPage = {
+  limit: number
+  has_more: boolean
+  last_id: string | null
+  data: WorkflowRunHistoryItem[]
+}

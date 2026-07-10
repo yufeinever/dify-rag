@@ -5,12 +5,14 @@ import type { InstalledApp } from '@/models/explore'
 import type { VisionFile } from '@/types/app'
 import { cn } from '@langgenius/dify-ui/cn'
 import { toast } from '@langgenius/dify-ui/toast'
+import { useQueryClient } from '@tanstack/react-query'
 import { useBoolean } from 'ahooks'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Loading from '@/app/components/base/loading'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import { useSearchParams } from '@/next/navigation'
+import { consoleQuery } from '@/service/client'
 import { useTextGenerationAppState } from './hooks/use-text-generation-app-state'
 import { useTextGenerationBatch } from './hooks/use-text-generation-batch'
 import TextGenerationResultPanel from './text-generation-result-panel'
@@ -27,7 +29,9 @@ const TextGeneration: FC<IMainProps> = ({ isInstalledApp = false, isWorkflow = f
   const isPC = media === MediaType.pc
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode') || 'create'
-  const [currentTab, setCurrentTab] = useState<string>(['create', 'batch'].includes(mode) ? mode : 'create')
+  const allowedTabs = isWorkflow && isInstalledApp ? ['create', 'batch', 'history'] : ['create', 'batch']
+  const [currentTab, setCurrentTab] = useState<string>(allowedTabs.includes(mode) ? mode : 'create')
+  const [selectedHistoryRunId, setSelectedHistoryRunId] = useState<string | null>(null)
   const [inputs, setInputs] = useState<Record<string, InputValueTypes>>({})
   const inputsRef = useRef(inputs)
   const [completionFiles, setCompletionFiles] = useState<VisionFile[]>([])
@@ -35,6 +39,7 @@ const TextGeneration: FC<IMainProps> = ({ isInstalledApp = false, isWorkflow = f
   const [controlSend, setControlSend] = useState(0)
   const [controlStopResponding, setControlStopResponding] = useState(0)
   const [resultExisted, setResultExisted] = useState(false)
+  const queryClient = useQueryClient()
   const [isShowResultPanel, { setTrue: showResultPanelState, setFalse: hideResultPanel }] = useBoolean(false)
   const notify = useCallback(({ type, message }: { type: 'error' | 'info' | 'success' | 'warning', message: string }) => {
     toast(message, { type })
@@ -62,6 +67,7 @@ const TextGeneration: FC<IMainProps> = ({ isInstalledApp = false, isWorkflow = f
     }, 0)
   }, [showResultPanelState])
   const handleRunStart = useCallback(() => {
+    setSelectedHistoryRunId(null)
     setResultExisted(true)
   }, [])
   const handleRunOnce = useCallback(() => {
@@ -79,6 +85,38 @@ const TextGeneration: FC<IMainProps> = ({ isInstalledApp = false, isWorkflow = f
       },
     })
   }, [runBatchExecution, showResultPanel])
+  const handleCompletedWithHistoryRefresh = useCallback((completionRes: string, taskId?: number, isSuccess?: boolean) => {
+    handleCompleted(completionRes, taskId, isSuccess)
+    if (isWorkflow && isInstalledApp) {
+      void queryClient.invalidateQueries({
+        queryKey: consoleQuery.explore.installedAppWorkflowRuns.key(),
+      })
+    }
+  }, [handleCompleted, isInstalledApp, isWorkflow, queryClient])
+  const handleTabChange = useCallback((tab: string) => {
+    setCurrentTab(tab)
+    if (tab !== 'history')
+      setSelectedHistoryRunId(null)
+  }, [])
+  const handleSelectHistoryRun = useCallback((runId: string) => {
+    setSelectedHistoryRunId(runId)
+    setResultExisted(true)
+    showResultPanel()
+  }, [showResultPanel])
+  const handleUseHistoryInputs = useCallback((historyInputs: Record<string, InputValueTypes>) => {
+    if (!promptConfig)
+      return
+    const allowedInputKeys = new Set(promptConfig.prompt_variables.map(variable => variable.key))
+    const reusableInputs = Object.fromEntries(
+      Object.entries(historyInputs).filter(([key]) => allowedInputKeys.has(key)),
+    )
+    updateInputs(reusableInputs)
+    setCompletionFiles([])
+    setSelectedHistoryRunId(null)
+    setCurrentTab('create')
+    setResultExisted(false)
+    hideResultPanel()
+  }, [hideResultPanel, promptConfig, updateInputs])
   if (!appId || !siteInfo || !promptConfig) {
     return (
       <div className="flex h-screen items-center">
@@ -88,8 +126,8 @@ const TextGeneration: FC<IMainProps> = ({ isInstalledApp = false, isWorkflow = f
   }
   return (
     <div className={cn('bg-background-default-burn', isPC ? 'flex' : 'flex-col', isInstalledApp ? 'h-full rounded-2xl shadow-md' : 'h-screen')}>
-      <TextGenerationSidebar accessMode={accessMode} allTasksRun={allTasksRun} currentTab={currentTab} customConfig={customConfig} inputs={inputs} inputsRef={inputsRef} isInstalledApp={isInstalledApp} isPC={isPC} isWorkflow={isWorkflow} onBatchSend={handleRunBatch} onInputsChange={updateInputs} onRemoveSavedMessage={handleRemoveSavedMessage} onRunOnceSend={handleRunOnce} onTabChange={setCurrentTab} onVisionFilesChange={setCompletionFiles} promptConfig={promptConfig} resultExisted={resultExisted} runControl={runControl} savedMessages={savedMessages} siteInfo={siteInfo} systemFeatures={systemFeatures} textToSpeechConfig={textToSpeechConfig} visionConfig={visionConfig} />
-      <TextGenerationResultPanel allFailedTaskList={allFailedTaskList} allSuccessTaskList={allSuccessTaskList} allTaskList={allTaskList} appId={appId} appSourceType={appSourceType} completionFiles={completionFiles} controlRetry={controlRetry} controlSend={controlSend} controlStopResponding={controlStopResponding} exportRes={exportRes} handleCompleted={handleCompleted} handleRetryAllFailedTask={handleRetryAllFailedTask} handleSaveMessage={handleSaveMessage} inputs={inputs} isCallBatchAPI={isCallBatchAPI} isPC={isPC} isShowResultPanel={isShowResultPanel} isWorkflow={isWorkflow} moreLikeThisEnabled={!!moreLikeThisConfig?.enabled} noPendingTask={noPendingTask} onHideResultPanel={hideResultPanel} onRunControlChange={setRunControl} onRunStart={handleRunStart} onShowResultPanel={showResultPanel} promptConfig={promptConfig} resultExisted={resultExisted} showTaskList={showTaskList} siteInfo={siteInfo} textToSpeechEnabled={!!textToSpeechConfig?.enabled} visionConfig={visionConfig} />
+      <TextGenerationSidebar accessMode={accessMode} allTasksRun={allTasksRun} appId={appId} currentTab={currentTab} customConfig={customConfig} inputs={inputs} inputsRef={inputsRef} isInstalledApp={isInstalledApp} isPC={isPC} isWorkflow={isWorkflow} onBatchSend={handleRunBatch} onHistoryRunSelect={handleSelectHistoryRun} onInputsChange={updateInputs} onRemoveSavedMessage={handleRemoveSavedMessage} onRunOnceSend={handleRunOnce} onTabChange={handleTabChange} onVisionFilesChange={setCompletionFiles} promptConfig={promptConfig} resultExisted={resultExisted} runControl={runControl} savedMessages={savedMessages} selectedHistoryRunId={selectedHistoryRunId} siteInfo={siteInfo} systemFeatures={systemFeatures} textToSpeechConfig={textToSpeechConfig} visionConfig={visionConfig} />
+      <TextGenerationResultPanel allFailedTaskList={allFailedTaskList} allSuccessTaskList={allSuccessTaskList} allTaskList={allTaskList} appId={appId} appSourceType={appSourceType} completionFiles={completionFiles} controlRetry={controlRetry} controlSend={controlSend} controlStopResponding={controlStopResponding} exportRes={exportRes} handleCompleted={handleCompletedWithHistoryRefresh} handleRetryAllFailedTask={handleRetryAllFailedTask} handleSaveMessage={handleSaveMessage} historyRunId={selectedHistoryRunId} inputs={inputs} isCallBatchAPI={isCallBatchAPI} isHistoryMode={currentTab === 'history'} isPC={isPC} isShowResultPanel={isShowResultPanel} isWorkflow={isWorkflow} moreLikeThisEnabled={!!moreLikeThisConfig?.enabled} noPendingTask={noPendingTask} onHideResultPanel={hideResultPanel} onRunControlChange={setRunControl} onRunStart={handleRunStart} onShowResultPanel={showResultPanel} onUseHistoryInputs={handleUseHistoryInputs} promptConfig={promptConfig} resultExisted={resultExisted} showTaskList={showTaskList} siteInfo={siteInfo} textToSpeechEnabled={!!textToSpeechConfig?.enabled} visionConfig={visionConfig} />
     </div>
   )
 }

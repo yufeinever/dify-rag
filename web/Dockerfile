@@ -9,6 +9,8 @@ ARG https_proxy
 ARG NO_PROXY
 ARG no_proxy
 ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG PNPM_FETCH_TIMEOUT=1800000
+ARG PNPM_NETWORK_CONCURRENCY=4
 
 # if you located in China, you can use aliyun mirror to speed up
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
@@ -21,6 +23,8 @@ RUN corepack enable
 RUN pnpm config set registry ${NPM_REGISTRY}
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+ENV PNPM_CONFIG_FETCH_TIMEOUT=${PNPM_FETCH_TIMEOUT}
+ENV PNPM_CONFIG_NETWORK_CONCURRENCY=${PNPM_NETWORK_CONCURRENCY}
 ARG NEXT_PUBLIC_BASE_PATH=""
 ENV NEXT_PUBLIC_BASE_PATH="$NEXT_PUBLIC_BASE_PATH"
 

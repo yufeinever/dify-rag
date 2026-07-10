@@ -12,6 +12,8 @@ import {
   exploreInstalledAppMetaContract,
   exploreInstalledAppParametersContract,
   exploreInstalledAppPinContract,
+  exploreInstalledAppWorkflowRunDetailContract,
+  exploreInstalledAppWorkflowRunsContract,
   exploreInstalledAppsContract,
   exploreInstalledAppUninstallContract,
 } from './console/explore'
@@ -93,6 +95,8 @@ export const consoleRouterContract = {
     appAccessMode: exploreInstalledAppAccessModeContract,
     installedAppParameters: exploreInstalledAppParametersContract,
     installedAppMeta: exploreInstalledAppMetaContract,
+    installedAppWorkflowRuns: exploreInstalledAppWorkflowRunsContract,
+    installedAppWorkflowRunDetail: exploreInstalledAppWorkflowRunDetailContract,
     banners: exploreBannersContract,
   },
   trialApps: {

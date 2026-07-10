@@ -1,17 +1,23 @@
+from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 from flask import Flask
-from werkzeug.exceptions import InternalServerError
+from werkzeug.exceptions import BadRequest, InternalServerError, NotFound
 
+import controllers.console.explore.workflow as workflow_module
 from controllers.console.explore.error import NotWorkflowAppError
 from controllers.console.explore.workflow import (
     InstalledAppWorkflowRunApi,
+    InstalledAppWorkflowRunHistoryApi,
+    InstalledAppWorkflowRunHistoryDetailApi,
     InstalledAppWorkflowTaskStopApi,
 )
 from controllers.web.error import InvokeRateLimitError as InvokeRateLimitHttpError
 from models.model import AppMode
 from services.errors.llm import InvokeRateLimitError
+from services.workflow_run_history_service import WorkflowRunHistoryPage
 
 
 def unwrap(func):
@@ -149,3 +155,134 @@ class TestInstalledAppWorkflowTaskStopApi:
             stop_flag.assert_called_once_with("task-1")
             send_stop.assert_called_once_with("task-1")
             assert result == {"result": "success"}
+
+
+def _history_item():
+    return {
+        "id": "run-1",
+        "status": "succeeded",
+        "request": "Create an MMB bear video",
+        "created_at": datetime(2026, 7, 10, 12, 0, 0),
+        "finished_at": datetime(2026, 7, 10, 12, 0, 5),
+        "elapsed_time": 5.0,
+        "duration": "5",
+        "aspect_ratio": "16:9",
+        "resolution": "480p",
+        "error": None,
+        "video_url": "https://example.com/video.mp4",
+        "character_image_url": None,
+        "scene_image_url": None,
+    }
+
+
+def _sessionmaker_mock():
+    session = MagicMock()
+    maker = MagicMock()
+    maker.return_value.begin.return_value.__enter__.return_value = session
+    return maker, session
+
+
+class TestInstalledAppWorkflowRunHistoryApi:
+    def test_should_list_only_with_current_account_scope(self, app: Flask, installed_workflow_app, user):
+        api = InstalledAppWorkflowRunHistoryApi()
+        method = unwrap(api.get)
+        user.id = "account-1"
+        installed_workflow_app.app.id = "app-1"
+        installed_workflow_app.app.tenant_id = "tenant-1"
+        maker, session = _sessionmaker_mock()
+        page = WorkflowRunHistoryPage(data=[_history_item()], has_more=False, last_id=None)
+
+        with (
+            app.test_request_context("/", query_string={"limit": 20}),
+            patch.object(workflow_module, "current_account_with_tenant", return_value=(user, "consumer-tenant")),
+            patch.object(workflow_module, "db", SimpleNamespace(engine=MagicMock())),
+            patch.object(workflow_module, "sessionmaker", maker),
+            patch.object(workflow_module.WorkflowRunHistoryService, "get_page", return_value=page) as get_page,
+        ):
+            result = method(installed_workflow_app)
+
+        get_page.assert_called_once_with(
+            session=session,
+            tenant_id="tenant-1",
+            app_id="app-1",
+            account_id="account-1",
+            last_id=None,
+            limit=20,
+        )
+        assert result["data"][0]["id"] == "run-1"
+
+    def test_should_reject_cursor_outside_account_scope(self, app: Flask, installed_workflow_app, user):
+        api = InstalledAppWorkflowRunHistoryApi()
+        method = unwrap(api.get)
+        maker, _ = _sessionmaker_mock()
+
+        with (
+            app.test_request_context("/", query_string={"last_id": "2a68ef69-f589-478f-90d7-cea9f5d958e8"}),
+            patch.object(workflow_module, "current_account_with_tenant", return_value=(user, "tenant-1")),
+            patch.object(workflow_module, "db", SimpleNamespace(engine=MagicMock())),
+            patch.object(workflow_module, "sessionmaker", maker),
+            patch.object(
+                workflow_module.WorkflowRunHistoryService,
+                "get_page",
+                side_effect=ValueError("Invalid workflow run cursor"),
+            ),
+        ):
+            with pytest.raises(BadRequest):
+                method(installed_workflow_app)
+
+    def test_should_reject_non_workflow_app(self, non_workflow_installed_app):
+        api = InstalledAppWorkflowRunHistoryApi()
+        method = unwrap(api.get)
+
+        with patch.object(workflow_module, "current_account_with_tenant", return_value=(MagicMock(), "tenant-1")):
+            with pytest.raises(NotWorkflowAppError):
+                method(non_workflow_installed_app)
+
+
+class TestInstalledAppWorkflowRunHistoryDetailApi:
+    def test_should_return_account_owned_detail(self, installed_workflow_app, user):
+        api = InstalledAppWorkflowRunHistoryDetailApi()
+        method = unwrap(api.get)
+        user.id = "account-1"
+        installed_workflow_app.app.id = "app-1"
+        installed_workflow_app.app.tenant_id = "tenant-1"
+        maker, session = _sessionmaker_mock()
+        detail = {
+            **_history_item(),
+            "inputs": {"video_request": "Create an MMB bear video"},
+            "outputs": {"video_url": "https://example.com/video.mp4"},
+            "result": "# Result",
+            "script": "Script",
+            "storyboard": "Storyboard",
+        }
+
+        with (
+            patch.object(workflow_module, "current_account_with_tenant", return_value=(user, "consumer-tenant")),
+            patch.object(workflow_module, "db", SimpleNamespace(engine=MagicMock())),
+            patch.object(workflow_module, "sessionmaker", maker),
+            patch.object(workflow_module.WorkflowRunHistoryService, "get_detail", return_value=detail) as get_detail,
+        ):
+            result = method(installed_workflow_app, "run-1")
+
+        get_detail.assert_called_once_with(
+            session=session,
+            tenant_id="tenant-1",
+            app_id="app-1",
+            account_id="account-1",
+            run_id="run-1",
+        )
+        assert result["video_url"] == "https://example.com/video.mp4"
+
+    def test_should_hide_out_of_scope_run_as_not_found(self, installed_workflow_app, user):
+        api = InstalledAppWorkflowRunHistoryDetailApi()
+        method = unwrap(api.get)
+        maker, _ = _sessionmaker_mock()
+
+        with (
+            patch.object(workflow_module, "current_account_with_tenant", return_value=(user, "tenant-1")),
+            patch.object(workflow_module, "db", SimpleNamespace(engine=MagicMock())),
+            patch.object(workflow_module, "sessionmaker", maker),
+            patch.object(workflow_module.WorkflowRunHistoryService, "get_detail", return_value=None),
+        ):
+            with pytest.raises(NotFound):
+                method(installed_workflow_app, "other-account-run")

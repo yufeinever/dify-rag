@@ -1,7 +1,7 @@
 import type { ChatConfig } from '@/app/components/base/chat/types'
 import type { AccessMode } from '@/models/access-control'
 import type { Banner } from '@/models/app'
-import type { App, AppCategory, InstalledApp } from '@/models/explore'
+import type { App, AppCategory, InstalledApp, WorkflowRunHistoryDetail, WorkflowRunHistoryPage } from '@/models/explore'
 import type { AppMeta } from '@/models/share'
 import type { AppModeEnum } from '@/types/app'
 import { type } from '@orpc/contract'
@@ -111,6 +111,33 @@ export const exploreInstalledAppMetaContract = base
     }
   }>())
   .output(type<AppMeta>())
+
+export const exploreInstalledAppWorkflowRunsContract = base
+  .route({
+    path: '/installed-apps/{appId}/workflow-runs',
+    method: 'GET',
+  })
+  .input(type<{
+    params: { appId: string }
+    query?: {
+      last_id?: string
+      limit?: number
+    }
+  }>())
+  .output(type<WorkflowRunHistoryPage>())
+
+export const exploreInstalledAppWorkflowRunDetailContract = base
+  .route({
+    path: '/installed-apps/{appId}/workflow-runs/{runId}',
+    method: 'GET',
+  })
+  .input(type<{
+    params: {
+      appId: string
+      runId: string
+    }
+  }>())
+  .output(type<WorkflowRunHistoryDetail>())
 
 export const exploreBannersContract = base
   .route({

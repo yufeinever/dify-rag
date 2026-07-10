@@ -16,6 +16,7 @@ The codebase is split into:
 - Canonical MMB-Dify development happens on the 150 production host at `/opt/mmb-dify/current`.
 - `/opt/mmb-dify/current` is the only development baseline for this project unless the user explicitly says otherwise.
 - Do not make MMB-Dify feature or product changes in the Windows local mirror `C:\Users\86150\Documents\RAG_for_dify` or the historical T1000 tree `/home/yu/projects/dify-rag`; treat them as historical references or patch-transfer locations only.
+- The Windows workspace `D:\dify-rag` is also command-and-transfer only; do not maintain a parallel implementation there unless the user explicitly requests it.
 - When Codex needs to change this project, SSH to the 150 production host with `ssh mmb-dify-150` or `ssh root@150.5.132.104`, work in `/opt/mmb-dify/current`, then commit and push from that repository.
 
 ## Production Deployment: 150.5.132.104
