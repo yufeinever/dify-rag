@@ -73,6 +73,30 @@ parameter_rules:
       en_US: GPT-5 series models require KYC validation for streaming output, if you want to use the models without this limitation, please turn off streaming responses.
     required: true
     default: true
+  - name: hosted_tools_profile
+    label:
+      zh_Hans: 原生工具配置
+      en_US: Hosted Tools Profile
+    type: string
+    help:
+      zh_Hans: full 保持现有全部工具；web_and_code 只启用联网搜索和代码解释器；none 关闭原生工具。
+      en_US: full preserves all configured tools; web_and_code enables only web search and code interpreter; none disables hosted tools.
+    required: true
+    default: full
+    options:
+      - full
+      - web_and_code
+      - none
+  - name: expose_generated_pptx
+    label:
+      zh_Hans: 返回生成的 PPTX
+      en_US: Expose Generated PPTX
+    type: boolean
+    help:
+      zh_Hans: 下载 Code Interpreter 生成的 PPTX，并通过 Dify 文件存储返回下载链接。
+      en_US: Downloads Code Interpreter PPTX output and returns a Dify-hosted download link.
+    required: true
+    default: false
   - name: service_tier
     label:
       zh_Hans: 服务层级

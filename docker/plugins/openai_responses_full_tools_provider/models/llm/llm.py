@@ -28,6 +28,7 @@ from .responses_tool_parser import (
     merge_function_call_data,
     valid_function_call_data,
 )
+from .pptx_artifacts import PptxArtifactError, publish_generated_pptx, render_pptx_downloads
 
 from dify_plugin import LargeLanguageModel
 from dify_plugin.entities import I18nObject
@@ -849,6 +850,10 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         """
         params = model_parameters.copy()
 
+        # These parameters control local provider behavior and are not part of the OpenAI API.
+        params.pop("hosted_tools_profile", None)
+        params.pop("expose_generated_pptx", None)
+
         # max_tokens / max_completion_tokens -> max_output_tokens
         if "max_tokens" in params:
             params["max_output_tokens"] = params.pop("max_tokens")
@@ -1035,8 +1040,11 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         self,
         tools: Optional[list[PromptMessageTool]],
         credentials: Optional[dict] = None,
+        hosted_tools_profile: str = "full",
     ) -> Optional[list[dict]]:
         """Convert Dify tools and configured OpenAI hosted tools to Responses API format."""
+        if hosted_tools_profile not in {"full", "web_and_code", "none"}:
+            hosted_tools_profile = "full"
         api_tools: list[dict] = []
         if tools:
             api_tools.extend(
@@ -1050,7 +1058,10 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
             )
 
         credentials = credentials or {}
-        if credentials.get("api_protocol", "responses") == "responses":
+        if credentials.get("api_protocol", "responses") == "responses" and hosted_tools_profile == "web_and_code":
+            api_tools.append({"type": "web_search"})
+            api_tools.append({"type": "code_interpreter", "container": {"type": "auto"}})
+        elif credentials.get("api_protocol", "responses") == "responses" and hosted_tools_profile == "full":
             if self._is_enabled(credentials.get("enable_web_search"), default=True):
                 api_tools.append({"type": "web_search"})
 
@@ -1115,9 +1126,11 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         Used for models like o3-pro that only support responses.create.
         """
         response_params = self._build_responses_api_params(model_parameters, user)
+        hosted_tools_profile = str(model_parameters.get("hosted_tools_profile") or "full")
+        expose_generated_pptx = self._is_enabled(model_parameters.get("expose_generated_pptx"), default=False)
 
         input_items = self._convert_prompt_messages_to_responses_input(prompt_messages, tools)
-        api_tools = self._build_responses_api_tools(tools, credentials)
+        api_tools = self._build_responses_api_tools(tools, credentials, hosted_tools_profile)
         if api_tools:
             response_params["tools"] = api_tools
             if "tool_choice" not in response_params:
@@ -1131,6 +1144,12 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
 
         # Extract text content
         text_content = resp_obj.output_text or ""
+        if expose_generated_pptx:
+            try:
+                text_content += render_pptx_downloads(publish_generated_pptx(client, resp_obj, credentials))
+            except PptxArtifactError as exc:
+                logger.exception("Failed to publish generated PPTX")
+                text_content += f"\n\nPPT 文件生成失败：{exc}"
 
         # Extract tool calls from output items
         function_tool_names = self._responses_function_tool_names(tools)
@@ -1173,9 +1192,11 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
         Invoke model using the Responses API with streaming.
         """
         response_params = self._build_responses_api_params(model_parameters, user)
+        hosted_tools_profile = str(model_parameters.get("hosted_tools_profile") or "full")
+        expose_generated_pptx = self._is_enabled(model_parameters.get("expose_generated_pptx"), default=False)
 
         input_items = self._convert_prompt_messages_to_responses_input(prompt_messages, tools)
-        api_tools = self._build_responses_api_tools(tools, credentials)
+        api_tools = self._build_responses_api_tools(tools, credentials, hosted_tools_profile)
         if api_tools:
             response_params["tools"] = api_tools
             if "tool_choice" not in response_params:
@@ -1279,6 +1300,22 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                                 message=AssistantPromptMessage(content=full_text),
                             ),
                         )
+
+                if expose_generated_pptx:
+                    try:
+                        artifact_text = render_pptx_downloads(publish_generated_pptx(client, resp, credentials))
+                    except PptxArtifactError as exc:
+                        logger.exception("Failed to publish generated PPTX")
+                        artifact_text = f"\n\nPPT 文件生成失败：{exc}"
+                    full_text += artifact_text
+                    yield LLMResultChunk(
+                        model=final_model,
+                        prompt_messages=prompt_messages,
+                        delta=LLMResultChunkDelta(
+                            index=0,
+                            message=AssistantPromptMessage(content=artifact_text),
+                        ),
+                    )
 
                 # emit tool calls if any
                 tool_calls = self._to_assistant_tool_calls(pending_tool_calls.values(), function_tool_names)

@@ -361,6 +361,36 @@ provider_credential_schema:
       placeholder:
         zh_Hans: 逗号分隔的只读材料工具名
         en_US: Comma-separated read-only material tool names
+    - variable: pptx_artifact_upload_url
+      label:
+        zh_Hans: PPTX 内网上传地址
+        en_US: PPTX Artifact Upload URL
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: http://api:5001/inner/api/model-artifacts/pptx
+        en_US: http://api:5001/inner/api/model-artifacts/pptx
+    - variable: pptx_artifact_api_key
+      label:
+        zh_Hans: PPTX 上传密钥
+        en_US: PPTX Artifact API Key
+      type: secret-input
+      required: false
+      placeholder:
+        zh_Hans: PPT_ARTIFACT_API_KEY
+        en_US: PPT_ARTIFACT_API_KEY
+    - variable: pptx_artifact_tenant_id
+      label:
+        zh_Hans: PPTX 文件租户 ID
+        en_US: PPTX Artifact Tenant ID
+      type: text-input
+      required: false
+    - variable: pptx_artifact_user_id
+      label:
+        zh_Hans: PPTX 文件创建账号 ID
+        en_US: PPTX Artifact User ID
+      type: text-input
+      required: false
 models:
   llm:
     predefined:

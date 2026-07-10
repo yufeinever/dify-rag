@@ -13,7 +13,7 @@ class OpenAIResponsesProviderStaticTests(unittest.TestCase):
         self.assertEqual(manifest["author"], "mmb")
         self.assertEqual(manifest["name"], "openai_responses_full_tools_provider")
         self.assertEqual(manifest["plugins"]["models"], ["provider/openai_responses_full_tools_provider.yaml"])
-        self.assertEqual(manifest["version"], "0.1.1")
+        self.assertEqual(manifest["version"], "0.1.2")
 
     def test_provider_schema_is_separate_from_official_openai(self):
         provider = yaml.safe_load((ROOT / "provider" / "openai_responses_full_tools_provider.yaml").read_text())
@@ -88,6 +88,31 @@ class OpenAIResponsesProviderStaticTests(unittest.TestCase):
             (ROOT / "models" / "llm" / "gpt-5.5.yaml").read_text()
         )
         self.assertIn("document", model["features"])
+        parameters = {item["name"]: item for item in model["parameter_rules"]}
+        self.assertEqual(parameters["hosted_tools_profile"]["default"], "full")
+        self.assertEqual(parameters["hosted_tools_profile"]["options"], ["full", "web_and_code", "none"])
+        self.assertFalse(parameters["expose_generated_pptx"]["default"])
+
+    def test_provider_declares_pptx_artifact_credentials(self):
+        provider = yaml.safe_load((ROOT / "provider" / "openai_responses_full_tools_provider.yaml").read_text())
+        provider_vars = {
+            item["variable"]
+            for item in provider["provider_credential_schema"]["credential_form_schemas"]
+        }
+        self.assertTrue({
+            "pptx_artifact_upload_url",
+            "pptx_artifact_api_key",
+            "pptx_artifact_tenant_id",
+            "pptx_artifact_user_id",
+        }.issubset(provider_vars))
+
+    def test_llm_supports_isolated_web_and_code_profile_and_pptx_output(self):
+        source = (ROOT / "models" / "llm" / "llm.py").read_text()
+        ast.parse(source)
+        self.assertIn('hosted_tools_profile == "web_and_code"', source)
+        self.assertIn('params.pop("hosted_tools_profile", None)', source)
+        self.assertIn('params.pop("expose_generated_pptx", None)', source)
+        self.assertIn("publish_generated_pptx", source)
 
     def test_responses_stream_parser_guards_blank_tool_names(self):
         source = (ROOT / "models" / "llm" / "llm.py").read_text()
