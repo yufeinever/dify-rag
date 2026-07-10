@@ -28,6 +28,23 @@ function formatRunTime(timestamp: number) {
   }).format(new Date(timestamp * 1000))
 }
 
+function getPosterThumbnailUrl(imageUrl: string | null) {
+  if (!imageUrl)
+    return null
+  try {
+    const url = new URL(imageUrl, 'https://local.invalid')
+    if (!url.pathname.startsWith('/poster-files/files/') || !url.pathname.toLowerCase().endsWith('.png'))
+      return null
+    url.pathname = `${url.pathname.slice(0, -4)}-thumb.jpg`
+    if (imageUrl.startsWith('/'))
+      return `${url.pathname}${url.search}${url.hash}`
+    return url.toString()
+  }
+  catch {
+    return null
+  }
+}
+
 function WorkflowHistoryList({ appId, selectedRunId, onSelect }: WorkflowHistoryListProps) {
   const { t } = useTranslation()
   const loadMoreRef = useRef<HTMLDivElement>(null)
@@ -115,7 +132,7 @@ function HistoryItem({ run, selected, onSelect }: {
   onSelect: (runId: string) => void
 }) {
   const { t } = useTranslation()
-  const previewUrl = run.video_url || run.scene_image_url || run.character_image_url
+  const previewUrl = getPosterThumbnailUrl(run.scene_image_url) || getPosterThumbnailUrl(run.character_image_url)
   return (
     <button
       type="button"
@@ -130,7 +147,7 @@ function HistoryItem({ run, selected, onSelect }: {
     >
       <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background-section-burn">
         {previewUrl
-          ? <img src={previewUrl} alt="" className="size-full object-cover" />
+          ? <img src={previewUrl} alt="" className="size-full object-cover" loading="lazy" decoding="async" />
           : <span aria-hidden className="i-ri-movie-2-line size-5 text-text-quaternary" />}
       </div>
       <div className="min-w-0 grow">

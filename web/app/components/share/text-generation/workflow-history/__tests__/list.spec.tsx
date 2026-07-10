@@ -33,7 +33,7 @@ const createRun = (overrides: Partial<WorkflowRunHistoryItem> = {}): WorkflowRun
   error: null,
   video_url: 'https://example.com/video.mp4',
   character_image_url: null,
-  scene_image_url: null,
+  scene_image_url: 'https://ai.meinmalzebier.shop/poster-files/files/poster-scene.png',
   ...overrides,
 })
 
@@ -61,7 +61,20 @@ describe('WorkflowHistoryList', () => {
     fireEvent.click(screen.getByRole('button', { name: /MMB bear flies through clouds/i }))
 
     expect(onSelect).toHaveBeenCalledWith('run-1')
-    expect(container.querySelector('img')).toHaveAttribute('src', 'https://example.com/video.mp4')
+    expect(container.querySelector('img')).toHaveAttribute('src', 'https://ai.meinmalzebier.shop/poster-files/files/poster-scene-thumb.jpg')
+    expect(container.querySelector('img')).toHaveAttribute('loading', 'lazy')
+  })
+
+  it('should show the video placeholder instead of loading a full-size unsupported image', () => {
+    queryState.value = createQueryState({
+      data: {
+        pages: [{ data: [createRun({ scene_image_url: 'https://example.com/full-size-scene.png' })] }],
+      },
+    })
+
+    const { container } = render(<WorkflowHistoryList appId="installed-app-1" selectedRunId={null} onSelect={vi.fn()} />)
+
+    expect(container.querySelector('img')).not.toBeInTheDocument()
   })
 
   it('should render failure status and an error summary', () => {
