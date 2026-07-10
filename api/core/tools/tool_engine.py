@@ -280,7 +280,9 @@ class ToolEngine:
         tool_response: list[ToolInvokeMessage],
     ) -> Generator[ToolInvokeMessageBinary, None, None]:
         """
-        Extract tool response binary
+        Extract binary responses for assistant attachment creation.
+
+        Both raw blobs and transformed binary links must include MIME metadata.
         """
         for response in tool_response:
             if response.type in {ToolInvokeMessage.MessageType.IMAGE_LINK, ToolInvokeMessage.MessageType.IMAGE}:
@@ -304,7 +306,10 @@ class ToolEngine:
                     mimetype=response.meta.get("mime_type", mimetype),
                     url=cast(ToolInvokeMessage.TextMessage, response.message).text,
                 )
-            elif response.type == ToolInvokeMessage.MessageType.BLOB:
+            elif response.type in {
+                ToolInvokeMessage.MessageType.BLOB,
+                ToolInvokeMessage.MessageType.BINARY_LINK,
+            }:
                 if not response.meta:
                     raise ValueError("missing meta data")
 

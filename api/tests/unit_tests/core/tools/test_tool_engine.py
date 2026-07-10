@@ -103,8 +103,23 @@ def test_convert_tool_response_to_str_and_extract_binary_messages():
         message=ToolInvokeMessage.TextMessage(text="https://example.com/file.pdf"),
         meta={"mime_type": "application/pdf"},
     )
-    binaries = list(ToolEngine._extract_tool_response_binary_and_text([messages[2], blob_message, link_message]))
-    assert [b.mimetype for b in binaries] == ["image/png", "application/octet-stream", "application/pdf"]
+    binary_link_message = ToolInvokeMessage(
+        type=ToolInvokeMessage.MessageType.BINARY_LINK,
+        message=ToolInvokeMessage.TextMessage(text="/files/tools/file-id.xlsx"),
+        meta={"mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+    )
+    binaries = list(
+        ToolEngine._extract_tool_response_binary_and_text([messages[2], blob_message, link_message, binary_link_message])
+    )
+    assert [(binary.mimetype, binary.url) for binary in binaries] == [
+        ("image/png", "https://example.com/a.png"),
+        ("application/octet-stream", "https://example.com/blob.bin"),
+        ("application/pdf", "https://example.com/file.pdf"),
+        (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "/files/tools/file-id.xlsx",
+        ),
+    ]
 
     with pytest.raises(ValueError, match="missing meta data"):
         list(
