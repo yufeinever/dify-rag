@@ -75,6 +75,11 @@ class ParserMarketplaceUpgrade(BaseModel):
     new_plugin_unique_identifier: str
 
 
+class ParserPackageUpgrade(BaseModel):
+    original_plugin_unique_identifier: str
+    new_plugin_unique_identifier: str
+
+
 class ParserGithubUpgrade(BaseModel):
     original_plugin_unique_identifier: str
     new_plugin_unique_identifier: str
@@ -159,6 +164,7 @@ register_schema_models(
     ParserPluginIdentifierQuery,
     ParserTasks,
     ParserMarketplaceUpgrade,
+    ParserPackageUpgrade,
     ParserGithubUpgrade,
     ParserUninstall,
     ParserPermissionChange,
@@ -563,6 +569,30 @@ class PluginUpgradeFromMarketplaceApi(Resource):
             return jsonable_encoder(
                 PluginService.upgrade_plugin_with_marketplace(
                     tenant_id, args.original_plugin_unique_identifier, args.new_plugin_unique_identifier
+                )
+            )
+        except PluginDaemonClientSideError as e:
+            return {"code": "plugin_error", "message": e.description}, 400
+
+
+@console_ns.route("/workspaces/current/plugin/upgrade/pkg")
+class PluginUpgradeFromPkgApi(Resource):
+    @console_ns.expect(console_ns.models[ParserPackageUpgrade.__name__])
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @plugin_permission_required(install_required=True)
+    def post(self):
+        _, tenant_id = current_account_with_tenant()
+
+        args = ParserPackageUpgrade.model_validate(console_ns.payload)
+
+        try:
+            return jsonable_encoder(
+                PluginService.upgrade_plugin_with_local_pkg(
+                    tenant_id,
+                    args.original_plugin_unique_identifier,
+                    args.new_plugin_unique_identifier,
                 )
             )
         except PluginDaemonClientSideError as e:

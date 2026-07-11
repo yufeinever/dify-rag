@@ -444,6 +444,32 @@ class PluginService:
         return result
 
     @staticmethod
+    def upgrade_plugin_with_local_pkg(
+        tenant_id: str, original_plugin_unique_identifier: str, new_plugin_unique_identifier: str
+    ):
+        """Upgrade an installed plugin using an uploaded local package."""
+        PluginService._check_marketplace_only_permission()
+
+        if original_plugin_unique_identifier == new_plugin_unique_identifier:
+            raise ValueError("you should not upgrade plugin with the same plugin")
+
+        manager = PluginInstaller()
+        decode_response = manager.decode_plugin_from_identifier(tenant_id, new_plugin_unique_identifier)
+        PluginService._check_plugin_installation_scope(decode_response.verification)
+
+        result = manager.upgrade_plugin(
+            tenant_id,
+            original_plugin_unique_identifier,
+            new_plugin_unique_identifier,
+            PluginInstallationSource.Package,
+            {
+                "plugin_unique_identifier": new_plugin_unique_identifier,
+            },
+        )
+        PluginService.invalidate_plugin_model_providers_cache(tenant_id)
+        return result
+
+    @staticmethod
     def upgrade_plugin_with_github(
         tenant_id: str,
         original_plugin_unique_identifier: str,

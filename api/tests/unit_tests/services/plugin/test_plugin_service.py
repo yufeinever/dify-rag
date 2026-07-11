@@ -3,6 +3,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from pydantic import TypeAdapter
 from redis import RedisError
 
@@ -318,6 +319,46 @@ class TestPluginModelProviderCacheInvalidation:
 
         assert result == "task-id"
         invalidate_cache.assert_called_once_with("tenant-1")
+
+    def test_upgrade_plugin_with_local_pkg_decodes_and_invalidates_cache(self) -> None:
+        with (
+            patch(f"{MODULE}.PluginService._check_marketplace_only_permission") as check_permission,
+            patch(f"{MODULE}.PluginService._check_plugin_installation_scope") as check_scope,
+            patch(f"{MODULE}.PluginInstaller") as installer_cls,
+            patch(f"{MODULE}.PluginService.invalidate_plugin_model_providers_cache") as invalidate_cache,
+        ):
+            installer = installer_cls.return_value
+            decode_response = MagicMock()
+            decode_response.verification = MagicMock()
+            installer.decode_plugin_from_identifier.return_value = decode_response
+            installer.upgrade_plugin.return_value = "task-id"
+
+            from core.plugin.entities.plugin import PluginInstallationSource
+            from core.plugin.plugin_service import PluginService
+
+            result = PluginService.upgrade_plugin_with_local_pkg("tenant-1", "old-uid", "new-uid")
+
+        assert result == "task-id"
+        check_permission.assert_called_once_with()
+        installer.decode_plugin_from_identifier.assert_called_once_with("tenant-1", "new-uid")
+        check_scope.assert_called_once_with(decode_response.verification)
+        installer.upgrade_plugin.assert_called_once_with(
+            "tenant-1",
+            "old-uid",
+            "new-uid",
+            PluginInstallationSource.Package,
+            {"plugin_unique_identifier": "new-uid"},
+        )
+        invalidate_cache.assert_called_once_with("tenant-1")
+
+    def test_upgrade_plugin_with_local_pkg_rejects_same_identifier(self) -> None:
+        from core.plugin.plugin_service import PluginService
+
+        with (
+            patch(f"{MODULE}.PluginService._check_marketplace_only_permission"),
+            pytest.raises(ValueError, match="same plugin"),
+        ):
+            PluginService.upgrade_plugin_with_local_pkg("tenant-1", "same-uid", "same-uid")
 
     def test_upgrade_plugin_with_github_invalidates_model_provider_cache_for_tenant(self) -> None:
         """Starting a plugin upgrade invalidates only the mutated tenant provider cache."""

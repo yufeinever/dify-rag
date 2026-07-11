@@ -34,6 +34,7 @@ from controllers.console.workspace.plugin import (
     PluginUninstallApi,
     PluginUpgradeFromGithubApi,
     PluginUpgradeFromMarketplaceApi,
+    PluginUpgradeFromPkgApi,
     PluginUploadFromBundleApi,
     PluginUploadFromGithubApi,
     PluginUploadFromPkgApi,
@@ -795,6 +796,49 @@ class TestPluginUpgradeFromMarketplaceApi:
         ):
             result = method(api)
             assert result == ({"code": "plugin_error", "message": "error"}, 400)
+
+
+class TestPluginUpgradeFromPkgApi:
+    def test_success(self, app: Flask):
+        api = PluginUpgradeFromPkgApi()
+        method = unwrap(api.post)
+        payload = {
+            "original_plugin_unique_identifier": "p1",
+            "new_plugin_unique_identifier": "p2",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.plugin.current_account_with_tenant", return_value=(None, "t1")),
+            patch(
+                "controllers.console.workspace.plugin.PluginService.upgrade_plugin_with_local_pkg",
+                return_value={"ok": True},
+            ) as upgrade,
+        ):
+            result = method(api)
+
+        assert result["ok"] is True
+        upgrade.assert_called_once_with("t1", "p1", "p2")
+
+    def test_daemon_error(self, app: Flask):
+        api = PluginUpgradeFromPkgApi()
+        method = unwrap(api.post)
+        payload = {
+            "original_plugin_unique_identifier": "p1",
+            "new_plugin_unique_identifier": "p2",
+        }
+
+        with (
+            app.test_request_context("/", json=payload),
+            patch("controllers.console.workspace.plugin.current_account_with_tenant", return_value=(None, "t1")),
+            patch(
+                "controllers.console.workspace.plugin.PluginService.upgrade_plugin_with_local_pkg",
+                side_effect=PluginDaemonClientSideError("error"),
+            ),
+        ):
+            result = method(api)
+
+        assert result == ({"code": "plugin_error", "message": "error"}, 400)
 
 
 class TestPluginUpgradeFromGithubApi:
