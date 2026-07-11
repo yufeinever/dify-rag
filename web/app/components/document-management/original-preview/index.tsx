@@ -227,7 +227,9 @@ const NativePreview = ({ data }: { data: PreviewData }) => {
 
   const asset = data as GeneratedAssetPreviewConfigResponse
   const extension = asset.extension || data.original_file_type || data.file_type
-  const previewUrl = asset.source_url || data.preview_url
+  const previewUrl = asset.storage_type === 'remote_url'
+    ? asset.source_url || data.preview_url
+    : data.preview_url
 
   if (data.file_type === 'video')
     return <RemoteVideoPreview data={data} asset={asset} previewUrl={previewUrl} />

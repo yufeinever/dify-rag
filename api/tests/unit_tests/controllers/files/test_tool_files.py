@@ -13,8 +13,8 @@ def unwrap(func):
     return func
 
 
-def fake_request(args: dict):
-    return types.SimpleNamespace(args=types.SimpleNamespace(to_dict=lambda flat=True: args))
+def fake_request(args: dict, headers: dict | None = None):
+    return types.SimpleNamespace(args=types.SimpleNamespace(to_dict=lambda flat=True: args), headers=headers or {})
 
 
 class DummyToolFile:
@@ -68,6 +68,31 @@ class TestToolFileApi:
             nonce="abc",
             sign="sig",
         )
+
+    @patch.object(module, "verify_tool_file_signature", return_value=True)
+    @patch.object(module, "ToolFileManager")
+    def test_byte_range_stream(self, mock_tool_file_manager, mock_verify):
+        module.request = fake_request(
+            {
+                "timestamp": "123",
+                "nonce": "abc",
+                "sign": "sig",
+                "as_attachment": False,
+            },
+            headers={"Range": "bytes=2-5"},
+        )
+        tool_file = DummyToolFile(mime_type="video/mp4", size=10, filename="clip.mp4")
+        manager = mock_tool_file_manager.return_value
+        manager.get_file_generator_by_tool_file_id.return_value = (iter([b"0123456789"]), tool_file)
+        manager.get_file_binary.return_value = (b"0123456789", "video/mp4")
+
+        response = unwrap(module.ToolFileApi().get)("file-id", "mp4")
+
+        assert response.status_code == 206
+        assert response.get_data() == b"2345"
+        assert response.headers["Content-Range"] == "bytes 2-5/10"
+        assert response.headers["Content-Length"] == "4"
+        assert response.headers["Accept-Ranges"] == "bytes"
 
     @patch.object(module, "verify_tool_file_signature", return_value=True)
     @patch.object(module, "ToolFileManager")

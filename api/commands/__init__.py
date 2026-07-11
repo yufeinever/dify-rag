@@ -3,7 +3,7 @@ CLI command modules extracted from `commands.py`.
 """
 
 from .account import create_tenant, reset_email, reset_password
-from .generated_assets import backfill_generated_assets_command
+from .generated_assets import backfill_generated_assets_command, recover_generated_videos_command
 from .plugin import (
     extract_plugins,
     extract_unique_plugins,
@@ -59,6 +59,7 @@ __all__ = [
     "migrate_knowledge_vector_database",
     "migrate_oss",
     "old_metadata_migration",
+    "recover_generated_videos_command",
     "remove_orphaned_files_on_storage",
     "reset_email",
     "reset_encrypt_key_pair",

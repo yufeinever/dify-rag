@@ -77,6 +77,19 @@ class TestWorkflowRunHistorySerialization:
         assert detail["title"] == "Cloud House"
         assert detail["intent"] == "A warm fantasy short video."
 
+    def test_should_prefer_local_video_and_hide_confirmed_expired_source(self) -> None:
+        run = _run()
+
+        local = WorkflowRunHistoryService.to_detail(run, "/files/tools/local.mp4?signed=1")
+        expired = WorkflowRunHistoryService.to_detail(run, video_unavailable=True)
+
+        assert local["video_url"] == "/files/tools/local.mp4?signed=1"
+        assert local["outputs"]["video_url"] == local["video_url"]
+        assert expired["video_url"] is None
+        assert expired["outputs"]["video_url"] is None
+        assert expired["status"] == WorkflowExecutionStatus.FAILED.value
+        assert expired["error"] == "The generated video source has expired before local persistence."
+
 
 class TestWorkflowRunHistoryQueries:
     def test_should_scope_page_to_installed_app_and_current_account(self) -> None:

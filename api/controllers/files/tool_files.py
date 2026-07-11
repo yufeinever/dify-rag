@@ -5,6 +5,8 @@ from flask import Response, request
 from flask_restx import Resource
 from pydantic import BaseModel, Field
 from werkzeug.exceptions import Forbidden, NotFound
+from werkzeug.http import parse_range_header
+from werkzeug.wrappers.response import Response as WerkzeugResponse
 
 from controllers.common.errors import UnsupportedFileTypeError
 from controllers.common.file_response import enforce_download_for_html
@@ -64,6 +66,23 @@ class ToolFileApi(Resource):
             if not stream or not tool_file:
                 raise NotFound("file is not found")
 
+            range_header = request.headers.get("Range")
+            if range_header:
+                binary_result = tool_file_manager.get_file_binary(file_id_str)
+                if not binary_result:
+                    raise NotFound("file is not found")
+                file_binary, _ = binary_result
+                byte_range = parse_range_header(range_header)
+                resolved_range = byte_range.range_for_length(len(file_binary)) if byte_range else None
+                if resolved_range is None:
+                    return WerkzeugResponse(status=416, headers={"Content-Range": f"bytes */{len(file_binary)}"})
+                start, stop = resolved_range
+                response = Response(file_binary[start:stop], status=206, mimetype=tool_file.mime_type)
+                response.headers["Content-Range"] = f"bytes {start}-{stop - 1}/{len(file_binary)}"
+                response.headers["Content-Length"] = str(stop - start)
+                response.headers["Accept-Ranges"] = "bytes"
+                return response
+
         except NotFound:
             raise
 
@@ -81,6 +100,7 @@ class ToolFileApi(Resource):
         )
         if tool_file.size > 0:
             response.headers["Content-Length"] = str(tool_file.size)
+        response.headers["Accept-Ranges"] = "bytes"
         if args.as_attachment and filename:
             encoded_filename = quote(filename)
             response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"

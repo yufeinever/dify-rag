@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from graphon.enums import WorkflowExecutionStatus
 from models.tools import GeneratedFile
@@ -11,6 +11,7 @@ from services.generated_file_service import (
     build_workflow_tool_file_candidates,
     classify_file_type,
     get_generated_file_for_end_user,
+    persist_generated_video_asset,
     serialize_generated_asset,
 )
 
@@ -188,6 +189,72 @@ def test_non_message_enrichment_does_not_reassign_owner():
     assert asset.owner_user_id == original_owner_id
     assert asset.source_url == "https://vidgen.x.ai/videos/final.mp4?token=new"
     assert asset.asset_metadata == candidate.asset_metadata
+
+
+@patch("services.generated_file_service.storage.save")
+def test_persist_generated_video_promotes_remote_asset_to_tool_file(mock_storage_save):
+    session = MagicMock()
+    asset = GeneratedFile(
+        tenant_id="00000000-0000-0000-0000-000000000001",
+        owner_user_id="00000000-0000-0000-0000-000000000002",
+        storage_type="remote_url",
+        source_url="https://vidgen.x.ai/xai-vidgen-bucket/video.mp4",
+        source_kind="workflow_video",
+        source_key="remote:video:test",
+        asset_metadata={},
+        name="clip.mp4",
+        mime_type="video/mp4",
+        file_type="video",
+        size=-1,
+    )
+    file_binary = b"\x00\x00\x00\x18ftypmp42video"
+
+    changed = persist_generated_video_asset(session, asset, file_binary=file_binary)
+
+    assert changed is True
+    assert asset.storage_type == "tool_file"
+    assert asset.tool_file_id
+    assert asset.source_url is None
+    assert asset.size == len(file_binary)
+    assert asset.asset_metadata["original_source_url"].startswith("https://vidgen.x.ai/")
+    assert asset.asset_metadata["local_persistence_status"] == "persisted"
+    mock_storage_save.assert_called_once()
+
+
+def test_remote_callback_does_not_downgrade_persisted_video():
+    asset = GeneratedFile(
+        tenant_id="00000000-0000-0000-0000-000000000001",
+        owner_user_id="00000000-0000-0000-0000-000000000002",
+        tool_file_id="00000000-0000-0000-0000-000000000003",
+        storage_type="tool_file",
+        source_url=None,
+        source_kind="workflow_video",
+        source_key="remote:video:test",
+        asset_metadata={"local_persistence_status": "persisted"},
+        name="clip.mp4",
+        mime_type="video/mp4",
+        file_type="video",
+        size=100,
+    )
+    candidate = GeneratedAssetCandidate(
+        tenant_id=asset.tenant_id,
+        owner_user_id=asset.owner_user_id,
+        storage_type="remote_url",
+        source_url="https://vidgen.x.ai/xai-vidgen-bucket/video.mp4",
+        source_kind="workflow_video",
+        source_key=asset.source_key,
+        asset_metadata={"scene_image_url": "https://ai.meinmalzebier.shop/scene.png"},
+        name=asset.name,
+        mime_type=asset.mime_type,
+        file_type=asset.file_type,
+    )
+
+    _enrich_existing_asset(asset, candidate)
+
+    assert asset.storage_type == "tool_file"
+    assert asset.source_url is None
+    assert asset.asset_metadata["local_persistence_status"] == "persisted"
+    assert asset.asset_metadata["scene_image_url"].endswith("scene.png")
 
 
 def test_workflow_tool_file_candidate_requires_matching_tenant_and_owner():

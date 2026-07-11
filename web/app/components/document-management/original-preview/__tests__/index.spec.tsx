@@ -101,6 +101,20 @@ describe('DocumentOriginalPreview generated assets', () => {
       expect(screen.getByRole('img', { name: '角色图' })).toHaveAttribute('src', 'https://cdn.example.com/campaign-character.jpg')
     })
 
+    it('should prefer the signed local ToolFile URL over the original provider URL', async () => {
+      vi.mocked(fetchGeneratedAssetPreviewConfig).mockResolvedValue(createPreview({
+        mode: 'native',
+        storage_type: 'tool_file',
+        preview_url: 'https://ai.meinmalzebier.shop/files/tools/local-video.mp4?signed=1',
+        source_url: 'https://vidgen.x.ai/expired-video.mp4',
+      }))
+
+      renderPreview()
+
+      expect(await screen.findByLabelText('campaign-video.mp4'))
+        .toHaveAttribute('src', 'https://ai.meinmalzebier.shop/files/tools/local-video.mp4?signed=1')
+    })
+
     it('should render the original poster instead of its thumbnail', async () => {
       vi.mocked(fetchGeneratedAssetPreviewConfig).mockResolvedValue(createPreview({
         name: 'campaign-poster.png',

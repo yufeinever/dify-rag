@@ -15,16 +15,18 @@ import os
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import UTC, datetime
 from mimetypes import guess_extension
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from core.helper import ssrf_proxy
 from core.tools.signature import sign_tool_file
 from extensions.ext_storage import storage
 from graphon.file import FileTransferMethod
@@ -47,6 +49,8 @@ TEXT_TYPES = {"csv", "json", "log", "md", "txt", "xml", "yaml", "yml"}
 OFFICE_PREVIEW_TYPES = {"doc", "docx", "ppt", "pptx", "xls", "xlsx"}
 NATIVE_PREVIEW_TYPES = {*IMAGE_TYPES, *TEXT_TYPES, "pdf", "mp3", "mp4", "ogg", "wav", "webm"}
 GENERATED_FILE_PREVIEW_CACHE_DIR = Path("/tmp/dify-document-previews")
+MAX_PERSISTED_VIDEO_BYTES = 200 * 1024 * 1024
+MP4_FILE_SIGNATURE = b"ftyp"
 
 
 def classify_file_type(mime_type: str, name: str = "") -> str:
@@ -162,8 +166,112 @@ def register_generated_assets_from_workflow_run(
     ]
     for candidate in candidates:
         generated_file, _ = register_generated_asset_candidate(session, candidate)
+        if candidate.source_kind == "workflow_video" and candidate.storage_type == "remote_url":
+            try:
+                persist_generated_video_asset(session, generated_file)
+            except Exception:
+                logger.exception(
+                    "Failed to persist generated video locally: workflow_run_id=%s generated_file_id=%s",
+                    workflow_run.id,
+                    generated_file.id,
+                )
         registered.append(generated_file)
     return registered
+
+
+def persist_generated_video_asset(
+    session: Session,
+    generated_file: GeneratedFile,
+    *,
+    file_binary: bytes | None = None,
+) -> bool:
+    """Promote one trusted remote workflow video into durable Dify storage.
+
+    The original provider URL is retained in metadata for audit, while every playback
+    URL is generated from the local ``ToolFile`` after promotion. Repeated calls are
+    idempotent and never overwrite an existing local copy.
+    """
+
+    if generated_file.source_kind != "workflow_video":
+        raise ValueError("Only workflow video assets can be persisted by this service.")
+    if generated_file.storage_type == "tool_file" and generated_file.tool_file_id:
+        return False
+
+    original_source_url = trusted_remote_asset_url(generated_file.source_url)
+    if not original_source_url:
+        raise FileNotFoundError("Generated video source is unavailable.")
+
+    if file_binary is None:
+        response = ssrf_proxy.get(original_source_url)
+        response.raise_for_status()
+        file_binary = response.content
+
+    _validate_generated_video_binary(file_binary)
+    extension = _asset_extension(generated_file) or ".mp4"
+    storage_key = f"generated-videos/{generated_file.tenant_id}/{uuid4().hex}{extension}"
+    storage.save(storage_key, file_binary)
+
+    tool_file = ToolFile(
+        user_id=str(generated_file.owner_user_id),
+        tenant_id=str(generated_file.tenant_id),
+        conversation_id=generated_file.source_conversation_id,
+        file_key=storage_key,
+        mimetype=generated_file.mime_type or "video/mp4",
+        original_url=original_source_url,
+        name=generated_file.name,
+        size=len(file_binary),
+    )
+    session.add(tool_file)
+    session.flush()
+
+    metadata = dict(generated_file.asset_metadata or {})
+    metadata.update(
+        {
+            "original_source_url": original_source_url,
+            "local_persisted_at": datetime.now(UTC).isoformat(),
+            "local_sha256": hashlib.sha256(file_binary).hexdigest(),
+            "local_persistence_status": "persisted",
+        }
+    )
+    metadata.pop("source_unavailable", None)
+    metadata.pop("source_unavailable_at", None)
+    generated_file.tool_file_id = str(tool_file.id)
+    generated_file.storage_type = "tool_file"
+    generated_file.source_url = None
+    generated_file.size = len(file_binary)
+    generated_file.asset_metadata = metadata
+    session.add(generated_file)
+    session.flush()
+    return True
+
+
+def mark_generated_video_source_unavailable(generated_file: GeneratedFile) -> bool:
+    """Record a confirmed missing provider object without deleting its history row."""
+
+    if generated_file.storage_type == "tool_file" and generated_file.tool_file_id:
+        return False
+    metadata = dict(generated_file.asset_metadata or {})
+    if metadata.get("source_unavailable"):
+        return False
+    metadata.update(
+        {
+            "original_source_url": generated_file.source_url,
+            "source_unavailable": True,
+            "source_unavailable_at": datetime.now(UTC).isoformat(),
+            "local_persistence_status": "source_missing",
+        }
+    )
+    generated_file.asset_metadata = metadata
+    return True
+
+
+def _validate_generated_video_binary(file_binary: bytes) -> None:
+    if not file_binary:
+        raise ValueError("Generated video is empty.")
+    if len(file_binary) > MAX_PERSISTED_VIDEO_BYTES:
+        raise ValueError("Generated video exceeds the local persistence size limit.")
+    if MP4_FILE_SIGNATURE not in file_binary[:32]:
+        raise ValueError("Generated video is not a valid MP4 file.")
 
 
 def build_workflow_tool_file_candidates(
@@ -709,10 +817,16 @@ def _enrich_existing_asset(generated_file: GeneratedFile, candidate: GeneratedAs
         and str(generated_file.tool_file_id) == candidate.tool_file_id
     ):
         generated_file.owner_user_id = candidate.owner_user_id
-    generated_file.storage_type = candidate.storage_type
+    durable_video = (
+        generated_file.source_kind == "workflow_video"
+        and generated_file.storage_type == "tool_file"
+        and generated_file.tool_file_id is not None
+    )
+    if not durable_video:
+        generated_file.storage_type = candidate.storage_type
     generated_file.source_kind = candidate.source_kind
     generated_file.source_key = generated_file.source_key or candidate.source_key
-    if candidate.storage_type == "remote_url":
+    if candidate.storage_type == "remote_url" and not durable_video:
         generated_file.source_url = candidate.source_url or generated_file.source_url
         generated_file.thumbnail_url = candidate.thumbnail_url or generated_file.thumbnail_url
     else:
@@ -722,9 +836,12 @@ def _enrich_existing_asset(generated_file: GeneratedFile, candidate: GeneratedAs
     generated_file.source_conversation_id = generated_file.source_conversation_id or candidate.source_conversation_id
     generated_file.source_message_id = generated_file.source_message_id or candidate.source_message_id
     generated_file.source_workflow_run_id = generated_file.source_workflow_run_id or candidate.source_workflow_run_id
-    if candidate.asset_metadata and (
-        candidate.storage_type == "remote_url" or not generated_file.asset_metadata
-    ):
+    if durable_video and candidate.asset_metadata:
+        metadata = dict(generated_file.asset_metadata or {})
+        metadata.update(candidate.asset_metadata)
+        generated_file.asset_metadata = metadata
+        generated_file.source_url = None
+    elif candidate.asset_metadata and (candidate.storage_type == "remote_url" or not generated_file.asset_metadata):
         generated_file.asset_metadata = candidate.asset_metadata
 
 

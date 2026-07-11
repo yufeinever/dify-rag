@@ -17,7 +17,9 @@ from sqlalchemy.orm import Session
 
 from graphon.enums import WorkflowExecutionStatus
 from models.enums import CreatorUserRole
+from models.tools import GeneratedFile
 from models.workflow import WorkflowAppLog, WorkflowAppLogCreatedFrom, WorkflowRun
+from services.generated_file_service import build_generated_file_preview_config
 
 
 class WorkflowRunHistoryItem(TypedDict):
@@ -57,6 +59,7 @@ class WorkflowRunHistoryService:
     """Read installed-app workflow runs that belong to one console account."""
 
     _MISSING_VIDEO_ERROR = "The workflow succeeded but did not return a playable video URL."
+    _EXPIRED_VIDEO_ERROR = "The generated video source has expired before local persistence."
 
     @classmethod
     def get_page(
@@ -99,8 +102,9 @@ class WorkflowRunHistoryService:
         )
         has_more = len(runs) > limit
         page_runs = runs[:limit]
+        local_urls, unavailable_runs = cls._local_video_state(session, page_runs)
         return WorkflowRunHistoryPage(
-            data=[cls.to_list_item(run) for run in page_runs],
+            data=[cls.to_list_item(run, local_urls.get(run.id), run.id in unavailable_runs) for run in page_runs],
             has_more=has_more,
             last_id=page_runs[-1].id if has_more and page_runs else None,
         )
@@ -126,7 +130,10 @@ class WorkflowRunHistoryService:
             .limit(1)
         )
         run = session.scalar(stmt)
-        return cls.to_detail(run) if run else None
+        if not run:
+            return None
+        local_urls, unavailable_runs = cls._local_video_state(session, [run])
+        return cls.to_detail(run, local_urls.get(run.id), run.id in unavailable_runs)
 
     @staticmethod
     def _scope(*, tenant_id: str, app_id: str, account_id: str) -> tuple[Any, ...]:
@@ -143,10 +150,17 @@ class WorkflowRunHistoryService:
         )
 
     @classmethod
-    def to_list_item(cls, run: WorkflowRun) -> WorkflowRunHistoryItem:
+    def to_list_item(
+        cls, run: WorkflowRun, local_video_url: str | None = None, video_unavailable: bool = False
+    ) -> WorkflowRunHistoryItem:
         inputs = cls._run_payload(run, "inputs")
         outputs = cls._run_payload(run, "outputs")
-        status, error = cls._effective_status(run.status, run.error, outputs)
+        remote_video_url = cls._public_url(outputs.get("video_url"))
+        video_url = None if video_unavailable else (local_video_url or remote_video_url)
+        status_outputs = {**outputs, "video_url": video_url}
+        status, error = cls._effective_status(run.status, run.error, status_outputs)
+        if video_unavailable and status == WorkflowExecutionStatus.FAILED.value:
+            error = run.error or cls._EXPIRED_VIDEO_ERROR
         return WorkflowRunHistoryItem(
             id=run.id,
             status=status,
@@ -158,17 +172,21 @@ class WorkflowRunHistoryService:
             aspect_ratio=cls._first_optional_string(inputs, "aspect_ratio", "ratio"),
             resolution=cls._first_optional_string(inputs, "resolution"),
             error=error,
-            video_url=cls._public_url(outputs.get("video_url")),
+            video_url=video_url,
             character_image_url=cls._public_url(outputs.get("character_image_url")),
             scene_image_url=cls._public_url(outputs.get("scene_image_url")),
         )
 
     @classmethod
-    def to_detail(cls, run: WorkflowRun) -> WorkflowRunHistoryDetail:
+    def to_detail(
+        cls, run: WorkflowRun, local_video_url: str | None = None, video_unavailable: bool = False
+    ) -> WorkflowRunHistoryDetail:
         inputs = cls._run_payload(run, "inputs")
         outputs = cls._run_payload(run, "outputs")
+        if local_video_url or video_unavailable:
+            outputs["video_url"] = None if video_unavailable else local_video_url
         detail = WorkflowRunHistoryDetail(
-            **cls.to_list_item(run),
+            **cls.to_list_item(run, local_video_url, video_unavailable),
             inputs=inputs,
             outputs=outputs,
             result=cls._first_string(outputs, "result"),
@@ -186,6 +204,34 @@ class WorkflowRunHistoryService:
         return detail
 
     @classmethod
+    def _local_video_state(cls, session: Session, runs: list[WorkflowRun]) -> tuple[dict[str, str], set[str]]:
+        run_ids = [str(run.id) for run in runs]
+        if not run_ids:
+            return {}, set()
+        assets = list(
+            session.execute(
+                select(GeneratedFile).where(
+                    GeneratedFile.source_workflow_run_id.in_(run_ids),
+                    GeneratedFile.source_kind == "workflow_video",
+                    GeneratedFile.deleted_at.is_(None),
+                )
+            )
+            .scalars()
+            .all()
+        )
+        local_urls: dict[str, str] = {}
+        unavailable_runs: set[str] = set()
+        for asset in assets:
+            run_id = str(asset.source_workflow_run_id)
+            if asset.storage_type == "tool_file" and asset.tool_file_id:
+                preview_url = cls._public_url(build_generated_file_preview_config(asset).get("preview_url"))
+                if preview_url:
+                    local_urls[run_id] = preview_url
+            elif (asset.asset_metadata or {}).get("source_unavailable"):
+                unavailable_runs.add(run_id)
+        return local_urls, unavailable_runs
+
+    @classmethod
     def _effective_status(
         cls,
         status: WorkflowExecutionStatus | str,
@@ -193,7 +239,10 @@ class WorkflowRunHistoryService:
         outputs: dict[str, Any],
     ) -> tuple[str, str | None]:
         status_value = status.value if isinstance(status, WorkflowExecutionStatus) else str(status)
-        if status_value == WorkflowExecutionStatus.SUCCEEDED.value and cls._public_url(outputs.get("video_url")) is None:
+        if (
+            status_value == WorkflowExecutionStatus.SUCCEEDED.value
+            and cls._public_url(outputs.get("video_url")) is None
+        ):
             return WorkflowExecutionStatus.FAILED.value, error or cls._MISSING_VIDEO_ERROR
         return status_value, error
 
