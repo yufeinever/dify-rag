@@ -9,27 +9,45 @@ class PosterAsset(BaseModel):
     title: str | None = None
     description: str | None = None
     tags: list[str] = Field(default_factory=list)
+    kind: Literal["character", "scene", "other"] = "other"
+    source: str | None = None
 
 
 class PosterBrief(BaseModel):
     theme: str = Field(..., min_length=1, description="Poster topic or campaign theme")
     background: str | None = Field(None, description="Desired background style")
-    special_elements: list[str] = Field(default_factory=list, description="Festival or decorative elements")
+    special_elements: list[str] = Field(
+        default_factory=list, description="Festival or decorative elements"
+    )
     audience: str | None = Field(None, description="Target audience")
     main_title: str | None = Field(None, description="Main poster title")
     subtitle: str | None = Field(None, description="Secondary copy")
-    selling_points: list[str] = Field(default_factory=list, description="Short benefit bullets")
-    brand_constraints: str | None = Field(None, description="Brand, compliance, or visual restrictions")
+    selling_points: list[str] = Field(
+        default_factory=list, description="Short benefit bullets"
+    )
+    brand_constraints: str | None = Field(
+        None, description="Brand, compliance, or visual restrictions"
+    )
 
 
 class GeneratePosterRequest(BaseModel):
     brief: PosterBrief
     assets: list[PosterAsset] = Field(default_factory=list)
-    size: str = Field("1080x1440", description="Final output size in WIDTHxHEIGHT format")
-    overlay_text: bool = Field(True, description="Overlay Chinese title/copy with deterministic layout")
+    size: str = Field(
+        "1080x1440", description="Final output size in WIDTHxHEIGHT format"
+    )
+    overlay_text: bool = Field(
+        True, description="Overlay Chinese title/copy with deterministic layout"
+    )
     request_id: str | None = Field(None, description="Caller-provided trace id")
     user_query: str | None = Field(None, description="Original user request from Dify")
-    optimized_prompt: str | None = Field(None, description="Display-ready optimized image prompt from Dify")
+    optimized_prompt: str | None = Field(
+        None, description="Display-ready optimized image prompt from Dify"
+    )
+    use_default_bear: bool | None = Field(
+        None,
+        description="Explicitly enable or disable the built-in MMB bear identity reference",
+    )
 
     @field_validator("size")
     @classmethod
@@ -52,6 +70,7 @@ class GeneratePosterResponse(BaseModel):
     thumbnail_url: str | None = None
     video_image_data_url: str | None = None
     used_assets: list[PosterAsset] = Field(default_factory=list)
+    reference_image_stats: dict[str, int] = Field(default_factory=dict)
     final_prompt: str
     size: str
     request_id: str
@@ -68,4 +87,5 @@ class PosterJobResponse(BaseModel):
     poster_url: str | None = None
     thumbnail_url: str | None = None
     used_assets: list[PosterAsset] = Field(default_factory=list)
+    reference_image_stats: dict[str, int] = Field(default_factory=dict)
     error: str | None = None

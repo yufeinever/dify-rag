@@ -24,6 +24,13 @@ _BEAR_EXCLUSION_KEYWORDS = (
 
 
 def should_use_default_bear(request: GeneratePosterRequest) -> bool:
+    if any(
+        asset.kind == "character" or asset.source == "default_mmb_bear"
+        for asset in request.assets
+    ):
+        return False
+    if request.use_default_bear is not None:
+        return request.use_default_bear
     text_parts = [
         request.user_query or "",
         request.optimized_prompt or "",
@@ -36,21 +43,36 @@ def should_use_default_bear(request: GeneratePosterRequest) -> bool:
         " ".join(request.brief.selling_points),
     ]
     normalized = " ".join(text_parts).lower()
-    return not any(keyword.lower() in normalized for keyword in _BEAR_EXCLUSION_KEYWORDS)
+    return not any(
+        keyword.lower() in normalized for keyword in _BEAR_EXCLUSION_KEYWORDS
+    )
 
 
 def build_prompt(request: GeneratePosterRequest, llm_model: str) -> str:
     brief = request.brief
-    asset_lines = [_format_asset(asset, index) for index, asset in enumerate(request.assets[:8], start=1)]
+    asset_lines = [
+        _format_asset(asset, index)
+        for index, asset in enumerate(request.assets[:8], start=1)
+    ]
     copy_policy = (
         "Leave clean negative space for deterministic Chinese text overlays. "
         "Do not render readable Chinese or English words inside the image."
         if request.overlay_text
         else "Render the poster as a complete visual composition."
     )
-    elements = ", ".join(brief.special_elements) if brief.special_elements else "none specified"
-    selling_points = "; ".join(brief.selling_points) if brief.selling_points else "none specified"
-    assets = "\n".join(asset_lines) if asset_lines else "No retrieved production assets were provided."
+    elements = (
+        ", ".join(brief.special_elements)
+        if brief.special_elements
+        else "none specified"
+    )
+    selling_points = (
+        "; ".join(brief.selling_points) if brief.selling_points else "none specified"
+    )
+    assets = (
+        "\n".join(asset_lines)
+        if asset_lines
+        else "No retrieved production assets were provided."
+    )
     bear_policy = (
         "Default MMB bear IP rule: include the MMB bear unless the user explicitly asks for no bear/IP/cartoon/mascot, "
         "or asks for a pure product image, pure background image, or pure business style. "
@@ -81,4 +103,7 @@ def build_prompt(request: GeneratePosterRequest, llm_model: str) -> str:
 
 def _format_asset(asset: PosterAsset, index: int) -> str:
     tags = ", ".join(asset.tags) if asset.tags else "no tags"
-    return f"{index}. {asset.title or 'Untitled asset'}; tags: {tags}; description: {asset.description or 'none'}; url: {asset.url or 'none'}"
+    return (
+        f"{index}. kind: {asset.kind}; {asset.title or 'Untitled asset'}; "
+        f"tags: {tags}; description: {asset.description or 'none'}; attached as an input image"
+    )

@@ -27,7 +27,11 @@ app = FastAPI(
 settings = get_settings()
 app.mount("/files", StaticFiles(directory=settings.output_dir), name="files")
 if settings.default_bear_reference_path.parent.exists():
-    app.mount("/assets", StaticFiles(directory=settings.default_bear_reference_path.parent), name="assets")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=settings.default_bear_reference_path.parent),
+        name="assets",
+    )
 _running_jobs: set[str] = set()
 _job_lock = asyncio.Lock()
 
@@ -55,7 +59,10 @@ def _job_path(job_id: str) -> Path:
 
 def _poster_urls(job_id: str) -> tuple[str, str]:
     base = settings.public_base_url.rstrip("/")
-    return f"{base}/files/poster-{job_id}.png", f"{base}/files/poster-{job_id}-thumb.jpg"
+    return (
+        f"{base}/files/poster-{job_id}.png",
+        f"{base}/files/poster-{job_id}-thumb.jpg",
+    )
 
 
 def _read_job(job_id: str) -> dict[str, Any] | None:
@@ -73,7 +80,9 @@ def _write_job(job_id: str, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data["updated_at"] = _now_iso()
     tmp_path = path.with_suffix(".json.tmp")
-    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     tmp_path.replace(path)
 
 
@@ -91,17 +100,32 @@ def _job_response(data: dict[str, Any]) -> PosterJobResponse:
         poster_url=data.get("poster_url"),
         thumbnail_url=data.get("thumbnail_url"),
         used_assets=data.get("used_assets") or [],
+        reference_image_stats=data.get("reference_image_stats") or {},
         error=data.get("error"),
     )
 
 
-async def _render_request(request: GeneratePosterRequest, request_id: str, final_prompt: str) -> GeneratePosterResponse:
+async def _render_request(
+    request: GeneratePosterRequest, request_id: str, final_prompt: str
+) -> GeneratePosterResponse:
     background_bytes: bytes | None = None
+    reference_image_stats: dict[str, int] = {
+        "requested": len(request.assets),
+        "loaded": 0,
+        "character": sum(asset.kind == "character" for asset in request.assets),
+        "scene": sum(asset.kind == "scene" for asset in request.assets),
+        "other": sum(asset.kind == "other" for asset in request.assets),
+        "default_bear": 0,
+        "generated_character": sum(
+            asset.source == "generated_character" for asset in request.assets
+        ),
+    }
     if settings.allow_mock_openai:
         background_bytes = None
     else:
         result = await OpenAIImageClient(settings).generate(request, final_prompt)
         background_bytes = result.image_bytes
+        reference_image_stats = result.reference_image_stats
     poster = compose_poster(background_bytes, request)
     poster_name = f"poster-{request_id}.png"
     thumb_name = f"poster-{request_id}-thumb.jpg"
@@ -110,10 +134,12 @@ async def _render_request(request: GeneratePosterRequest, request_id: str, final
     poster.save(poster_path, format="PNG", optimize=True)
     thumbnail = poster.copy()
     thumbnail.thumbnail((540, 720), Image.Resampling.LANCZOS)
-    thumbnail.save(thumb_path, format="JPEG", quality=80, optimize=True, progressive=True)
-    video_image_data_url = (
-        "data:image/jpeg;base64," + base64.b64encode(thumb_path.read_bytes()).decode("ascii")
+    thumbnail.save(
+        thumb_path, format="JPEG", quality=80, optimize=True, progressive=True
     )
+    video_image_data_url = "data:image/jpeg;base64," + base64.b64encode(
+        thumb_path.read_bytes()
+    ).decode("ascii")
     poster_url, thumbnail_url = _poster_urls(request_id)
     return GeneratePosterResponse(
         status="succeeded",
@@ -121,13 +147,16 @@ async def _render_request(request: GeneratePosterRequest, request_id: str, final
         thumbnail_url=thumbnail_url,
         video_image_data_url=video_image_data_url,
         used_assets=request.assets,
+        reference_image_stats=reference_image_stats,
         final_prompt=final_prompt,
         size=request.size,
         request_id=request_id,
     )
 
 
-async def _run_job(job_id: str, request: GeneratePosterRequest, final_prompt: str) -> None:
+async def _run_job(
+    job_id: str, request: GeneratePosterRequest, final_prompt: str
+) -> None:
     async with _job_lock:
         if job_id in _running_jobs:
             return
@@ -143,6 +172,7 @@ async def _run_job(job_id: str, request: GeneratePosterRequest, final_prompt: st
                 "poster_url": result.poster_url,
                 "thumbnail_url": result.thumbnail_url,
                 "used_assets": [asset.model_dump() for asset in request.assets],
+                "reference_image_stats": result.reference_image_stats,
                 "error": None,
             }
         )
@@ -172,6 +202,17 @@ async def generate_poster(request: GeneratePosterRequest) -> GeneratePosterRespo
         return GeneratePosterResponse(
             status="failed",
             used_assets=request.assets,
+            reference_image_stats={
+                "requested": len(request.assets),
+                "loaded": 0,
+                "character": sum(asset.kind == "character" for asset in request.assets),
+                "scene": sum(asset.kind == "scene" for asset in request.assets),
+                "other": sum(asset.kind == "other" for asset in request.assets),
+                "default_bear": 0,
+                "generated_character": sum(
+                    asset.source == "generated_character" for asset in request.assets
+                ),
+            },
             final_prompt=final_prompt,
             size=request.size,
             request_id=request_id,
@@ -180,7 +221,9 @@ async def generate_poster(request: GeneratePosterRequest) -> GeneratePosterRespo
 
 
 @app.post("/v1/poster-jobs", response_model=PosterJobResponse)
-async def create_poster_job(request: GeneratePosterRequest, background_tasks: BackgroundTasks) -> PosterJobResponse:
+async def create_poster_job(
+    request: GeneratePosterRequest, background_tasks: BackgroundTasks
+) -> PosterJobResponse:
     job_id = request.request_id or str(uuid.uuid4())
     render_prompt = build_prompt(request, settings.llm_model)
     display_prompt = _display_prompt(request, render_prompt)
@@ -199,9 +242,14 @@ async def create_poster_job(request: GeneratePosterRequest, background_tasks: Ba
         "final_prompt": display_prompt,
         "render_prompt": render_prompt,
         "size": request.size,
-        "poster_url": poster_url if (settings.output_dir / f"poster-{job_id}.png").exists() else None,
-        "thumbnail_url": thumbnail_url if (settings.output_dir / f"poster-{job_id}-thumb.jpg").exists() else None,
+        "poster_url": poster_url
+        if (settings.output_dir / f"poster-{job_id}.png").exists()
+        else None,
+        "thumbnail_url": thumbnail_url
+        if (settings.output_dir / f"poster-{job_id}-thumb.jpg").exists()
+        else None,
         "used_assets": [asset.model_dump() for asset in request.assets],
+        "reference_image_stats": {},
         "created_at": _now_iso(),
         "error": None,
     }
@@ -233,5 +281,7 @@ def get_poster_job(job_id: str) -> PosterJobResponse:
 def dify_openapi_spec():
     spec_path = Path(__file__).resolve().parents[1] / "openapi-dify.yaml"
     if not spec_path.exists():
-        return JSONResponse(status_code=404, content={"error": "openapi-dify.yaml not found"})
+        return JSONResponse(
+            status_code=404, content={"error": "openapi-dify.yaml not found"}
+        )
     return FileResponse(spec_path, media_type="application/yaml")

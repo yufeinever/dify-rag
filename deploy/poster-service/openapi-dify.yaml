@@ -96,6 +96,12 @@ components:
           type: array
           items:
             type: string
+        kind:
+          type: string
+          enum: [character, scene, other]
+          default: other
+        source:
+          type: string
     GeneratePosterRequest:
       type: object
       required: [brief]
@@ -118,6 +124,8 @@ components:
           type: string
         optimized_prompt:
           type: string
+        use_default_bear:
+          type: boolean
     GeneratePosterResponse:
       type: object
       properties:
@@ -132,6 +140,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PosterAsset'
+        reference_image_stats:
+          type: object
+          additionalProperties:
+            type: integer
         final_prompt:
           type: string
         size:
@@ -164,5 +176,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PosterAsset'
+        reference_image_stats:
+          type: object
+          additionalProperties:
+            type: integer
         error:
           type: string
