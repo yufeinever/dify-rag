@@ -87,6 +87,7 @@ from models.enums import CreatorUserRole, MessageFileBelongsTo, MessageStatus
 from models.execution_extra_content import HumanInputContent
 from models.model import AppMode
 from models.workflow import Workflow
+from services.generated_file_service import register_generated_file_from_message_file
 
 logger = logging.getLogger(__name__)
 
@@ -628,7 +629,9 @@ class AdvancedChatAppGenerateTaskPipeline(GraphRuntimeStateSupport):
         )
 
         yield from self._handle_advanced_chat_message_end_event(
-            QueueAdvancedChatMessageEndEvent(), graph_runtime_state=validated_state
+            QueueAdvancedChatMessageEndEvent(),
+            graph_runtime_state=validated_state,
+            register_generated_files=True,
         )
         yield workflow_finish_resp
 
@@ -652,7 +655,9 @@ class AdvancedChatAppGenerateTaskPipeline(GraphRuntimeStateSupport):
         )
 
         yield from self._handle_advanced_chat_message_end_event(
-            QueueAdvancedChatMessageEndEvent(), graph_runtime_state=validated_state
+            QueueAdvancedChatMessageEndEvent(),
+            graph_runtime_state=validated_state,
+            register_generated_files=False,
         )
         yield workflow_finish_resp
 
@@ -758,6 +763,7 @@ class AdvancedChatAppGenerateTaskPipeline(GraphRuntimeStateSupport):
         event: QueueAdvancedChatMessageEndEvent,
         *,
         graph_runtime_state: GraphRuntimeState | None = None,
+        register_generated_files: bool = True,
         **kwargs,
     ) -> Generator[StreamResponse, None, None]:
         """Handle advanced chat message end events."""
@@ -776,7 +782,11 @@ class AdvancedChatAppGenerateTaskPipeline(GraphRuntimeStateSupport):
         # Save message unless it has already been persisted on pause.
         if not self._message_saved_on_pause:
             with self._database_session() as session:
-                self._save_message(session=session, graph_runtime_state=resolved_state)
+                self._save_message(
+                    session=session,
+                    graph_runtime_state=resolved_state,
+                    register_generated_files=register_generated_files,
+                )
 
         yield self._message_end_to_stream_response()
 
@@ -1001,7 +1011,13 @@ class AdvancedChatAppGenerateTaskPipeline(GraphRuntimeStateSupport):
         if self._conversation_name_generate_thread:
             logger.debug("Conversation name generation running as daemon thread")
 
-    def _save_message(self, *, session: Session, graph_runtime_state: GraphRuntimeState | None = None):
+    def _save_message(
+        self,
+        *,
+        session: Session,
+        graph_runtime_state: GraphRuntimeState | None = None,
+        register_generated_files: bool = False,
+    ):
         message = self._get_message(session=session)
         if message is None:
             return
@@ -1063,6 +1079,17 @@ class AdvancedChatAppGenerateTaskPipeline(GraphRuntimeStateSupport):
                 )
             )
         session.add_all(message_files)
+        if register_generated_files and message_files:
+            session.flush()
+            for message_file in message_files:
+                try:
+                    with session.begin_nested():
+                        register_generated_file_from_message_file(session, message_file, message=message)
+                except Exception:
+                    logger.exception(
+                        "Generated asset indexing failed without affecting message: message_file_id=%s",
+                        message_file.id,
+                    )
 
     def _seed_graph_runtime_state_from_queue_manager(self) -> None:
         """Bootstrap the cached runtime state from the queue manager when present."""

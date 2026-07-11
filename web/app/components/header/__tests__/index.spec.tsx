@@ -24,6 +24,10 @@ vi.mock('@/app/components/header/dataset-nav', () => ({
   default: createMockComponent('dataset-nav'),
 }))
 
+vi.mock('@/app/components/header/document-management-nav', () => ({
+  default: createMockComponent('document-management-nav'),
+}))
+
 vi.mock('@/app/components/header/env-nav', () => ({
   default: createMockComponent('env-nav'),
 }))
@@ -139,6 +143,7 @@ describe('Header', () => {
     expect(screen.getByRole('img', { name: /mmbai logo/i })).toBeInTheDocument()
     expect(screen.getByTestId('workplace-selector')).toBeInTheDocument()
     expect(screen.getByTestId('app-nav')).toBeInTheDocument()
+    expect(screen.getByTestId('document-management-nav')).toBeInTheDocument()
     expect(screen.getByTestId('account-dropdown')).toBeInTheDocument()
   })
 

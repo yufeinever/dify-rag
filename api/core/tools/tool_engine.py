@@ -35,6 +35,7 @@ from extensions.ext_database import db
 from graphon.file import FileTransferMethod, FileType
 from models.enums import CreatorUserRole, MessageFileBelongsTo
 from models.model import Message, MessageFile
+from services.generated_file_service import register_generated_file_from_message_file
 
 logger = logging.getLogger(__name__)
 
@@ -373,6 +374,14 @@ class ToolEngine:
             db.session.add(message_file)
             db.session.commit()
             db.session.refresh(message_file)
+            try:
+                register_generated_file_from_message_file(db.session, message_file, message=agent_message, commit=True)
+            except Exception:
+                db.session.rollback()
+                logger.exception(
+                    "Generated asset indexing failed without affecting tool reply: message_file_id=%s",
+                    message_file.id,
+                )
 
             result.append(message_file.id)
 

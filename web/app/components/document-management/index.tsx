@@ -13,7 +13,10 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import Loading from '@/app/components/base/loading'
+import GeneratedAssetsLibrary from '@/app/components/document-management/generated-files'
+import { useAppContext } from '@/context/app-context'
 import useDocumentTitle from '@/hooks/use-document-title'
+import { useHasAccessibleDatasets } from '@/hooks/use-has-accessible-datasets'
 import { DataSourceType } from '@/models/datasets'
 import Link from '@/next/link'
 import { fetchDatasets, fetchDocumentDownloadUrl, fetchDocuments } from '@/service/datasets'
@@ -155,7 +158,11 @@ const fetchDocumentManagementData = async (): Promise<DocumentManagementData> =>
 }
 
 const DocumentManagement = () => {
-  useDocumentTitle('文档管理')
+  useDocumentTitle('资产管理')
+  const { isCurrentWorkspaceDatasetOperator, isCurrentWorkspaceEditor } = useAppContext()
+  const { data: hasAccessibleDatasets = false } = useHasAccessibleDatasets()
+  const canAccessKnowledge = isCurrentWorkspaceEditor || isCurrentWorkspaceDatasetOperator || hasAccessibleDatasets
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'generated'>('generated')
   const [keyword, setKeyword] = useState('')
   const [datasetId, setDatasetId] = useState('all')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -164,6 +171,7 @@ const DocumentManagement = () => {
     queryKey: ['document-management', 'documents'],
     queryFn: fetchDocumentManagementData,
     staleTime: 30 * 1000,
+    enabled: activeTab === 'knowledge' && canAccessKnowledge,
   })
 
   const filteredDocuments = useMemo(() => {
@@ -212,10 +220,9 @@ const DocumentManagement = () => {
   }
 
   const totalDocuments = data?.documents.length ?? 0
-  const downloadableDocuments = data?.documents.filter(isDownloadable).length ?? 0
   const availableDocuments = data?.documents.filter(doc => getDocumentStatusItems(doc).some(status => ['available', 'enabled', 'completed'].includes(status))).length ?? 0
 
-  if (isLoading && !data)
+  if (activeTab === 'knowledge' && canAccessKnowledge && isLoading && !data)
     return <Loading type="app" />
 
   return (
@@ -225,46 +232,49 @@ const DocumentManagement = () => {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 text-xs font-medium text-text-tertiary">
               <RiFolderOpenLine className="size-3.5" />
-              <span>知识库</span>
+              <span>工作区</span>
               <span>/</span>
-              <span className="text-text-secondary">文档管理</span>
+              <span className="text-text-secondary">资产管理</span>
             </div>
             <div className="mt-1 flex items-center gap-3">
-              <h1 className="text-xl font-semibold text-text-primary">文档管理</h1>
-              <div className="hidden items-center gap-2 text-xs text-text-tertiary sm:flex">
-                <span>
-                  {data?.datasets.length ?? 0}
-                  {' '}
-                  个知识库
-                </span>
-                <span className="size-1 rounded-full bg-divider-regular" />
-                <span>
-                  {totalDocuments}
-                  {' '}
-                  份文档
-                </span>
-                <span className="size-1 rounded-full bg-divider-regular" />
-                <span>
-                  {downloadableDocuments}
-                  {' '}
-                  份可下载
-                </span>
-              </div>
+              <h1 className="text-xl font-semibold text-text-primary">资产管理</h1>
             </div>
           </div>
+          {activeTab === 'knowledge' && canAccessKnowledge && (
+            <button
+              type="button"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-xs font-medium text-components-button-secondary-text shadow-xs hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isFetching}
+              onClick={() => refetch()}
+            >
+              <RiRefreshLine className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              刷新
+            </button>
+          )}
+        </div>
+        <div className="mt-4 flex items-center gap-1 rounded-lg bg-background-section p-1">
           <button
             type="button"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-xs font-medium text-components-button-secondary-text shadow-xs hover:bg-components-button-secondary-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isFetching}
-            onClick={() => refetch()}
+            className={`h-8 rounded-md px-3 text-sm font-medium ${activeTab === 'generated' ? 'bg-background-default text-text-primary shadow-xs' : 'text-text-secondary hover:text-text-primary'}`}
+            onClick={() => setActiveTab('generated')}
           >
-            <RiRefreshLine className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            刷新
+            生成内容
           </button>
+          {canAccessKnowledge && (
+            <button
+              type="button"
+              className={`h-8 rounded-md px-3 text-sm font-medium ${activeTab === 'knowledge' ? 'bg-background-default text-text-primary shadow-xs' : 'text-text-secondary hover:text-text-primary'}`}
+              onClick={() => setActiveTab('knowledge')}
+            >
+              知识库文档
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-3 p-4">
+      {activeTab === 'knowledge' && canAccessKnowledge
+        ? (
+          <div className="flex min-h-0 flex-1 gap-3 p-4">
         <aside className="hidden w-[264px] shrink-0 flex-col overflow-hidden rounded-xl border-[0.5px] border-components-panel-border bg-components-panel-bg shadow-xs md:flex">
           <div className="border-b border-divider-subtle px-3 py-3">
             <div className="flex items-center justify-between gap-2">
@@ -419,6 +429,8 @@ const DocumentManagement = () => {
           </div>
         </main>
       </div>
+          )
+        : <GeneratedAssetsLibrary />}
     </div>
   )
 }

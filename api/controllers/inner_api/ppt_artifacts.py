@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 from io import BytesIO
 from pathlib import PurePath
 from zipfile import BadZipFile, ZipFile
@@ -23,10 +24,11 @@ from core.tools.signature import sign_tool_file
 from core.tools.tool_file_manager import ToolFileManager
 from extensions.ext_database import db
 from models import Account, Tenant, TenantAccountJoin
+from services.generated_file_service import register_generated_file_from_tool_file
 
-PPTX_MIME_TYPE = (
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-)
+logger = logging.getLogger(__name__)
+
+PPTX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 PPTX_MAX_BYTES = 30 * 1024 * 1024
 PPTX_MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 PPTX_MAX_ENTRIES = 2_000
@@ -34,11 +36,7 @@ PPTX_REQUIRED_ENTRIES = {"[Content_Types].xml", "ppt/presentation.xml"}
 
 
 def validate_pptx_upload(filename: str, content: bytes) -> str:
-    if (
-        not filename
-        or PurePath(filename).name != filename
-        or any(char in filename for char in ("/", "\\"))
-    ):
+    if not filename or PurePath(filename).name != filename or any(char in filename for char in ("/", "\\")):
         raise BadRequest("Invalid filename.")
     if not filename.lower().endswith(".pptx"):
         raise UnsupportedMediaType("Only .pptx files are accepted.")
@@ -53,10 +51,7 @@ def validate_pptx_upload(filename: str, content: bytes) -> str:
             names = {entry.filename for entry in entries}
             if not PPTX_REQUIRED_ENTRIES.issubset(names):
                 raise BadRequest("The file is not a valid PPTX package.")
-            if not any(
-                name.startswith("ppt/slides/slide") and name.endswith(".xml")
-                for name in names
-            ):
+            if not any(name.startswith("ppt/slides/slide") and name.endswith(".xml") for name in names):
                 raise BadRequest("The PPTX package contains no slides.")
             if len(entries) > PPTX_MAX_ENTRIES:
                 raise BadRequest("The PPTX package contains too many entries.")
@@ -73,16 +68,8 @@ def validate_pptx_upload(filename: str, content: bytes) -> str:
 def _require_artifact_api_key() -> None:
     configured_key = dify_config.PPT_ARTIFACT_API_KEY
     authorization = request.headers.get("Authorization", "")
-    supplied_key = (
-        authorization.removeprefix("Bearer ").strip()
-        if authorization.startswith("Bearer ")
-        else ""
-    )
-    if (
-        not configured_key
-        or not supplied_key
-        or not hmac.compare_digest(configured_key, supplied_key)
-    ):
+    supplied_key = authorization.removeprefix("Bearer ").strip() if authorization.startswith("Bearer ") else ""
+    if not configured_key or not supplied_key or not hmac.compare_digest(configured_key, supplied_key):
         raise NotFound()
 
 
@@ -107,9 +94,7 @@ class ModelPptxArtifactUploadApi(Resource):
             )
         )
         if tenant is None or account is None or membership is None:
-            raise Forbidden(
-                "The configured artifact owner does not belong to the tenant."
-            )
+            raise Forbidden("The configured artifact owner does not belong to the tenant.")
 
         filename = upload.filename or ""
         content = upload.stream.read(PPTX_MAX_BYTES + 1)
@@ -123,6 +108,20 @@ class ModelPptxArtifactUploadApi(Resource):
             mimetype=PPTX_MIME_TYPE,
             filename=filename,
         )
+        try:
+            register_generated_file_from_tool_file(
+                db.session,
+                tool_file,
+                owner_user_id=user_id,
+                source_kind="ppt_artifact",
+                commit=True,
+            )
+        except Exception:
+            db.session.rollback()
+            logger.exception(
+                "Generated asset indexing failed without affecting PPTX artifact: tool_file_id=%s",
+                tool_file.id,
+            )
         download_url = sign_tool_file(str(tool_file.id), ".pptx", for_external=True)
         separator = "&" if "?" in download_url else "?"
         download_url = f"{download_url}{separator}as_attachment=true"

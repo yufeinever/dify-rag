@@ -20,6 +20,7 @@ from models import (
     WorkflowRun,
 )
 from models.enums import WorkflowRunTriggeredFrom
+from services.generated_file_service import register_generated_assets_from_workflow_run
 
 logger = logging.getLogger(__name__)
 
@@ -203,8 +204,18 @@ class SQLAlchemyWorkflowExecutionRepository(WorkflowExecutionRepository):
                 db_model.created_at = existing_model.created_at
 
             # SQLAlchemy merge intelligently handles both insert and update operations
-            # based on the presence of the primary key
-            session.merge(db_model)
+            # based on the presence of the primary key.
+            persistent_model = session.merge(db_model)
+            session.flush()
+            if execution.status == WorkflowExecutionStatus.SUCCEEDED:
+                try:
+                    with session.begin_nested():
+                        register_generated_assets_from_workflow_run(session, persistent_model)
+                except Exception:
+                    logger.exception(
+                        "Generated asset indexing failed without affecting workflow run: workflow_run_id=%s",
+                        execution.id_,
+                    )
             session.commit()
 
             # Update the in-memory cache for faster subsequent lookups

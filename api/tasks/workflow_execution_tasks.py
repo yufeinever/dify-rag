@@ -14,9 +14,11 @@ from sqlalchemy import select
 
 from core.db.session_factory import session_factory
 from graphon.entities import WorkflowExecution
+from graphon.enums import WorkflowExecutionStatus
 from graphon.workflow_type_encoder import WorkflowRuntimeTypeConverter
 from models import CreatorUserRole, WorkflowRun
 from models.enums import WorkflowRunTriggeredFrom
+from services.generated_file_service import register_generated_assets_from_workflow_run
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,10 @@ def save_workflow_execution_task(
 ) -> bool:
     """
     Asynchronously save or update a workflow execution to the database.
+
+    Successful runs also index trusted final generated assets. Asset indexing is
+    isolated in a savepoint and is non-fatal so a catalog outage cannot change the
+    durable workflow result or trigger an unnecessary workflow retry.
 
     Args:
         execution_data: Serialized WorkflowExecution data
@@ -56,6 +62,7 @@ def save_workflow_execution_task(
             if existing_run:
                 # Update existing workflow run
                 _update_workflow_run_from_execution(existing_run, execution)
+                workflow_run = existing_run
                 logger.debug("Updated existing workflow run: %s", execution.id_)
             else:
                 # Create new workflow run
@@ -70,6 +77,16 @@ def save_workflow_execution_task(
                 session.add(workflow_run)
                 logger.debug("Created new workflow run: %s", execution.id_)
 
+            session.flush()
+            if execution.status == WorkflowExecutionStatus.SUCCEEDED:
+                try:
+                    with session.begin_nested():
+                        register_generated_assets_from_workflow_run(session, workflow_run)
+                except Exception:
+                    logger.exception(
+                        "Generated asset indexing failed without affecting workflow run: workflow_run_id=%s",
+                        execution.id_,
+                    )
             session.commit()
             return True
 

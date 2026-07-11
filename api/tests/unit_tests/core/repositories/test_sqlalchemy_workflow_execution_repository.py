@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -239,6 +239,42 @@ class TestSQLAlchemyWorkflowExecutionRepository:
         assert sample_workflow_execution.id_ in repo._execution_cache
         cached_model = repo._execution_cache[sample_workflow_execution.id_]
         assert cached_model.id == sample_workflow_execution.id_
+
+    @patch("core.repositories.sqlalchemy_workflow_execution_repository.register_generated_assets_from_workflow_run")
+    def test_save_indexes_assets_from_successful_workflow(
+        self, register_assets, mock_session_factory, mock_account, sample_workflow_execution
+    ):
+        repo = SQLAlchemyWorkflowExecutionRepository(
+            session_factory=mock_session_factory,
+            user=mock_account,
+            app_id="test_app",
+            triggered_from=WorkflowRunTriggeredFrom.APP_RUN,
+        )
+        session = mock_session_factory.return_value.__enter__.return_value
+        persistent_model = MagicMock(spec=WorkflowRun)
+        session.merge.return_value = persistent_model
+
+        repo.save(sample_workflow_execution)
+
+        session.flush.assert_called_once()
+        register_assets.assert_called_once_with(session, persistent_model)
+        session.commit.assert_called_once()
+
+    @patch("core.repositories.sqlalchemy_workflow_execution_repository.register_generated_assets_from_workflow_run")
+    def test_save_skips_asset_indexing_for_failed_workflow(
+        self, register_assets, mock_session_factory, mock_account, sample_workflow_execution
+    ):
+        repo = SQLAlchemyWorkflowExecutionRepository(
+            session_factory=mock_session_factory,
+            user=mock_account,
+            app_id="test_app",
+            triggered_from=WorkflowRunTriggeredFrom.APP_RUN,
+        )
+        sample_workflow_execution.status = WorkflowExecutionStatus.FAILED
+
+        repo.save(sample_workflow_execution)
+
+        register_assets.assert_not_called()
 
     def test_save_uses_execution_started_at_when_record_does_not_exist(
         self, mock_session_factory, mock_account, sample_workflow_execution

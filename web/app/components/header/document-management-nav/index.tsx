@@ -27,7 +27,7 @@ const DocumentManagementNav = ({
         ? <RiFolderOpenFill className="size-4" />
         : <RiFolderOpenLine className="size-4" />}
       <div className="ml-2 max-[1024px]:hidden">
-        文档管理
+        资产管理
       </div>
     </Link>
   )

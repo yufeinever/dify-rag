@@ -3,6 +3,7 @@ CLI command modules extracted from `commands.py`.
 """
 
 from .account import create_tenant, reset_email, reset_password
+from .generated_assets import backfill_generated_assets_command
 from .plugin import (
     extract_plugins,
     extract_unique_plugins,
@@ -37,6 +38,7 @@ from .vector import (
 __all__ = [
     "add_qdrant_index",
     "archive_workflow_runs",
+    "backfill_generated_assets_command",
     "clean_expired_messages",
     "clean_workflow_runs",
     "cleanup_orphaned_draft_variables",

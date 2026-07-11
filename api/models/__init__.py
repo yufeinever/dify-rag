@@ -115,6 +115,7 @@ from .task import CeleryTask, CeleryTaskSet
 from .tools import (
     ApiToolProvider,
     BuiltinToolProvider,
+    GeneratedFile,
     ToolConversationVariables,
     ToolFile,
     ToolLabelBinding,
@@ -209,6 +210,7 @@ __all__ = [
     "ExporleBanner",
     "ExternalKnowledgeApis",
     "ExternalKnowledgeBindings",
+    "GeneratedFile",
     "HumanInputContent",
     "HumanInputForm",
     "IconType",
