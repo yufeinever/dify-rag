@@ -893,7 +893,12 @@ class OpenAILargeLanguageModel(_CommonOpenAI, LargeLanguageModel):
                 params["text"] = {"format": {"type": response_format}}
 
         params.pop("json_schema", None)
-        # verbosity stays as top-level param (already supported by Responses API)
+
+        # The Responses SDK accepts verbosity under text, not as a top-level argument.
+        verbosity = params.pop("verbosity", None)
+        if verbosity:
+            text_config = params.setdefault("text", {})
+            text_config["verbosity"] = verbosity
 
         if user:
             params["user"] = user

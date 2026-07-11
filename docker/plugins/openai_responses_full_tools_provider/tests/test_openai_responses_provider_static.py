@@ -114,6 +114,13 @@ class OpenAIResponsesProviderStaticTests(unittest.TestCase):
         self.assertIn('params.pop("expose_generated_pptx", None)', source)
         self.assertIn("publish_generated_pptx", source)
 
+    def test_responses_verbosity_is_nested_under_text(self):
+        source = (ROOT / "models" / "llm" / "llm.py").read_text()
+        ast.parse(source)
+        self.assertIn('verbosity = params.pop("verbosity", None)', source)
+        self.assertIn('text_config = params.setdefault("text", {})', source)
+        self.assertIn('text_config["verbosity"] = verbosity', source)
+
     def test_responses_stream_parser_guards_blank_tool_names(self):
         source = (ROOT / "models" / "llm" / "llm.py").read_text()
         parser_source = (ROOT / "models" / "llm" / "responses_tool_parser.py").read_text()
