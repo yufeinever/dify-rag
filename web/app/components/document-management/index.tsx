@@ -13,7 +13,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import Loading from '@/app/components/base/loading'
-import GeneratedAssetsLibrary from '@/app/components/document-management/generated-files'
+import GeneratedAssetsLibrary from '@/app/components/document-management/generated-assets-v2'
 import { useAppContext } from '@/context/app-context'
 import useDocumentTitle from '@/hooks/use-document-title'
 import { useHasAccessibleDatasets } from '@/hooks/use-has-accessible-datasets'

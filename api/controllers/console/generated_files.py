@@ -14,17 +14,22 @@ from uuid import UUID
 from flask import Response, request
 from flask_restx import Resource
 from pydantic import BaseModel, Field, field_validator
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import BadRequest, NotFound
 
 from controllers.common.fields import SimpleResultResponse
 from controllers.common.schema import query_params_from_model, register_response_schema_models, register_schema_models
 from controllers.console import console_ns
 from controllers.console.datasets.error import InvalidActionError
-from controllers.console.wraps import account_initialization_required, setup_required
+from controllers.console.wraps import account_initialization_required, is_admin_or_owner_required, setup_required
 from extensions.ext_database import db
 from fields.base import ResponseModel
 from libs.helper import dump_response, uuid_value
 from libs.login import current_account_with_tenant, login_required
+from services.generated_asset_identity_service import (
+    generated_asset_identity_context,
+    list_asset_identities,
+    update_asset_identities,
+)
 from services.generated_file_service import (
     backfill_generated_files_for_user,
     build_generated_file_download_url,
@@ -50,6 +55,11 @@ class GeneratedFileListQuery(BaseModel):
     created_before: datetime | None = None
     include_all: bool = True
     sort: str = "-created_at"
+    scope: str | None = Field(default=None, pattern="^(my|all|unassigned)$")
+    person_ids: str | None = None
+    identity_ids: str | None = None
+    channel_types: str | None = None
+    include_test_data: bool = False
 
     @field_validator("source_app_id", "source_app_ids")
     @classmethod
@@ -65,7 +75,7 @@ class GeneratedFileListQuery(BaseModel):
                 values.append(uuid_value(item))
         return ",".join(values) or None
 
-    @field_validator("owner_user_ids")
+    @field_validator("owner_user_ids", "person_ids", "identity_ids")
     @classmethod
     def validate_owner_filter(cls, value: str | None) -> str | None:
         if not value:
@@ -87,6 +97,21 @@ class GeneratedFileListQuery(BaseModel):
 
 class GeneratedAssetFacetItem(ResponseModel):
     id: str
+
+
+class GeneratedAssetIdentityItem(ResponseModel):
+    id: str
+    name: str
+    channel_type: str
+    session_hint: str
+    account_id: str | None
+    account_name: str | None
+    is_bound: bool
+    is_test: bool
+    asset_count: int
+    last_used_at: int | None
+    app_names: list[str]
+
     name: str
     count: int
 
@@ -96,6 +121,9 @@ class GeneratedAssetFacets(ResponseModel):
     apps: list[GeneratedAssetFacetItem]
     file_types: list[GeneratedAssetFacetItem]
     source_kinds: list[GeneratedAssetFacetItem]
+    people: list[GeneratedAssetFacetItem] = []
+    identities: list[GeneratedAssetFacetItem] = []
+    channels: list[GeneratedAssetFacetItem] = []
     storage_types: list[GeneratedAssetFacetItem]
 
 
@@ -125,6 +153,10 @@ class GeneratedAssetItem(ResponseModel):
     source_url: str | None
     thumbnail_url: str | None
     asset_metadata: dict[str, Any]
+    person_name: str | None = None
+    identity_name: str | None = None
+    channel_type: str | None = None
+    identity_bound: bool = False
     preview_kind: str
     preview_url: str
     download_url: str
@@ -142,6 +174,23 @@ class GeneratedAssetListResponse(ResponseModel):
 
 class GeneratedAssetPreviewResponse(GeneratedAssetItem):
     mode: str
+
+
+class GeneratedAssetIdentityAccount(ResponseModel):
+    id: str
+    name: str
+    email: str
+
+
+class GeneratedAssetIdentityListResponse(ResponseModel):
+    identities: list[GeneratedAssetIdentityItem]
+    accounts: list[GeneratedAssetIdentityAccount]
+
+
+class GeneratedAssetIdentityUpdateRequest(BaseModel):
+    end_user_ids: list[str] = Field(min_length=1, max_length=100)
+    account_id: str | None = None
+    is_test: bool | None = None
     original_file_type: str
 
 
@@ -155,6 +204,7 @@ register_response_schema_models(
     GeneratedAssetListResponse,
     GeneratedAssetPreviewResponse,
     GeneratedAssetDownloadResponse,
+    GeneratedAssetIdentityListResponse,
     SimpleResultResponse,
 )
 
@@ -187,6 +237,11 @@ class GeneratedFileListApi(Resource):
             created_before=query.created_before,
             include_all=query.include_all,
             sort=query.sort,
+            scope=query.scope,
+            person_ids=query.person_ids,
+            identity_ids=query.identity_ids,
+            channel_types=query.channel_types,
+            include_test_data=query.include_test_data,
         )
         return dump_response(GeneratedAssetListResponse, result)
 
@@ -199,11 +254,10 @@ class GeneratedFileApi(Resource):
     @account_initialization_required
     def get(self, file_id: UUID):
         generated_file = _get_console_asset(file_id)
-        result = serialize_generated_asset(
-            generated_file,
-            source_app_name=None,
-            owner_name=None,
+        identity = generated_asset_identity_context(
+            db.session, tenant_id=generated_file.tenant_id, owner_user_id=generated_file.owner_user_id
         )
+        result = serialize_generated_asset(generated_file, source_app_name=None, **identity)
         return dump_response(GeneratedAssetPreviewResponse, result)
 
     @setup_required
@@ -247,6 +301,7 @@ class GeneratedFileConvertedPreviewApi(Resource):
         generated_file = _get_console_asset(file_id)
         try:
             pdf_path = convert_generated_file_to_pdf(db.session, generated_file)
+
         except (FileNotFoundError, RuntimeError, ValueError) as exc:
             raise InvalidActionError(str(exc)) from exc
 
@@ -257,6 +312,40 @@ class GeneratedFileConvertedPreviewApi(Resource):
         preview_name = f"{Path(generated_file.name).stem or 'generated-file'}.pdf"
         response.headers["Content-Disposition"] = f"inline; filename*=UTF-8''{quote(preview_name)}"
         return response
+
+
+@console_ns.route("/generated-assets/identities")
+class GeneratedAssetIdentitiesApi(Resource):
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def get(self):
+        _, tenant_id = current_account_with_tenant()
+        include_test = request.args.get("include_test", "false").lower() == "true"
+        result = list_asset_identities(db.session, tenant_id=tenant_id, include_test=include_test)
+        return dump_response(GeneratedAssetIdentityListResponse, result)
+
+    @setup_required
+    @login_required
+    @account_initialization_required
+    @is_admin_or_owner_required
+    def post(self):
+        current_user, tenant_id = current_account_with_tenant()
+        payload = GeneratedAssetIdentityUpdateRequest.model_validate(request.get_json(silent=True) or {})
+        try:
+            update_asset_identities(
+                db.session,
+                tenant_id=tenant_id,
+                actor_id=current_user.id,
+                actor_ip=request.remote_addr or "unknown",
+                end_user_ids=[uuid_value(value) for value in payload.end_user_ids],
+                account_id=uuid_value(payload.account_id) if payload.account_id else None,
+                is_test=payload.is_test,
+            )
+        except ValueError as exc:
+            raise BadRequest(str(exc)) from exc
+        return {"result": "success"}
 
 
 def _get_console_asset(file_id: UUID):

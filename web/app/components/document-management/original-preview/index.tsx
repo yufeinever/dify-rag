@@ -2,7 +2,17 @@
 
 import type { DocumentOfficePreviewConfigResponse } from '@/service/datasets'
 import type { GeneratedAssetPreviewConfigResponse } from '@/service/generated-files'
-import { RiDownload2Line, RiErrorWarningLine, RiFileList3Line, RiRefreshLine } from '@remixicon/react'
+import {
+  RiArrowLeftSLine,
+  RiArrowRightSLine,
+  RiCloseLine,
+  RiDownload2Line,
+  RiFullscreenExitLine,
+  RiFullscreenLine,
+  RiErrorWarningLine,
+  RiFileList3Line,
+  RiRefreshLine,
+} from '@remixicon/react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import Loading from '@/app/components/base/loading'
@@ -221,7 +231,7 @@ const ImagePreview = ({ data, previewUrl }: { data: PreviewData, previewUrl: str
   )
 }
 
-const NativePreview = ({ data }: { data: PreviewData }) => {
+export const NativePreview = ({ data }: { data: PreviewData }) => {
   if (data.preview_kind === 'converted_pdf')
     return <ConvertedPdfPreview key={data.preview_url} data={data} />
 
@@ -267,7 +277,7 @@ const NativePreview = ({ data }: { data: PreviewData }) => {
   )
 }
 
-const previewLabel = (data: PreviewData) => {
+export const previewLabel = (data: PreviewData) => {
   if (data.preview_kind === 'converted_pdf')
     return 'PDF 转换预览'
   if (data.file_type === 'video')
@@ -281,12 +291,32 @@ const previewLabel = (data: PreviewData) => {
   return '原生在线预览'
 }
 
-const DocumentOriginalPreview = () => {
+type DocumentOriginalPreviewProps = {
+  generatedAssetId?: string
+  onClose?: () => void
+  onPrevious?: () => void
+  onNext?: () => void
+  hasPrevious?: boolean
+  onToggleFullscreen?: () => void
+  isFullscreen?: boolean
+  hasNext?: boolean
+}
+
+const DocumentOriginalPreview = ({
+  generatedAssetId: assetIdProp,
+  onClose,
+  onPrevious,
+  onNext,
+  onToggleFullscreen,
+  isFullscreen,
+  hasPrevious,
+  hasNext,
+}: DocumentOriginalPreviewProps = {}) => {
   useDocumentTitle('资产预览')
   const searchParams = useSearchParams()
   const datasetId = searchParams.get('datasetId') || ''
   const documentId = searchParams.get('documentId') || ''
-  const generatedAssetId = searchParams.get('generatedAssetId') || searchParams.get('generatedFileId') || ''
+  const generatedAssetId = assetIdProp || searchParams.get('generatedAssetId') || searchParams.get('generatedFileId') || ''
 
   const { data, isLoading, refetch, isFetching, error } = useQuery<PreviewData>({
     queryKey: ['asset-preview', datasetId, documentId, generatedAssetId],
@@ -333,21 +363,52 @@ const DocumentOriginalPreview = () => {
           <div className="truncate text-sm font-semibold text-text-primary" title={data.name}>{data.name}</div>
           <div className="text-xs text-text-tertiary">{previewLabel(data)}</div>
         </div>
-        <button
-          type="button"
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-sm font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover"
-          onClick={() => downloadUrl({
-            url: data.download_url,
-            fileName: data.name,
-            target: data.mode === 'remote' ? '_blank' : undefined,
-          })}
-        >
-          <RiDownload2Line className="size-4" />
-          下载
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onPrevious && (
+            <button type="button" title="上一条" aria-label="上一条" disabled={!hasPrevious} className="flex size-9 items-center justify-center rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg text-components-button-secondary-text disabled:opacity-40" onClick={onPrevious}>
+              <RiArrowLeftSLine className="size-5" />
+            </button>
+          )}
+          {onNext && (
+            <button type="button" title="下一条" aria-label="下一条" disabled={!hasNext} className="flex size-9 items-center justify-center rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg text-components-button-secondary-text disabled:opacity-40" onClick={onNext}>
+              <RiArrowRightSLine className="size-5" />
+            </button>
+          )}
+          {onToggleFullscreen && (
+            <button type="button" title={isFullscreen ? '退出全屏' : '全屏预览'} aria-label={isFullscreen ? '退出全屏' : '全屏预览'} className="flex size-9 items-center justify-center rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg text-components-button-secondary-text" onClick={onToggleFullscreen}>
+              {isFullscreen ? <RiFullscreenExitLine className="size-4" /> : <RiFullscreenLine className="size-4" />}
+            </button>
+          )}
+          <button
+            type="button"
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-components-button-secondary-border bg-components-button-secondary-bg px-3 text-sm font-medium text-components-button-secondary-text hover:bg-components-button-secondary-bg-hover"
+            onClick={() => downloadUrl({
+              url: data.download_url,
+              fileName: data.name,
+              target: data.mode === 'remote' ? '_blank' : undefined,
+            })}
+          >
+            <RiDownload2Line className="size-4" />
+            下载
+          </button>
+          {onClose && (
+            <button type="button" title="关闭" aria-label="关闭" className="flex size-9 items-center justify-center rounded-lg text-text-secondary hover:bg-state-base-hover" onClick={onClose}>
+              <RiCloseLine className="size-5" />
+            </button>
+          )}
+        </div>
       </div>
-      <div className="min-h-0 flex-1">
-        <NativePreview data={data} />
+      <div className="flex min-h-0 flex-1">
+        <div className="min-w-0 flex-1"><NativePreview data={data} /></div>
+        {generatedAssetId && (
+          <aside className="hidden w-64 shrink-0 space-y-4 overflow-auto border-l border-divider-subtle bg-background-default p-4 lg:block">
+            <div><div className="text-xs text-text-tertiary">类型</div><div className="mt-1 text-sm text-text-primary">{data.file_type}</div></div>
+            <div><div className="text-xs text-text-tertiary">大小</div><div className="mt-1 text-sm text-text-primary">{data.size > 0 ? `${(data.size / 1024 / 1024).toFixed(2)} MB` : '-'}</div></div>
+            <div><div className="text-xs text-text-tertiary">人员</div><div className="mt-1 text-sm text-text-primary">{(data as GeneratedAssetPreviewConfigResponse).person_name || data.owner_name || '未归属'}</div></div>
+            <div><div className="text-xs text-text-tertiary">渠道身份</div><div className="mt-1 break-words text-sm text-text-primary">{(data as GeneratedAssetPreviewConfigResponse).identity_name || '后台账号'}</div></div>
+            <div><div className="text-xs text-text-tertiary">应用</div><div className="mt-1 text-sm text-text-primary">{data.source_app_name || '未知应用'}</div></div>
+          </aside>
+        )}
       </div>
     </div>
   )

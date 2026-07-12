@@ -115,6 +115,7 @@ from .task import CeleryTask, CeleryTaskSet
 from .tools import (
     ApiToolProvider,
     BuiltinToolProvider,
+    GeneratedAssetIdentityBinding,
     GeneratedFile,
     ToolConversationVariables,
     ToolFile,

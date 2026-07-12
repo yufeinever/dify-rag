@@ -24,7 +24,7 @@ from uuid import uuid4
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from core.helper import ssrf_proxy
 from core.tools.signature import sign_tool_file
@@ -33,13 +33,18 @@ from graphon.file import FileTransferMethod
 from models.account import Account
 from models.enums import MessageFileBelongsTo
 from models.model import App, EndUser, Message, MessageFile
-from models.tools import GeneratedFile, ToolFile
+from models.tools import GeneratedAssetIdentityBinding, GeneratedFile, ToolFile
 from models.workflow import WorkflowRun
 from services.generated_asset_discovery import (
     GeneratedAssetCandidate,
     extract_workflow_asset_candidates,
     extract_workflow_tool_file_ids,
     trusted_remote_asset_url,
+)
+from services.generated_asset_identity_service import (
+    bound_identity_ids,
+    channel_type_for_end_user,
+    identity_display_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -359,13 +364,38 @@ def list_generated_files(
     created_before: datetime | None = None,
     include_all: bool = True,
     sort: str = "-created_at",
+    scope: str | None = None,
+    person_ids: str | None = None,
+    identity_ids: str | None = None,
+    channel_types: str | None = None,
+    include_test_data: bool = False,
 ) -> dict[str, Any]:
     """List console-visible assets with role-aware tenant and owner scoping."""
 
-    include_all = include_all and current_user.is_admin_or_owner
+    if scope is None:
+        scope = "all" if include_all else "my"
+    if not current_user.is_admin_or_owner:
+        scope = "my"
     filters: list[Any] = [GeneratedFile.tenant_id == tenant_id, GeneratedFile.deleted_at.is_(None)]
-    if not include_all:
-        filters.append(GeneratedFile.owner_user_id == current_user.id)
+    my_owner_ids = [current_user.id, *bound_identity_ids(session, tenant_id=tenant_id, account_id=current_user.id)]
+    if scope == "my":
+        filters.append(GeneratedFile.owner_user_id.in_(my_owner_ids))
+    elif scope == "unassigned":
+        bound_end_users = select(GeneratedAssetIdentityBinding.end_user_id).where(
+            GeneratedAssetIdentityBinding.tenant_id == tenant_id,
+            GeneratedAssetIdentityBinding.account_id.is_not(None),
+        )
+        filters.append(
+            GeneratedFile.owner_user_id.in_(
+                select(EndUser.id).where(EndUser.tenant_id == tenant_id, EndUser.id.not_in(bound_end_users))
+            )
+        )
+    if not include_test_data:
+        test_identity_ids = select(GeneratedAssetIdentityBinding.end_user_id).where(
+            GeneratedAssetIdentityBinding.tenant_id == tenant_id,
+            GeneratedAssetIdentityBinding.is_test.is_(True),
+        )
+        filters.append(GeneratedFile.owner_user_id.not_in(test_identity_ids))
     filters.extend(
         _optional_asset_filters(
             keyword=keyword,
@@ -383,6 +413,39 @@ def list_generated_files(
         filters.append(GeneratedFile.owner_user_id.in_(owner_ids))
 
     app_ids = _split_filter_values(source_app_ids)
+    selected_identity_ids = _split_filter_values(identity_ids)
+    if selected_identity_ids:
+        filters.append(GeneratedFile.owner_user_id.in_(selected_identity_ids))
+    selected_person_ids = _split_filter_values(person_ids)
+    if selected_person_ids:
+        linked_identity_ids = select(GeneratedAssetIdentityBinding.end_user_id).where(
+            GeneratedAssetIdentityBinding.tenant_id == tenant_id,
+            GeneratedAssetIdentityBinding.account_id.in_(selected_person_ids),
+        )
+        filters.append(
+            or_(
+                GeneratedFile.owner_user_id.in_(selected_person_ids),
+                GeneratedFile.owner_user_id.in_(linked_identity_ids),
+            )
+        )
+    selected_channels = _split_filter_values(channel_types)
+    if selected_channels:
+        channel_identity_ids = select(GeneratedAssetIdentityBinding.end_user_id).where(
+            GeneratedAssetIdentityBinding.tenant_id == tenant_id,
+            GeneratedAssetIdentityBinding.channel_type.in_(selected_channels),
+        )
+        raw_channel_conditions = []
+        for channel in selected_channels:
+            if channel == "webapp":
+                raw_channel_conditions.append(EndUser.type == "web-app")
+            elif channel == "service-api":
+                raw_channel_conditions.append(EndUser.type == "service-api")
+            else:
+                raw_channel_conditions.append(EndUser.session_id.ilike(f"{channel}:%"))
+        raw_channel_ids = select(EndUser.id).where(EndUser.tenant_id == tenant_id, or_(*raw_channel_conditions))
+        filters.append(
+            or_(GeneratedFile.owner_user_id.in_(channel_identity_ids), GeneratedFile.owner_user_id.in_(raw_channel_ids))
+        )
     if source_app_id:
         app_ids.append(source_app_id)
     app_ids = list(dict.fromkeys(app_ids))
@@ -451,7 +514,8 @@ def get_generated_file_for_user(
         GeneratedFile.deleted_at.is_(None),
     ]
     if not current_user.is_admin_or_owner:
-        filters.append(GeneratedFile.owner_user_id == current_user.id)
+        owner_ids = [current_user.id, *bound_identity_ids(session, tenant_id=tenant_id, account_id=current_user.id)]
+        filters.append(GeneratedFile.owner_user_id.in_(owner_ids))
     return session.scalar(select(GeneratedFile).where(*filters).limit(1))
 
 
@@ -633,7 +697,14 @@ def soft_delete_generated_file(session: Session, generated_file: GeneratedFile) 
 
 
 def serialize_generated_asset(
-    generated_file: GeneratedFile, *, source_app_name: str | None, owner_name: str | None
+    generated_file: GeneratedFile,
+    *,
+    source_app_name: str | None,
+    owner_name: str | None,
+    person_name: str | None = None,
+    identity_name: str | None = None,
+    channel_type: str | None = None,
+    identity_bound: bool = False,
 ) -> dict[str, Any]:
     """Serialize the stable console and Service API asset representation."""
 
@@ -658,6 +729,10 @@ def serialize_generated_asset(
         else None,
         "owner_user_id": str(generated_file.owner_user_id),
         "owner_name": owner_name,
+        "person_name": person_name or owner_name,
+        "identity_name": identity_name,
+        "channel_type": channel_type,
+        "identity_bound": identity_bound,
         "storage_type": generated_file.storage_type,
         "source_kind": generated_file.source_kind,
         "source_url": generated_file.source_url,
@@ -679,6 +754,7 @@ def _execute_asset_list(
     limit: int,
     sort: str,
 ) -> dict[str, Any]:
+    PersonAccount = aliased(Account)
     order_column = GeneratedFile.created_at.asc() if sort == "created_at" else GeneratedFile.created_at.desc()
     total = session.scalar(select(func.count()).select_from(GeneratedFile).where(*filters)) or 0
     total_size = (
@@ -695,10 +771,16 @@ def _execute_asset_list(
         .all()
     )
     rows = session.execute(
-        select(GeneratedFile, App.name, Account.name, EndUser.session_id, EndUser.type, EndUser.name)
+        select(GeneratedFile, App.name, Account.name, EndUser, GeneratedAssetIdentityBinding, PersonAccount.name)
         .outerjoin(App, App.id == GeneratedFile.source_app_id)
         .outerjoin(Account, Account.id == GeneratedFile.owner_user_id)
         .outerjoin(EndUser, EndUser.id == GeneratedFile.owner_user_id)
+        .outerjoin(
+            GeneratedAssetIdentityBinding,
+            (GeneratedAssetIdentityBinding.tenant_id == GeneratedFile.tenant_id)
+            & (GeneratedAssetIdentityBinding.end_user_id == EndUser.id),
+        )
+        .outerjoin(PersonAccount, PersonAccount.id == GeneratedAssetIdentityBinding.account_id)
         .where(*filters)
         .order_by(order_column, GeneratedFile.id.desc())
         .offset((page - 1) * limit)
@@ -712,10 +794,16 @@ def _execute_asset_list(
                 owner_name=_owner_display_name(
                     owner_id=str(row[0].owner_user_id),
                     account_name=row[2],
-                    end_user_session_id=row[3],
-                    end_user_type=row[4],
-                    end_user_name=row[5],
+                    end_user_session_id=row[3].session_id if row[3] else None,
+                    end_user_type=row[3].type if row[3] else None,
+                    end_user_name=row[3].name if row[3] else None,
                 ),
+                person_name=row[5] or row[2],
+                identity_name=identity_display_name(row[3], row[4]) if row[3] else None,
+                channel_type=(row[4].channel_type if row[4] else channel_type_for_end_user(row[3]))
+                if row[3]
+                else "console",
+                identity_bound=bool(row[4] and row[4].account_id),
             )
             for row in rows
         ],
@@ -739,7 +827,9 @@ def _optional_asset_filters(
 ) -> list[Any]:
     filters: list[Any] = []
     if keyword:
-        filters.append(GeneratedFile.name.ilike(f"%{keyword.strip()}%"))
+        search = f"%{keyword.strip()}%"
+        matching_apps = select(App.id).where(App.name.ilike(search))
+        filters.append(or_(GeneratedFile.name.ilike(search), GeneratedFile.source_app_id.in_(matching_apps)))
     if file_type and file_type != "all":
         filters.append(GeneratedFile.file_type == file_type)
     if source_kind and source_kind != "all":
@@ -952,6 +1042,7 @@ def _split_filter_values(value: str | None) -> list[str]:
 
 
 def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[str, list[dict[str, Any]]]:
+    person_account = aliased(Account)
     account_rows = session.execute(
         select(
             GeneratedFile.owner_user_id,
@@ -967,6 +1058,23 @@ def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[s
         .group_by(GeneratedFile.owner_user_id, Account.name, EndUser.session_id, EndUser.type, EndUser.name)
         .order_by(func.count(GeneratedFile.id).desc(), Account.name.asc(), EndUser.session_id.asc())
     ).all()
+    person_rows = session.execute(
+        select(
+            func.coalesce(GeneratedAssetIdentityBinding.account_id, Account.id),
+            func.coalesce(person_account.name, Account.name),
+            func.count(GeneratedFile.id),
+        )
+        .outerjoin(Account, Account.id == GeneratedFile.owner_user_id)
+        .outerjoin(
+            GeneratedAssetIdentityBinding,
+            GeneratedAssetIdentityBinding.end_user_id == GeneratedFile.owner_user_id,
+        )
+        .outerjoin(person_account, person_account.id == GeneratedAssetIdentityBinding.account_id)
+        .where(*filters)
+        .group_by(GeneratedAssetIdentityBinding.account_id, Account.id, person_account.name, Account.name)
+        .having(func.coalesce(GeneratedAssetIdentityBinding.account_id, Account.id).is_not(None))
+        .order_by(func.count(GeneratedFile.id).desc())
+    ).all()
     app_rows = session.execute(
         select(GeneratedFile.source_app_id, App.name, func.count(GeneratedFile.id))
         .outerjoin(App, App.id == GeneratedFile.source_app_id)
@@ -975,6 +1083,11 @@ def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[s
         .order_by(func.count(GeneratedFile.id).desc(), App.name.asc())
     ).all()
     return {
+        "people": [
+            {"id": str(person_id), "name": name or "未命名账号", "count": count}
+            for person_id, name, count in person_rows
+        ],
+        "identities": [],
         "accounts": [
             {
                 "id": str(owner_id),
@@ -997,7 +1110,46 @@ def _build_generated_file_facets(session: Session, filters: list[Any]) -> dict[s
         "file_types": _simple_facet(session, GeneratedFile.file_type, filters),
         "source_kinds": _simple_facet(session, GeneratedFile.source_kind, filters),
         "storage_types": _simple_facet(session, GeneratedFile.storage_type, filters),
+        "channels": [
+            {"id": channel, "name": label, "count": count}
+            for channel, label, count in _channel_facets(session, filters)
+        ],
     }
+
+
+def _channel_facets(session: Session, filters: list[Any]) -> list[tuple[str, str, int]]:
+    rows = session.execute(
+        select(
+            EndUser.type,
+            EndUser.session_id,
+            GeneratedAssetIdentityBinding.channel_type,
+            func.count(GeneratedFile.id),
+        )
+        .join(EndUser, EndUser.id == GeneratedFile.owner_user_id)
+        .outerjoin(
+            GeneratedAssetIdentityBinding,
+            GeneratedAssetIdentityBinding.end_user_id == EndUser.id,
+        )
+        .where(*filters)
+        .group_by(EndUser.type, EndUser.session_id, GeneratedAssetIdentityBinding.channel_type)
+    ).all()
+    labels = {
+        "service-api": "Service API",
+        "webapp": "WebApp",
+        "feishu": "飞书",
+        "openclaw": "OpenClaw",
+        "workbuddy": "WorkBuddy",
+        "mmb-enterprise-mcp": "企业 MCP",
+    }
+    counts: dict[str, int] = {}
+    for end_user_type, session_id, bound_channel, count in rows:
+        channel = bound_channel
+        if not channel:
+            channel = channel_type_for_end_user(
+                type("Identity", (), {"type": end_user_type, "session_id": session_id})()
+            )
+        counts[channel] = counts.get(channel, 0) + count
+    return [(value, labels.get(value, value), count) for value, count in sorted(counts.items())]
 
 
 def _simple_facet(session: Session, column: Any, filters: list[Any]) -> list[dict[str, Any]]:

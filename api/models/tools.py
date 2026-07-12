@@ -556,6 +556,40 @@ class GeneratedFile(TypeBase):
     deleted_at: Mapped[datetime | None] = mapped_column(sa.DateTime, nullable=True, default=None)
 
 
+class GeneratedAssetIdentityBinding(TypeBase):
+    """Console-only mapping from a channel EndUser identity to a workspace account."""
+
+    __tablename__ = "generated_asset_identity_bindings"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="generated_asset_identity_binding_pkey"),
+        sa.UniqueConstraint("tenant_id", "end_user_id", name="generated_asset_identity_binding_tenant_end_user_unique"),
+        sa.Index("generated_asset_identity_binding_account_idx", "tenant_id", "account_id"),
+        sa.Index("generated_asset_identity_binding_channel_idx", "tenant_id", "channel_type"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        StringUUID, insert_default=lambda: str(uuid4()), default_factory=lambda: str(uuid4()), init=False
+    )
+    tenant_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    end_user_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    created_by: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    updated_by: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    account_id: Mapped[str | None] = mapped_column(StringUUID, nullable=True, default=None)
+    channel_type: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown")
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    is_test: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("false"), default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime, nullable=False, server_default=func.current_timestamp(), init=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        init=False,
+    )
+
+
 @deprecated
 class DeprecatedPublishedAppTool(TypeBase):
     """
