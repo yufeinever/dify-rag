@@ -97,6 +97,8 @@ class GeneratedFileListQuery(BaseModel):
 
 class GeneratedAssetFacetItem(ResponseModel):
     id: str
+    name: str
+    count: int
 
 
 class GeneratedAssetIdentityItem(ResponseModel):
@@ -111,9 +113,6 @@ class GeneratedAssetIdentityItem(ResponseModel):
     asset_count: int
     last_used_at: int | None
     app_names: list[str]
-
-    name: str
-    count: int
 
 
 class GeneratedAssetFacets(ResponseModel):

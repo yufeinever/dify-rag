@@ -1,9 +1,34 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from controllers.console.generated_files import GeneratedAssetFacetItem, GeneratedAssetIdentityItem
 from models.tools import GeneratedFile
 from services.generated_asset_identity_service import channel_type_for_end_user, identity_display_name
 from services.generated_file_service import list_generated_files, serialize_generated_asset
+
+
+def test_generated_asset_facet_response_keeps_label_and_count():
+    facet = GeneratedAssetFacetItem.model_validate({"id": "app-id", "name": "MMB智囊", "count": 12})
+    assert facet.model_dump() == {"id": "app-id", "name": "MMB智囊", "count": 12}
+
+
+def test_generated_asset_identity_response_uses_asset_count():
+    identity = GeneratedAssetIdentityItem.model_validate(
+        {
+            "id": "identity-id",
+            "name": "飞书 · ou_a...1234",
+            "channel_type": "feishu",
+            "session_hint": "飞书 · ou_a...1234",
+            "account_id": None,
+            "account_name": None,
+            "is_bound": False,
+            "is_test": False,
+            "asset_count": 3,
+            "last_used_at": None,
+            "app_names": ["MMB智囊"],
+        }
+    )
+    assert identity.asset_count == 3
 
 
 def test_channel_type_detects_namespaced_service_identity():
