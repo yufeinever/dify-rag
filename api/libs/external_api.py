@@ -89,6 +89,11 @@ def register_external_error_handlers(api: Api):
     def handle_general_exception(e: Exception):
         got_request_exception.send(current_app, exception=e)
 
+        current_app.logger.error(
+            "Unhandled API exception",
+            exc_info=(type(e), e, e.__traceback__),
+        )
+
         status_code = 500
         data: dict[str, Any] = getattr(e, "data", {"message": http_status_message(status_code)})
 
